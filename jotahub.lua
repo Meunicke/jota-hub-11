@@ -4,7 +4,6 @@ local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local GuiService = game:GetService("GuiService")
 
 local player = Players.LocalPlayer
 
@@ -12,8 +11,8 @@ local player = Players.LocalPlayer
 local CONFIG = {
     reach = 10,
     magnetStrength = 0,
-    showReachSphere = true,      -- Controla visibilidade da esfera
-    showCenterSphere = true,     -- NOVO: Controla a esfera central da hitbox
+    showReachSphere = true,
+    showCenterSphere = true,
     autoSecondTouch = true,
     scanCooldown = 1.5,
     ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ" },
@@ -36,7 +35,7 @@ end
 local function notify(txt, t)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "JOTA HUB V10",
+            Title = "Cadu Hub",
             Text = txt,
             Duration = t or 2
         })
@@ -74,19 +73,17 @@ local function toggleCenterSphere()
     if reachSphere then
         if CONFIG.showCenterSphere then
             reachSphere.Transparency = 0.8
-            reachSphere.CanCollide = false
         else
             reachSphere.Transparency = 1
         end
     end
     
-    -- Atualiza texto do botão
     if sphereToggleBtn then
-        sphereToggleBtn.Text = CONFIG.showCenterSphere and "🔵 ESFERA: ON" or "⚫ ESFERA: OFF"
-        sphereToggleBtn.BackgroundColor3 = CONFIG.showCenterSphere and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(80, 80, 80)
+        sphereToggleBtn.Text = CONFIG.showCenterSphere and "ESFERA ON" or "ESFERA OFF"
+        sphereToggleBtn.BackgroundColor3 = CONFIG.showCenterSphere and Color3.fromRGB(0, 255, 136) or Color3.fromRGB(255, 50, 50)
     end
     
-    notify(CONFIG.showCenterSphere and "🔵 Esfera central VISÍVEL" or "⚫ Esfera central ESCONDIDA", 1.5)
+    notify(CONFIG.showCenterSphere and "Esfera visível" or "Esfera escondida", 1.5)
 end
 
 -- REACH SPHERE
@@ -99,13 +96,13 @@ local function updateReachSphere()
 
     if not reachSphere then
         reachSphere = Instance.new("Part")
-        reachSphere.Name = "JOTAReachSphere"
+        reachSphere.Name = "CaduReachSphere"
         reachSphere.Shape = Enum.PartType.Ball
         reachSphere.Anchored = true
         reachSphere.CanCollide = false
         reachSphere.Transparency = CONFIG.showCenterSphere and 0.8 or 1
         reachSphere.Material = Enum.Material.ForceField
-        reachSphere.Color = Color3.fromRGB(0,85,255)
+        reachSphere.Color = Color3.fromRGB(0, 255, 136)
         reachSphere.Parent = Workspace
 
         RunService.RenderStepped:Connect(function()
@@ -119,101 +116,192 @@ local function updateReachSphere()
     reachSphere.Size = Vector3.new(CONFIG.reach*2, CONFIG.reach*2, CONFIG.reach*2)
 end
 
--- GUI PRINCIPAL (PC)
+-- GUI PRINCIPAL - ESTILO NOVO
 local function buildMainGUI()
     if gui then return end
 
     gui = Instance.new("ScreenGui")
-    gui.Name = "JOTAHUBGUI"
+    gui.Name = "CaduHubGUI"
     gui.ResetOnSpawn = false
     gui.Parent = player:WaitForChild("PlayerGui")
 
+    -- Frame principal com fundo escuro estilo cyber
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.fromScale(0.22, 0.22)
+    mainFrame.Size = UDim2.fromScale(0.22, 0.22) -- Mesmo tamanho
     mainFrame.Position = UDim2.fromScale(0.02, 0.05)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(0,0,0)
-    mainFrame.BackgroundTransparency = 0.35
+    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35) -- Fundo escuro azulado
+    mainFrame.BackgroundTransparency = 0.1
     mainFrame.BorderSizePixel = 0
     mainFrame.Parent = gui
 
-    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0.1,0)
+    -- Borda neon
+    local stroke = Instance.new("UIStroke", mainFrame)
+    stroke.Color = Color3.fromRGB(0, 255, 136) -- Verde neon
+    stroke.Thickness = 2
 
+    -- Canto arredondado
+    local corner = Instance.new("UICorner", mainFrame)
+    corner.CornerRadius = UDim.new(0, 12) -- Cantos mais suaves
+
+    -- Gradiente sutil no fundo
+    local gradient = Instance.new("UIGradient", mainFrame)
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 45)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 30))
+    })
+    gradient.Rotation = 45
+
+    -- Título estilizado
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1,0,0.12,0)
+    title.Size = UDim2.new(1, -10, 0.14, 0)
+    title.Position = UDim2.new(0, 5, 0, 5)
     title.BackgroundTransparency = 1
-    title.Text = "JOTA HUB V10"
+    title.Text = "CADU HUB"
     title.TextScaled = true
-    title.Font = Enum.Font.SourceSansBold
-    title.TextColor3 = Color3.new(1,1,1)
+    title.Font = Enum.Font.GothamBold -- Fonte mais moderna
+    title.TextColor3 = Color3.fromRGB(0, 255, 136) -- Verde neon
     title.Parent = mainFrame
 
+    -- Linha divisória abaixo do título
+    local line = Instance.new("Frame")
+    line.Size = UDim2.new(0.8, 0, 0, 2)
+    line.Position = UDim2.new(0.1, 0, 0.16, 0)
+    line.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
+    line.BorderSizePixel = 0
+    line.Parent = mainFrame
+
+    -- Label do reach
     reachLabel = Instance.new("TextLabel")
-    reachLabel.Size = UDim2.new(1,0,0.12,0)
-    reachLabel.Position = UDim2.new(0,0,0.12,0)
+    reachLabel.Size = UDim2.new(1, 0, 0.12, 0)
+    reachLabel.Position = UDim2.new(0, 0, 0.20, 0)
     reachLabel.BackgroundTransparency = 1
-    reachLabel.Text = "Reach: "..CONFIG.reach
+    reachLabel.Text = "REACH: "..CONFIG.reach
     reachLabel.TextScaled = true
-    reachLabel.Font = Enum.Font.SourceSans
-    reachLabel.TextColor3 = Color3.new(1,1,1)
+    reachLabel.Font = Enum.Font.GothamSemibold
+    reachLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
     reachLabel.Parent = mainFrame
 
+    -- Container para botões + e -
+    local btnContainer = Instance.new("Frame")
+    btnContainer.Size = UDim2.new(0.9, 0, 0.18, 0)
+    btnContainer.Position = UDim2.new(0.05, 0, 0.36, 0)
+    btnContainer.BackgroundTransparency = 1
+    btnContainer.Parent = mainFrame
+
+    -- Botão MINUS estilizado
     local minus = Instance.new("TextButton")
-    minus.Size = UDim2.new(0.4,0,0.2,0)
-    minus.Position = UDim2.new(0.05,0,0.28,0)
-    minus.Text = "-"
-    minus.TextScaled = true
-    minus.Font = Enum.Font.SourceSansBold
-    minus.BackgroundColor3 = Color3.fromRGB(60,60,60)
-    minus.TextColor3 = Color3.new(1,1,1)
-    minus.Parent = mainFrame
+    minus.Size = UDim2.new(0.45, 0, 1, 0)
+    minus.Position = UDim2.new(0, 0, 0, 0)
+    minus.Text = "−" -- Símbolo de menos mais bonito
+    minus.TextSize = 24
+    minus.Font = Enum.Font.GothamBold
+    minus.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    minus.TextColor3 = Color3.fromRGB(255, 80, 80) -- Vermelho suave
+    minus.Parent = btnContainer
+    minus.AutoButtonColor = false
+    
+    local minusCorner = Instance.new("UICorner", minus)
+    minusCorner.CornerRadius = UDim.new(0, 8)
+    
+    -- Efeito hover minus
+    minus.MouseEnter:Connect(function()
+        minus.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    end)
+    minus.MouseLeave:Connect(function()
+        minus.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    end)
 
+    -- Botão PLUS estilizado
     local plus = Instance.new("TextButton")
-    plus.Size = UDim2.new(0.4,0,0.2,0)
-    plus.Position = UDim2.new(0.55,0,0.28,0)
+    plus.Size = UDim2.new(0.45, 0, 1, 0)
+    plus.Position = UDim2.new(0.55, 0, 0, 0)
     plus.Text = "+"
-    plus.TextScaled = true
-    plus.Font = Enum.Font.SourceSansBold
-    plus.BackgroundColor3 = Color3.fromRGB(60,60,60)
-    plus.TextColor3 = Color3.new(1,1,1)
-    plus.Parent = mainFrame
+    plus.TextSize = 24
+    plus.Font = Enum.Font.GothamBold
+    plus.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    plus.TextColor3 = Color3.fromRGB(0, 255, 136) -- Verde neon
+    plus.Parent = btnContainer
+    plus.AutoButtonColor = false
+    
+    local plusCorner = Instance.new("UICorner", plus)
+    plusCorner.CornerRadius = UDim.new(0, 8)
+    
+    -- Efeito hover plus
+    plus.MouseEnter:Connect(function()
+        plus.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    end)
+    plus.MouseLeave:Connect(function()
+        plus.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    end)
 
-    -- Botão toggle esfera
+    -- Botão TOGGLE ESFERA estilizado
     sphereToggleBtn = Instance.new("TextButton")
-    sphereToggleBtn.Size = UDim2.new(0.9,0,0.18,0)
-    sphereToggleBtn.Position = UDim2.new(0.05,0,0.52,0)
-    sphereToggleBtn.Text = "🔵 ESFERA: ON"
-    sphereToggleBtn.TextScaled = true
-    sphereToggleBtn.Font = Enum.Font.SourceSansBold
-    sphereToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-    sphereToggleBtn.TextColor3 = Color3.new(1,1,1)
+    sphereToggleBtn.Size = UDim2.new(0.9, 0, 0.16, 0)
+    sphereToggleBtn.Position = UDim2.new(0.05, 0, 0.58, 0)
+    sphereToggleBtn.Text = "ESFERA ON"
+    sphereToggleBtn.TextSize = 14
+    sphereToggleBtn.Font = Enum.Font.GothamBold
+    sphereToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
+    sphereToggleBtn.TextColor3 = Color3.fromRGB(25, 25, 35)
     sphereToggleBtn.Parent = mainFrame
-    Instance.new("UICorner", sphereToggleBtn).CornerRadius = UDim.new(0.2,0)
+    sphereToggleBtn.AutoButtonColor = false
+    
+    local sphereCorner = Instance.new("UICorner", sphereToggleBtn)
+    sphereCorner.CornerRadius = UDim.new(0, 8)
+    
+    -- Efeito hover esfera
+    sphereToggleBtn.MouseEnter:Connect(function()
+        if CONFIG.showCenterSphere then
+            sphereToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 255, 150)
+        else
+            sphereToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+        end
+    end)
+    sphereToggleBtn.MouseLeave:Connect(function()
+        if CONFIG.showCenterSphere then
+            sphereToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
+        else
+            sphereToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        end
+    end)
 
-    -- Botão esconder GUI
+    -- Botão ESCONDER estilizado
     local hideBtn = Instance.new("TextButton")
-    hideBtn.Size = UDim2.new(0.9,0,0.18,0)
-    hideBtn.Position = UDim2.new(0.05,0,0.74,0)
-    hideBtn.Text = isMobile and "❌ FECHAR" or "❌ ESCONDER [INSERT]"
-    hideBtn.TextScaled = true
-    hideBtn.Font = Enum.Font.SourceSansBold
-    hideBtn.BackgroundColor3 = Color3.fromRGB(200,50,50)
-    hideBtn.TextColor3 = Color3.new(1,1,1)
+    hideBtn.Size = UDim2.new(0.9, 0, 0.16, 0)
+    hideBtn.Position = UDim2.new(0.05, 0, 0.78, 0)
+    hideBtn.Text = isMobile and "FECHAR" or "ESCONDER [INSERT]"
+    hideBtn.TextSize = 12
+    hideBtn.Font = Enum.Font.GothamSemibold
+    hideBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+    hideBtn.TextColor3 = Color3.fromRGB(200, 200, 210)
     hideBtn.Parent = mainFrame
-    Instance.new("UICorner", hideBtn).CornerRadius = UDim.new(0.2,0)
+    hideBtn.AutoButtonColor = false
+    
+    local hideCorner = Instance.new("UICorner", hideBtn)
+    hideCorner.CornerRadius = UDim.new(0, 8)
+    
+    -- Efeito hover hide
+    hideBtn.MouseEnter:Connect(function()
+        hideBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 95)
+    end)
+    hideBtn.MouseLeave:Connect(function()
+        hideBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+    end)
 
+    -- FUNÇÕES DOS BOTÕES (inalteradas)
     minus.MouseButton1Click:Connect(function()
         CONFIG.reach = math.max(1, CONFIG.reach - 1)
-        reachLabel.Text = "Reach: "..CONFIG.reach
+        reachLabel.Text = "REACH: "..CONFIG.reach
         updateReachSphere()
-        notify("Reach: "..CONFIG.reach,1)
+        notify("Reach: "..CONFIG.reach, 1)
     end)
 
     plus.MouseButton1Click:Connect(function()
         CONFIG.reach += 1
-        reachLabel.Text = "Reach: "..CONFIG.reach
+        reachLabel.Text = "REACH: "..CONFIG.reach
         updateReachSphere()
-        notify("Reach: "..CONFIG.reach,1)
+        notify("Reach: "..CONFIG.reach, 1)
     end)
 
     sphereToggleBtn.MouseButton1Click:Connect(toggleCenterSphere)
@@ -221,39 +309,60 @@ local function buildMainGUI()
     hideBtn.MouseButton1Click:Connect(function()
         mainFrame.Visible = false
         if isMobile then
-            notify("Use o botão flutuante para reabrir", 2)
+            notify("Use o botão flutuante", 2)
         else
-            notify("Pressione INSERT para reabrir", 2)
+            notify("Pressione INSERT", 2)
         end
     end)
 end
 
--- BOTÃO FLUTUANTE MOBILE
+-- BOTÃO FLUTUANTE MOBILE - ESTILO NOVO
 local function buildMobileButton()
     local mobileGui = Instance.new("ScreenGui")
-    mobileGui.Name = "JOTAMobileBtn"
+    mobileGui.Name = "CaduMobileBtn"
     mobileGui.ResetOnSpawn = false
     mobileGui.Parent = player:WaitForChild("PlayerGui")
 
     local floatBtn = Instance.new("TextButton")
     floatBtn.Name = "FloatButton"
-    floatBtn.Size = UDim2.new(0, 70, 0, 70)
-    floatBtn.Position = UDim2.new(1, -80, 1, -150)
-    floatBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-    floatBtn.Text = "JOTA\nHUB"
-    floatBtn.TextScaled = true
-    floatBtn.Font = Enum.Font.SourceSansBold
-    floatBtn.TextColor3 = Color3.new(1,1,1)
+    floatBtn.Size = UDim2.new(0, 65, 0, 65)
+    floatBtn.Position = UDim2.new(1, -85, 1, -140)
+    floatBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    floatBtn.Text = "CADU\nHUB"
+    floatBtn.TextSize = 11
+    floatBtn.Font = Enum.Font.GothamBold
+    floatBtn.TextColor3 = Color3.fromRGB(0, 255, 136)
     floatBtn.Parent = mobileGui
     floatBtn.Active = true
-    floatBtn.Draggable = true  -- Permite arrastar o botão
+    floatBtn.Draggable = true
+    floatBtn.AutoButtonColor = false
 
-    local corner = Instance.new("UICorner", floatBtn)
-    corner.CornerRadius = UDim.new(1, 0)  -- Círculo perfeito
+    -- Borda neon no botão mobile
+    local btnStroke = Instance.new("UIStroke", floatBtn)
+    btnStroke.Color = Color3.fromRGB(0, 255, 136)
+    btnStroke.Thickness = 2
 
-    local stroke = Instance.new("UIStroke", floatBtn)
-    stroke.Color = Color3.new(1,1,1)
-    stroke.Thickness = 2
+    -- Círculo perfeito
+    local btnCorner = Instance.new("UICorner", floatBtn)
+    btnCorner.CornerRadius = UDim.new(1, 0)
+
+    -- Efeito de brilho interno
+    local btnGradient = Instance.new("UIGradient", floatBtn)
+    btnGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 50)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 30))
+    })
+
+    -- Efeito pressionado
+    floatBtn.MouseButton1Down:Connect(function()
+        floatBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
+        floatBtn.TextColor3 = Color3.fromRGB(25, 25, 35)
+    end)
+    
+    floatBtn.MouseButton1Up:Connect(function()
+        floatBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+        floatBtn.TextColor3 = Color3.fromRGB(0, 255, 136)
+    end)
 
     floatBtn.MouseButton1Click:Connect(function()
         mainFrame.Visible = not mainFrame.Visible
@@ -271,7 +380,7 @@ if not isMobile then
     end)
 end
 
--- AUTO TOUCH
+-- AUTO TOUCH (inalterado)
 local function processTouch()
     local char = player.Character
     if not char then return end
@@ -290,7 +399,7 @@ local function processTouch()
     end
 end
 
--- LOOPS
+-- LOOPS (inalterados)
 RunService.RenderStepped:Connect(function()
     if CONFIG.autoSecondTouch then
         processTouch()
@@ -308,13 +417,13 @@ end)
 buildMainGUI()
 if isMobile then
     buildMobileButton()
-    notify("📱 MODO MOBILE ATIVADO", 3)
-    notify("Arraste o botão azul, toque para abrir", 3)
+    notify("📱 Modo Mobile Ativo", 3)
 else
-    notify("💻 MODO PC ATIVADO", 3)
-    notify("Pressione INSERT para esconder/mostrar", 3)
+    notify("💻 Modo PC Ativo", 3)
 end
 updateReachSphere()
 refreshBalls(true)
-notify("✅ JOTA HUB V10 ONLINE", 3)
-print("JOTA HUB V10 OK | Mobile:", isMobile)
+notify("✅ Cadu Hub Online", 3)
+print("Cadu Hub OK | Mobile:", isMobile)
+
+
