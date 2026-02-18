@@ -4,20 +4,22 @@ local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 
 -- CONFIG
 local CONFIG = {
     reach = 10,
+    ballReach = 15,               -- NOVO: Reach especial para atrair bolas
     magnetStrength = 0,
     showReachSpheres = true,
-    showBallESP = true,           -- NOVO: ESP das bolas
+    showBallAura = true,          -- NOVO: Aura nas bolas (substitui texto)
     autoSecondTouch = true,
     scanCooldown = 1.5,
     ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ" },
     
-    mode = "central", -- "central" ou "bodyparts"
+    mode = "central",
     
     centralSphere = {
         enabled = true,
@@ -35,7 +37,7 @@ local CONFIG = {
 
 -- VARIÁVEIS
 local balls = {}
-local ballHighlights = {}        -- NOVO: ESP das bolas
+local ballAuras = {}             -- NOVO: Aura visual nas bolas (substitui highlights)
 local lastRefresh = 0
 local reachSpheres = {}
 local centralSphere = nil
@@ -73,80 +75,118 @@ local function refreshBalls(force)
     end
 end
 
--- NOVO: CRIAR ESP PARA BOLA
-local function createBallESP(ball)
-    if ballHighlights[ball] then return end
+-- NOVO: CRIAR AURA NA BOLA (substitui o ESP com texto)
+local function createBallAura(ball)
+    if ballAuras[ball] then return end
     
+    -- Partícula de aura ao redor da bola
+    local auraAttachment = Instance.new("Attachment")
+    auraAttachment.Name = "CaduAuraAttachment"
+    auraAttachment.Position = Vector3.new(0, 0, 0)
+    auraAttachment.Parent = ball
+    
+    -- Partículas principais
+    local particle1 = Instance.new("ParticleEmitter")
+    particle1.Name = "AuraParticles"
+    particle1.Texture = "rbxassetid://258128463" -- Brilho suave
+    particle1.Color = ColorSequence.new(Color3.fromRGB(255, 0, 255), Color3.fromRGB(150, 0, 255))
+    particle1.Size = NumberSequence.new(2, 4)
+    particle1.Transparency = NumberSequence.new(0.3, 1)
+    particle1.Lifetime = NumberRange.new(0.5, 1)
+    particle1.Rate = 20
+    particle1.Speed = NumberRange.new(2, 5)
+    particle1.SpreadAngle = Vector2.new(180, 180)
+    particle1.Rotation = NumberRange.new(0, 360)
+    particle1.RotSpeed = NumberRange.new(-50, 50)
+    particle1.Parent = auraAttachment
+    
+    -- Partículas de rastro
+    local particle2 = Instance.new("ParticleEmitter")
+    particle2.Name = "TrailParticles"
+    particle2.Texture = "rbxassetid://243660364" -- Rastro
+    particle2.Color = ColorSequence.new(Color3.fromRGB(200, 0, 255))
+    particle2.Size = NumberSequence.new(1, 0)
+    particle2.Transparency = NumberSequence.new(0.5, 1)
+    particle2.Lifetime = NumberRange.new(0.3, 0.6)
+    particle2.Rate = 10
+    particle2.Speed = NumberRange.new(1, 3)
+    particle2.Parent = auraAttachment
+    
+    -- Highlight para ver através das paredes (sem texto)
     local highlight = Instance.new("Highlight")
-    highlight.Name = "CaduESP"
+    highlight.Name = "CaduAuraHighlight"
     highlight.Adornee = ball
-    highlight.FillColor = Color3.fromRGB(255, 0, 255) -- Magenta
-    highlight.OutlineColor = Color3.new(1, 1, 1)
-    highlight.FillTransparency = 0.5
-    highlight.OutlineTransparency = 0
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- Vê através de paredes!
+    highlight.FillColor = Color3.fromRGB(255, 0, 255)
+    highlight.OutlineColor = Color3.fromRGB(200, 0, 255)
+    highlight.FillTransparency = 0.8
+    highlight.OutlineTransparency = 0.3
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     highlight.Parent = ball
     
-    -- Billboard GUI com nome e distância
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "CaduBillboard"
-    billboard.Adornee = ball
-    billboard.Size = UDim2.new(0, 100, 0, 40)
-    billboard.StudsOffset = Vector3.new(0, 3, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = ball
+    -- Esfera de alcance ao redor da bola (visual do reach da bola)
+    local reachSphere = Instance.new("Part")
+    reachSphere.Name = "BallReachSphere"
+    reachSphere.Shape = Enum.PartType.Ball
+    reachSphere.Anchored = true
+    reachSphere.CanCollide = false
+    reachSphere.Transparency = 0.95
+    reachSphere.Material = Enum.Material.ForceField
+    reachSphere.Color = Color3.fromRGB(255, 100, 255)
+    reachSphere.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
+    reachSphere.Parent = Workspace
     
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = ball.Name
-    label.TextColor3 = Color3.fromRGB(255, 0, 255)
-    label.TextStrokeTransparency = 0
-    label.TextStrokeColor3 = Color3.new(0, 0, 0)
-    label.TextScaled = true
-    label.Font = Enum.Font.GothamBold
-    label.Parent = billboard
-    
-    ballHighlights[ball] = {highlight = highlight, billboard = billboard, label = label}
-end
-
--- NOVO: REMOVER ESP DA BOLA
-local function removeBallESP(ball)
-    if ballHighlights[ball] then
-        if ballHighlights[ball].highlight then
-            ballHighlights[ball].highlight:Destroy()
-        end
-        if ballHighlights[ball].billboard then
-            ballHighlights[ball].billboard:Destroy()
-        end
-        ballHighlights[ball] = nil
-    end
-end
-
--- NOVO: ATUALIZAR ESP DAS BOLAS
-local function updateBallESP()
-    -- Limpar ESP de bolas que não existem mais
-    for ball, data in pairs(ballHighlights) do
-        if not ball or not ball.Parent then
-            removeBallESP(ball)
-        end
-    end
-    
-    -- Criar/atualizar ESP para bolas atuais
-    for _, ball in ipairs(balls) do
-        if ball and ball.Parent and CONFIG.showBallESP then
-            createBallESP(ball)
-            
-            -- Atualizar distância no label
-            if ballHighlights[ball] and ballHighlights[ball].label then
-                local char = player.Character
-                if char and char:FindFirstChild("HumanoidRootPart") then
-                    local distance = (ball.Position - char.HumanoidRootPart.Position).Magnitude
-                    ballHighlights[ball].label.Text = ball.Name .. "\n" .. math.floor(distance) .. " studs"
-                end
-            end
+    -- Atualizar posição da esfera de reach
+    local connection = RunService.RenderStepped:Connect(function()
+        if ball and ball.Parent and reachSphere and reachSphere.Parent then
+            reachSphere.Position = ball.Position
         else
-            removeBallESP(ball)
+            if reachSphere then reachSphere:Destroy() end
+        end
+    end)
+    
+    ballAuras[ball] = {
+        attachment = auraAttachment,
+        particles = {particle1, particle2},
+        highlight = highlight,
+        reachSphere = reachSphere,
+        connection = connection
+    }
+end
+
+-- NOVO: REMOVER AURA DA BOLA
+local function removeBallAura(ball)
+    if ballAuras[ball] then
+        if ballAuras[ball].connection then
+            ballAuras[ball].connection:Disconnect()
+        end
+        if ballAuras[ball].reachSphere then
+            ballAuras[ball].reachSphere:Destroy()
+        end
+        if ballAuras[ball].highlight then
+            ballAuras[ball].highlight:Destroy()
+        end
+        if ballAuras[ball].attachment then
+            ballAuras[ball].attachment:Destroy()
+        end
+        ballAuras[ball] = nil
+    end
+end
+
+-- NOVO: ATUALIZAR AURAS DAS BOLAS
+local function updateBallAuras()
+    -- Limpar auras de bolas que não existem mais
+    for ball, data in pairs(ballAuras) do
+        if not ball or not ball.Parent then
+            removeBallAura(ball)
+        end
+    end
+    
+    -- Criar auras para bolas atuais
+    for _, ball in ipairs(balls) do
+        if ball and ball.Parent and CONFIG.showBallAura then
+            createBallAura(ball)
+        else
+            removeBallAura(ball)
         end
     end
 end
@@ -179,22 +219,22 @@ local function toggleSpheresVisibility()
     return spheresVisible
 end
 
--- NOVO: TOGGLE ESP BOLAS
-local function toggleBallESP()
-    CONFIG.showBallESP = not CONFIG.showBallESP
+-- NOVO: TOGGLE AURA BOLAS
+local function toggleBallAura()
+    CONFIG.showBallAura = not CONFIG.showBallAura
     
-    if not CONFIG.showBallESP then
-        -- Limpar todas as ESPs
-        for ball, _ in pairs(ballHighlights) do
-            removeBallESP(ball)
+    if not CONFIG.showBallAura then
+        -- Limpar todas as auras
+        for ball, _ in pairs(ballAuras) do
+            removeBallAura(ball)
         end
-        notify("🔮 ESP Bolas DESLIGADO", 1.5)
+        notify("✨ Aura das Bolas DESLIGADA", 1.5)
     else
-        updateBallESP()
-        notify("🔮 ESP Bolas LIGADO", 1.5)
+        updateBallAuras()
+        notify("✨ Aura das Bolas LIGADA", 1.5)
     end
     
-    return CONFIG.showBallESP
+    return CONFIG.showBallAura
 end
 
 -- MAPA DE PARTES R6
@@ -363,7 +403,7 @@ end
 -- GUI PRINCIPAL
 local bodyPartButtons = {}
 local spheresBtnRef = nil
-local espBtnRef = nil
+local auraBtnRef = nil
 
 function buildMainGUI()
     if gui then return end
@@ -375,7 +415,7 @@ function buildMainGUI()
 
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.fromScale(0.24, 0.45) -- Aumentado para caber botão ESP
+    mainFrame.Size = UDim2.fromScale(0.24, 0.45)
     mainFrame.Position = UDim2.fromScale(0.02, 0.05)
     mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
     mainFrame.BackgroundTransparency = 0.1
@@ -438,28 +478,28 @@ function buildMainGUI()
     
     spheresBtnRef = spheresBtn
 
-    -- NOVO: BOTÃO TOGGLE ESP BOLAS
-    local espBtn = Instance.new("TextButton")
-    espBtn.Name = "ESPButton"
-    espBtn.Size = UDim2.new(0.9, 0, 0.06, 0)
-    espBtn.Position = UDim2.new(0.05, 0, 0.19, 0)
-    espBtn.Text = "🔮 ESP BOLAS: ON"
-    espBtn.TextSize = 11
-    espBtn.Font = Enum.Font.GothamBold
-    espBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 255) -- Magenta
-    espBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    espBtn.Parent = mainFrame
-    espBtn.AutoButtonColor = false
+    -- NOVO: BOTÃO TOGGLE AURA BOLAS (substitui ESP)
+    local auraBtn = Instance.new("TextButton")
+    auraBtn.Name = "AuraButton"
+    auraBtn.Size = UDim2.new(0.9, 0, 0.06, 0)
+    auraBtn.Position = UDim2.new(0.05, 0, 0.19, 0)
+    auraBtn.Text = "✨ AURA BOLAS: ON"
+    auraBtn.TextSize = 11
+    auraBtn.Font = Enum.Font.GothamBold
+    auraBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 255) -- Magenta
+    auraBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    auraBtn.Parent = mainFrame
+    auraBtn.AutoButtonColor = false
     
-    Instance.new("UICorner", espBtn).CornerRadius = UDim.new(0, 8)
+    Instance.new("UICorner", auraBtn).CornerRadius = UDim.new(0, 8)
     
-    espBtn.MouseButton1Click:Connect(function()
-        local enabled = toggleBallESP()
-        espBtn.Text = enabled and "🔮 ESP BOLAS: ON" or "🔮 ESP BOLAS: OFF"
-        espBtn.BackgroundColor3 = enabled and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(80, 80, 80)
+    auraBtn.MouseButton1Click:Connect(function()
+        local enabled = toggleBallAura()
+        auraBtn.Text = enabled and "✨ AURA BOLAS: ON" or "✨ AURA BOLAS: OFF"
+        auraBtn.BackgroundColor3 = enabled and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(80, 80, 80)
     end)
     
-    espBtnRef = espBtn
+    auraBtnRef = auraBtn
 
     -- BOTÃO MODO
     local modeBtn = Instance.new("TextButton")
@@ -482,7 +522,7 @@ function buildMainGUI()
         modeBtn.BackgroundColor3 = newMode == "central" and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(255, 150, 0)
     end)
 
-    -- Label modo
+        -- Label modo
     modeLabel = Instance.new("TextLabel")
     modeLabel.Size = UDim2.new(1, 0, 0.05, 0)
     modeLabel.Position = UDim2.new(0, 0, 0.34, 0)
@@ -549,7 +589,7 @@ function buildMainGUI()
         bodyPartButtons[partType] = btn
     end
 
-        -- Label reach
+    -- Label reach
     local reachLabel = Instance.new("TextLabel")
     reachLabel.Size = UDim2.new(1, 0, 0.05, 0)
     reachLabel.Position = UDim2.new(0, 0, 0.74, 0)
@@ -606,6 +646,7 @@ function buildMainGUI()
     minus.MouseButton1Click:Connect(function()
         CONFIG.reach = math.max(1, CONFIG.reach - 1)
         CONFIG.centralSphere.reach = CONFIG.reach
+        CONFIG.ballReach = math.max(1, CONFIG.ballReach - 1)
         reachLabel.Text = "REACH: " .. CONFIG.reach
         for _, config in pairs(CONFIG.bodyParts) do
             config.reach = math.max(1, config.reach - 1)
@@ -617,6 +658,7 @@ function buildMainGUI()
     plus.MouseButton1Click:Connect(function()
         CONFIG.reach += 1
         CONFIG.centralSphere.reach = CONFIG.reach
+        CONFIG.ballReach += 1
         reachLabel.Text = "REACH: " .. CONFIG.reach
         for _, config in pairs(CONFIG.bodyParts) do
             config.reach += 1
@@ -712,7 +754,7 @@ if not isMobile then
     end)
 end
 
--- AUTO TOUCH (colisão melhorada)
+-- AUTO TOUCH (colisão melhorada com reach nas bolas)
 local function processTouch()
     local char = player.Character
     if not char then return end
@@ -721,14 +763,15 @@ local function processTouch()
     
     for _, data in ipairs(validParts) do
         local part = data.part
-        local reach = data.reach
+        local playerReach = data.reach
         
         for _, ball in ipairs(balls) do
             if ball and ball.Parent then
                 local distance = (ball.Position - part.Position).Magnitude
                 
-                if distance <= reach then
-                    -- Colisão otimizada - mais permissiva
+                local combinedReach = playerReach + CONFIG.ballReach
+                
+                if distance <= combinedReach then
                     pcall(function()
                         firetouchinterest(ball, part, 0)
                         firetouchinterest(ball, part, 1)
@@ -742,7 +785,7 @@ end
 -- LOOPS
 RunService.RenderStepped:Connect(function()
     updateSpheresPosition()
-    updateBallESP() -- NOVO: Atualizar ESP das bolas
+    updateBallAuras()
     
     if CONFIG.autoSecondTouch then
         processTouch()
@@ -768,5 +811,5 @@ updateReachSpheres()
 updateGUIForMode()
 refreshBalls(true)
 notify("✅ Cadu Hub Online", 3)
-notify("🔮 ESP Bolas ativo | 🔵 Esferas visuais", 3)
+notify("✨ Aura nas Bolas ativa | 🔵 Esferas visuais", 3)
 print("Cadu Hub OK | Modo:", CONFIG.mode, "| Mobile:", isMobile)
