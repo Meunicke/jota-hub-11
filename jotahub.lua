@@ -11,7 +11,7 @@ local player = Players.LocalPlayer
 -- CONFIG
 local CONFIG = {
     reach = 10,
-    ballReach = 15,
+    ballReach = 8,                -- Reduzido para não atrapalhar
     magnetStrength = 0,
     showReachSpheres = true,
     showBallAura = true,
@@ -19,18 +19,18 @@ local CONFIG = {
     scanCooldown = 1.5,
     ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ" },
     
-    -- MODO CB (NOVO)
+    -- MODO CB
     cbMode = {
-        enabled = false,           -- Começa desligado
-        reach = 20,               -- Reach maior para interceptar
-        reactionTime = 0.1,       -- Tempo de reação mais rápido
-        autoBlock = true,         -- Bloqueio automático de chutes
-        prediction = true,        -- Prever trajetória da bola
-        tackleRange = 25,         -- Alcance do carrinho melhorado
-        color = Color3.fromRGB(255, 50, 50) -- Vermelho para CB
+        enabled = false,
+        reach = 18,
+        reactionTime = 0.1,
+        autoBlock = true,
+        prediction = true,
+        tackleRange = 22,
+        color = Color3.fromRGB(255, 50, 50)
     },
     
-    mode = "central", -- "central" ou "bodyparts"
+    mode = "central",
     
     centralSphere = {
         enabled = true,
@@ -38,11 +38,12 @@ local CONFIG = {
         reach = 10
     },
     
+    -- CORREÇÃO: Reach maior para pernas (chute/afastar)
     bodyParts = {
         head = { name = "Head", reach = 8, color = Color3.fromRGB(255, 50, 50), enabled = true },
         torso = { name = "Torso", reach = 10, color = Color3.fromRGB(0, 255, 136), enabled = true },
         arm = { name = "Arm", reach = 12, color = Color3.fromRGB(0, 150, 255), enabled = true },
-        leg = { name = "Leg", reach = 9, color = Color3.fromRGB(255, 200, 0), enabled = true }
+        leg = { name = "Leg", reach = 16, color = Color3.fromRGB(255, 200, 0), enabled = true } -- AUMENTADO!
     }
 }
 
@@ -56,6 +57,7 @@ local gui, mainFrame, modeLabel, cbLabel
 local spheresVisible = true
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 local cbActive = false
+local lastTouchTime = {} -- NOVO: Cooldown por bola para não travar
 
 -- BALL SET
 local BALL_NAME_SET = {}
@@ -240,7 +242,7 @@ local function toggleBallAura()
     return CONFIG.showBallAura
 end
 
--- NOVO: TOGGLE MODO CB
+-- TOGGLE MODO CB
 local function toggleCBMode()
     CONFIG.cbMode.enabled = not CONFIG.cbMode.enabled
     cbActive = CONFIG.cbMode.enabled
@@ -249,7 +251,6 @@ local function toggleCBMode()
         notify("🛡️ MODO CB ATIVADO!", 3)
         notify("Reach: " .. CONFIG.cbMode.reach .. " | AutoBlock: ON", 2)
         
-        -- Efeito visual no personagem
         local char = player.Character
         if char then
             for _, part in ipairs(char:GetChildren()) do
@@ -263,7 +264,6 @@ local function toggleCBMode()
                     highlight.OutlineTransparency = 0.1
                     highlight.Parent = part
                     
-                    -- Remove após 2 segundos
                     task.delay(2, function()
                         if highlight then highlight:Destroy() end
                     end)
@@ -272,7 +272,6 @@ local function toggleCBMode()
         end
     else
         notify("🛡️ MODO CB DESATIVADO", 2)
-        notify("Voltando ao normal...", 1)
     end
     
     return cbActive
@@ -292,11 +291,10 @@ local function getBodyPartType(partName)
     return nil
 end
 
--- OBTER PARTES VÁLIDAS BASEADO NO MODO
+-- OBTER PARTES VÁLIDAS
 local function getValidParts(char)
     local parts = {}
     
-    -- NOVO: Se modo CB ativo, usa configurações de CB
     local currentReach = cbActive and CONFIG.cbMode.reach or CONFIG.reach
     
     if CONFIG.mode == "central" then
@@ -314,7 +312,6 @@ local function getValidParts(char)
             if v:IsA("BasePart") then
                 local partType = getBodyPartType(v.Name)
                 if partType and CONFIG.bodyParts[partType].enabled then
-                    -- NOVO: No modo CB, todas as partes têm reach aumentado
                     local partReach = cbActive and CONFIG.cbMode.reach or CONFIG.bodyParts[partType].reach
                     table.insert(parts, {
                         part = v,
@@ -338,7 +335,6 @@ function updateReachSpheres()
     local char = player.Character
     if not char then return end
 
-    -- NOVO: Cor diferente no modo CB
     local sphereColor = cbActive and CONFIG.cbMode.color or CONFIG.centralSphere.color
     local sphereReach = cbActive and CONFIG.cbMode.reach or CONFIG.centralSphere.reach
 
@@ -358,7 +354,6 @@ function updateReachSpheres()
         for partType, config in pairs(CONFIG.bodyParts) do
             if not config.enabled then continue end
             
-            -- NOVO: Cores e tamanhos no modo CB
             local color = cbActive and CONFIG.cbMode.color or config.color
             local reach = cbActive and CONFIG.cbMode.reach or config.reach
             
@@ -430,7 +425,7 @@ function updateSpheresPosition()
     end
 end
 
--- TOGGLE MODO (CENTRAL <-> 4 PARTES)
+-- TOGGLE MODO
 function toggleMode()
     CONFIG.mode = (CONFIG.mode == "central") and "bodyparts" or "central"
     updateReachSpheres()
@@ -470,7 +465,7 @@ function buildMainGUI()
 
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.fromScale(0.24, 0.50) -- Aumentado para caber botão CB
+    mainFrame.Size = UDim2.fromScale(0.24, 0.50)
     mainFrame.Position = UDim2.fromScale(0.02, 0.05)
     mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
     mainFrame.BackgroundTransparency = 0.1
@@ -510,7 +505,7 @@ function buildMainGUI()
     line.BorderSizePixel = 0
     line.Parent = mainFrame
 
-    -- BOTÃO TOGGLE ESFERAS
+    -- BOTÃO ESFERAS
     local spheresBtn = Instance.new("TextButton")
     spheresBtn.Name = "SpheresButton"
     spheresBtn.Size = UDim2.new(0.9, 0, 0.05, 0)
@@ -533,7 +528,7 @@ function buildMainGUI()
     
     spheresBtnRef = spheresBtn
 
-    -- BOTÃO TOGGLE AURA BOLAS
+    -- BOTÃO AURA
     local auraBtn = Instance.new("TextButton")
     auraBtn.Name = "AuraButton"
     auraBtn.Size = UDim2.new(0.9, 0, 0.05, 0)
@@ -556,7 +551,7 @@ function buildMainGUI()
     
     auraBtnRef = auraBtn
 
-    -- NOVO: BOTÃO MODO CB (ZAGUEIRO)
+    -- BOTÃO CB
     local cbBtn = Instance.new("TextButton")
     cbBtn.Name = "CBButton"
     cbBtn.Size = UDim2.new(0.9, 0, 0.06, 0)
@@ -564,7 +559,7 @@ function buildMainGUI()
     cbBtn.Text = "🛡️ MODO CB: OFF"
     cbBtn.TextSize = 11
     cbBtn.Font = Enum.Font.GothamBold
-    cbBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100) -- Cinza quando desligado
+    cbBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
     cbBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     cbBtn.Parent = mainFrame
     cbBtn.AutoButtonColor = false
@@ -576,7 +571,6 @@ function buildMainGUI()
         cbBtn.Text = enabled and "🛡️ MODO CB: ON 🔥" or "🛡️ MODO CB: OFF"
         cbBtn.BackgroundColor3 = enabled and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(100, 100, 100)
         
-        -- Atualizar label de status
         if enabled then
             cbLabel.Text = "🔥 CB ATIVO! Reach: " .. CONFIG.cbMode.reach
             cbLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
@@ -585,13 +579,12 @@ function buildMainGUI()
             cbLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
         end
         
-                -- Atualizar esferas com nova cor/tamanho
         updateReachSpheres()
     end)
     
     cbBtnRef = cbBtn
 
-    -- NOVO: Label status CB
+    -- Label CB
     cbLabel = Instance.new("TextLabel")
     cbLabel.Size = UDim2.new(1, 0, 0.04, 0)
     cbLabel.Position = UDim2.new(0, 0, 0.31, 0)
@@ -601,8 +594,8 @@ function buildMainGUI()
     cbLabel.Font = Enum.Font.GothamSemibold
     cbLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
     cbLabel.Parent = mainFrame
-
-    -- BOTÃO MODO (Central/4 Partes)
+  
+-- BOTÃO MODO
     local modeBtn = Instance.new("TextButton")
     modeBtn.Name = "ModeButton"
     modeBtn.Size = UDim2.new(0.9, 0, 0.05, 0)
@@ -857,42 +850,134 @@ if not isMobile then
     end)
 end
 
--- AUTO TOUCH (colisão melhorada com modo CB)
+-- AUTO TOUCH INTELIGENTE
 local function processTouch()
     local char = player.Character
     if not char then return end
 
     local validParts = getValidParts(char)
+    local currentTime = tick()
     
     for _, data in ipairs(validParts) do
         local part = data.part
+        local partType = data.type
         local playerReach = data.reach
         
         for _, ball in ipairs(balls) do
-            if ball and ball.Parent then
-                local distance = (ball.Position - part.Position).Magnitude
+            if not ball or not ball.Parent then continue end
+            
+            local ballId = tostring(ball)
+            if lastTouchTime[ballId] and (currentTime - lastTouchTime[ballId]) < 0.3 then
+                continue
+            end
+            
+            local distance = (ball.Position - part.Position).Magnitude
+            local effectiveReach = playerReach
+            
+            if partType == "leg" then
+                effectiveReach = playerReach * 0.7
+            else
+                effectiveReach = playerReach * 0.5
+            end
+            
+            if distance <= effectiveReach then
+                local velocity = ball.AssemblyLinearVelocity or Vector3.new(0,0,0)
+                local directionToPlayer = (part.Position - ball.Position).Unit
+                local dotProduct = velocity.Unit:Dot(directionToPlayer)
                 
-                local combinedReach = playerReach + CONFIG.ballReach
+                local shouldTouch = false
                 
-                if cbActive then
-                    combinedReach = combinedReach + 5
-                    
-                    local velocity = ball.AssemblyLinearVelocity or Vector3.new(0,0,0)
-                    if velocity.Magnitude > 20 then
-                        local predictedPos = ball.Position + (velocity.Unit * 2)
-                        distance = (predictedPos - part.Position).Magnitude
-                    end
+                if distance < 3 then
+                    shouldTouch = true
+                elseif dotProduct > 0.3 then
+                    shouldTouch = true
+                elseif cbActive and dotProduct > -0.5 then
+                    shouldTouch = true
                 end
                 
-                if distance <= combinedReach then
+                if shouldTouch then
                     pcall(function()
                         firetouchinterest(ball, part, 0)
                         firetouchinterest(ball, part, 1)
                     end)
+                    lastTouchTime[ballId] = currentTime
                 end
             end
         end
     end
+    
+    for id, time in pairs(lastTouchTime) do
+        if currentTime - time > 5 then
+            lastTouchTime[id] = nil
+        end
+    end
+end
+
+-- NOVO: FUNÇÃO BÔNUS - VELOCÍMETRO DAS BOLAS
+local function showBallSpeed()
+    local speedGui = Instance.new("ScreenGui")
+    speedGui.Name = "CaduSpeedMeter"
+    speedGui.ResetOnSpawn = false
+    speedGui.Parent = player:WaitForChild("PlayerGui")
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 150, 0, 60)
+    frame.Position = UDim2.new(0.5, -75, 0.85, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    frame.BorderSizePixel = 0
+    frame.Parent = speedGui
+    
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+    
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = Color3.fromRGB(0, 255, 136)
+    stroke.Thickness = 2
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0.4, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "⚡ VELOCIDADE DA BOLA"
+    title.TextColor3 = Color3.fromRGB(0, 255, 136)
+    title.Font = Enum.Font.GothamBold
+    title.TextScaled = true
+    title.Parent = frame
+    
+    local speedLabel = Instance.new("TextLabel")
+    speedLabel.Size = UDim2.new(1, 0, 0.6, 0)
+    speedLabel.Position = UDim2.new(0, 0, 0.4, 0)
+    speedLabel.BackgroundTransparency = 1
+    speedLabel.Text = "0 km/h"
+    speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    speedLabel.Font = Enum.Font.GothamBold
+    speedLabel.TextScaled = true
+    speedLabel.Parent = frame
+    
+    -- Atualizar velocidade
+    RunService.RenderStepped:Connect(function()
+        local maxSpeed = 0
+        for _, ball in ipairs(balls) do
+            if ball and ball.Parent then
+                local velocity = ball.AssemblyLinearVelocity or Vector3.new(0,0,0)
+                local speed = velocity.Magnitude
+                if speed > maxSpeed then
+                    maxSpeed = speed
+                end
+            end
+        end
+        
+        -- Converter para km/h (aproximado)
+        local kmh = math.floor(maxSpeed * 3.6)
+        speedLabel.Text = kmh .. " km/h"
+        
+        -- Mudar cor baseado na velocidade
+        if kmh > 100 then
+            speedLabel.TextColor3 = Color3.fromRGB(255, 50, 50) -- Vermelho (rápido)
+        elseif kmh > 50 then
+            speedLabel.TextColor3 = Color3.fromRGB(255, 200, 0) -- Amarelo (médio)
+        else
+            speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- Branco (lento)
+        end
+    end)
 end
 
 -- LOOPS
@@ -923,6 +1008,10 @@ end
 updateReachSpheres()
 updateGUIForMode()
 refreshBalls(true)
+
+-- BÔNUS: Ativar velocímetro
+showBallSpeed()
+
 notify("✅ Cadu Hub Online", 3)
-notify("🛡️ NOVO: Botão MODO CB para zagueiros!", 3)
-print("Cadu Hub OK | Modo:", CONFIG.mode, "| CB:", cbActive, "| Mobile:", isMobile)
+notify("⚡ Velocímetro das Bolas ativo!", 3)
+print("Cadu Hub OK | Pernas:", CONFIG.bodyParts.leg.reach, "| CB:", cbActive)
