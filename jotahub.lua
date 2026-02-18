@@ -535,7 +535,11 @@ function buildMainGUI()
         Position = UDim2.new(0, 20, 0.5, -225)
     }):Play()
 
-    -- FUNÇÕES
+
+
+
+
+    -- FUNCTIONS (Lógica de Botões e Animação)
 local function animateButton(btn)
     local original = btn.BackgroundColor3
     TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.new(1, 1, 1)}):Play()
@@ -543,6 +547,7 @@ local function animateButton(btn)
     TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = original}):Play()
 end
 
+-- CONEXÕES DOS BOTÕES (PLAYER REACH)
 minusPlayer.MouseButton1Click:Connect(function()
     animateButton(minusPlayer)
     CONFIG.playerReach = math.max(1, CONFIG.playerReach - 1)
@@ -561,6 +566,7 @@ resetPlayer.MouseButton1Click:Connect(function()
     playerValue.Text = CONFIG.playerReach .. " studs"
 end)
 
+-- CONEXÕES DOS BOTÕES (BALL REACH)
 minusBall.MouseButton1Click:Connect(function()
     animateButton(minusBall)
     CONFIG.ballReach = math.max(1, CONFIG.ballReach - 1)
@@ -582,6 +588,7 @@ resetBall.MouseButton1Click:Connect(function()
     updateBallAuras()
 end)
 
+-- TOGGLES (AUTO TOUCH E VISUAIS)
 autoTouchBtn.MouseButton1Click:Connect(function()
     CONFIG.autoTouch = not CONFIG.autoTouch
     autoTouchBtn.Text = CONFIG.autoTouch and "AUTO TOUCH: ON" or "AUTO TOUCH: OFF"
@@ -597,6 +604,7 @@ visualsBtn.MouseButton1Click:Connect(function()
     animateButton(visualsBtn)
 end)
 
+-- FECHAR HUB
 hideBtn.MouseButton1Click:Connect(function()
     animateButton(hideBtn)
     TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
@@ -604,11 +612,10 @@ hideBtn.MouseButton1Click:Connect(function()
     }):Play()
     task.delay(0.4, function()
         mainFrame.Visible = false
-        mainFrame.Position = UDim2.new(0, 20, 0.5, -225)
     end)
 end)
 
--- BOTÃO MOBILE PREMIUM
+-- BOTÃO MOBILE PREMIUM (FLASH)
 local function buildMobileButton()
     local mobileGui = Instance.new("ScreenGui")
     mobileGui.Name = "CaduMobileV3"
@@ -643,17 +650,12 @@ local function buildMobileButton()
     glow.ImageTransparency = 0.8
     glow.Parent = floatBtn
 
+    -- Animação do Glow
     spawn(function()
         while floatBtn and floatBtn.Parent do
-            TweenService:Create(glow, TweenInfo.new(1), {
-                ImageTransparency = 0.5,
-                Size = UDim2.new(1.8, 0, 1.8, 0)
-            }):Play()
+            TweenService:Create(glow, TweenInfo.new(1), {ImageTransparency = 0.5, Size = UDim2.new(1.8, 0, 1.8, 0)}):Play()
             task.wait(1)
-            TweenService:Create(glow, TweenInfo.new(1), {
-                ImageTransparency = 0.8,
-                Size = UDim2.new(1.5, 0, 1.5, 0)
-            }):Play()
+            TweenService:Create(glow, TweenInfo.new(1), {ImageTransparency = 0.8, Size = UDim2.new(1.5, 0, 1.5, 0)}):Play()
             task.wait(1)
         end
     end)
@@ -666,19 +668,16 @@ local function buildMobileButton()
     end)
 end
 
--- TECLA INSERT
+-- TECLA INSERT (PC) E TOGGLE MOBILE
 if not isMobile then
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not gameProcessed and input.KeyCode == Enum.KeyCode.Insert then
+        if not gameProcessed and input.KeyCode == Enum.Enum.KeyCode.Insert then
             if mainFrame then
                 if mainFrame.Visible then
                     TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
                         Position = UDim2.new(0, -340, 0.5, -225)
                     }):Play()
-                    task.delay(0.4, function()
-                        mainFrame.Visible = false
-                        mainFrame.Position = UDim2.new(0, 20, 0.5, -225)
-                    end)
+                    task.delay(0.4, function() mainFrame.Visible = false end)
                 else
                     mainFrame.Visible = true
                     TweenService:Create(mainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Back), {
@@ -690,14 +689,14 @@ if not isMobile then
     end)
 end
 
--- LOOPS (igual Arthur V2)
-RunService.RenderStepped:Connect(function()
+-- LOOPS E INIT
+RunService.RenderStep:Connect(function()
     updatePlayerSphere()
     updateBallAuras()
     doReach()
 end)
 
--- INIT
+-- Inicialização
 buildMainGUI()
 if isMobile then
     buildMobileButton()
