@@ -5,7 +5,6 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
-local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 
@@ -17,6 +16,9 @@ local CONFIG = {
     showVisuals = true,
     flashEnabled = false,
     antiAFK = true,
+    -- NOVA CONFIGURAÇÃO: Quantum Reach Touch
+    quantumReachEnabled = false,
+    quantumReach = 10,
     ballNames = { "MPS", "TRS", "TCS", "TPS", "PRS", "ESA", "MRS", "SSS", "AIFA", "RBZ", "SoccerBall", "Football", "Ball" },
     
     colors = {
@@ -24,6 +26,7 @@ local CONFIG = {
         tabBg = Color3.fromRGB(35, 35, 50),
         accent = Color3.fromRGB(88, 101, 242),
         accent2 = Color3.fromRGB(235, 69, 158),
+        accent3 = Color3.fromRGB(0, 255, 255), -- Cyan para Quantum Reach
         success = Color3.fromRGB(87, 242, 135),
         warning = Color3.fromRGB(254, 231, 92),
         danger = Color3.fromRGB(240, 70, 70),
@@ -39,6 +42,7 @@ local CONFIG = {
 local balls = {}
 local ballAuras = {}
 local playerSphere = nil
+local quantumCircle = nil -- NOVO: Círculo do Quantum Reach
 local HRP = nil
 local gui, mainWindow, currentTab = nil, nil, "Reach"
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -171,6 +175,11 @@ local function clearAllAuras()
         playerSphere:Destroy()
         playerSphere = nil
     end
+    -- NOVO: Limpar círculo do Quantum Reach
+    if quantumCircle then
+        quantumCircle:Destroy()
+        quantumCircle = nil
+    end
 end
 
 -- UPDATE PLAYER SPHERE
@@ -195,6 +204,58 @@ local function updatePlayerSphere()
     playerSphere.Size = Vector3.new(CONFIG.playerReach * 2, CONFIG.playerReach * 2, CONFIG.playerReach * 2)
     playerSphere.Position = HRP.Position
     playerSphere.Transparency = 0.75
+end
+
+-- NOVA FUNÇÃO: UPDATE QUANTUM CIRCLE (do Arthur Hub)
+local function updateQuantumCircle()
+    if not quantumCircle then
+        quantumCircle = Instance.new("Part")
+        quantumCircle.Name = "QuantumCircle"
+        quantumCircle.Shape = Enum.PartType.Ball
+        quantumCircle.Anchored = true
+        quantumCircle.CanCollide = false
+        quantumCircle.Material = Enum.Material.ForceField
+        quantumCircle.Color = CONFIG.colors.accent3 -- Cyan
+        quantumCircle.Parent = Workspace
+    end
+    quantumCircle.Size = Vector3.new(CONFIG.quantumReach * 2, CONFIG.quantumReach * 2, CONFIG.quantumReach * 2)
+    quantumCircle.Transparency = CONFIG.quantumReachEnabled and 0.75 or 1
+end
+
+-- NOVA FUNÇÃO: DO QUANTUM REACH TOUCH (do Arthur Hub)
+local function doQuantumReach()
+    if not CONFIG.quantumReachEnabled or not player.Character or not HRP then return end
+    
+    local rightLeg = player.Character:FindFirstChild("Right Leg") or 
+                     player.Character:FindFirstChild("RightLowerLeg") or
+                     player.Character:FindFirstChild("RightFoot")
+    if not rightLeg then return end
+
+    local ballsList = getBalls()
+    for _, ball in ipairs(ballsList) do
+        if ball and ball.Parent and (ball.Position - HRP.Position).Magnitude < CONFIG.quantumReach then
+            -- Procura TouchInterest na perna
+            local touched = false
+            for _, d in ipairs(rightLeg:GetDescendants()) do
+                if d.Name == "TouchInterest" then
+                    pcall(function()
+                        firetouchinterest(ball, d.Parent, 0)
+                        firetouchinterest(ball, d.Parent, 1)
+                    end)
+                    touched = true
+                    break
+                end
+            end
+            
+            -- Se não achou TouchInterest, usa a perna diretamente
+            if not touched then
+                pcall(function()
+                    firetouchinterest(ball, rightLeg, 0)
+                    firetouchinterest(ball, rightLeg, 1)
+                end)
+            end
+        end
+    end
 end
 
 -- DO REACH (Arthur V2 Method - Optimized)
@@ -525,7 +586,7 @@ function buildMainGUI()
         end
     end)
     
-    -- Title Bar
+        -- Title Bar
     local titleBar = Instance.new("Frame")
     titleBar.Size = UDim2.new(1, 0, 0, 50)
     titleBar.BackgroundColor3 = CONFIG.colors.tabBg
@@ -589,10 +650,8 @@ function buildMainGUI()
     
     closeBtn.MouseButton1Click:Connect(function()
         mainWindow.Visible = false
-        -- Optional: Disable features when closed
-        -- CONFIG.autoTouch = false
-        -- clearAllAuras()
     end)
+    
     -- TAB BAR
     local tabBar = Instance.new("Frame")
     tabBar.Size = UDim2.new(0, 120, 1, -50)
@@ -672,10 +731,22 @@ function buildMainGUI()
         updateBallAuras()
     end, 130)
     
+    -- NOVO: Quantum Reach Slider (do Arthur Hub)
+    createSlider(reachTab, "🔮 QUANTUM REACH", CONFIG.quantumReach, 1, 150, CONFIG.colors.accent3, function(val)
+        CONFIG.quantumReach = val
+        updateQuantumCircle()
+    end, 260)
+    
     -- Flash Mode Toggle
     createToggle(reachTab, "⚡ FLASH MODE (Instant Touch)", CONFIG.flashEnabled, function(val)
         CONFIG.flashEnabled = val
-    end, 260)
+    end, 390)
+    
+    -- NOVO: Quantum Reach Toggle (do Arthur Hub)
+    createToggle(reachTab, "🔮 QUANTUM REACH TOUCH", CONFIG.quantumReachEnabled, function(val)
+        CONFIG.quantumReachEnabled = val
+        updateQuantumCircle()
+    end, 460)
     
     -- SETTINGS TAB
     local settingsTab = createTab("Settings", "⚙️", 1)
@@ -692,6 +763,7 @@ function buildMainGUI()
             clearAllAuras()
         else
             updateBallAuras()
+            updateQuantumCircle()
         end
     end, 70)
     
@@ -775,8 +847,15 @@ createConnection(RunService.RenderStepped, function()
     if isUIOpen then
         updatePlayerSphere()
         updateBallAuras()
+        -- NOVO: Atualizar círculo do Quantum Reach
+        if quantumCircle and HRP then
+            quantumCircle.Position = HRP.Position
+            quantumCircle.Transparency = (CONFIG.quantumReachEnabled and CONFIG.showVisuals) and 0.75 or 1
+        end
     end
     doReach()
+    -- NOVO: Executar Quantum Reach Touch
+    doQuantumReach()
 end)
 
 -- Initialize
