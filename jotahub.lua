@@ -536,26 +536,171 @@ function buildMainGUI()
     }):Play()
 
     -- FUNÇÕES
-    local function animateButton(btn)
-        local original = btn.BackgroundColor3
-        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.new(1, 1, 1)}):Play()
-        task.wait(0.1)
-        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = original}):Play()
-    end
+local function animateButton(btn)
+    local original = btn.BackgroundColor3
+    TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.new(1, 1, 1)}):Play()
+    task.wait(0.1)
+    TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = original}):Play()
+end
 
-    minusPlayer.MouseButton1Click:Connect(function()
-        animateButton(minusPlayer)
-        CONFIG.playerReach = math.max(1, CONFIG.playerReach - 1)
-        playerValue.Text = CONFIG.playerReach .. " studs"
+minusPlayer.MouseButton1Click:Connect(function()
+    animateButton(minusPlayer)
+    CONFIG.playerReach = math.max(1, CONFIG.playerReach - 1)
+    playerValue.Text = CONFIG.playerReach .. " studs"
+end)
+
+plusPlayer.MouseButton1Click:Connect(function()
+    animateButton(plusPlayer)
+    CONFIG.playerReach = math.min(150, CONFIG.playerReach + 1)
+    playerValue.Text = CONFIG.playerReach .. " studs"
+end)
+
+resetPlayer.MouseButton1Click:Connect(function()
+    animateButton(resetPlayer)
+    CONFIG.playerReach = 10
+    playerValue.Text = CONFIG.playerReach .. " studs"
+end)
+
+minusBall.MouseButton1Click:Connect(function()
+    animateButton(minusBall)
+    CONFIG.ballReach = math.max(1, CONFIG.ballReach - 1)
+    ballValue.Text = CONFIG.ballReach .. " studs"
+    updateBallAuras()
+end)
+
+plusBall.MouseButton1Click:Connect(function()
+    animateButton(plusBall)
+    CONFIG.ballReach = math.min(150, CONFIG.ballReach + 1)
+    ballValue.Text = CONFIG.ballReach .. " studs"
+    updateBallAuras()
+end)
+
+resetBall.MouseButton1Click:Connect(function()
+    animateButton(resetBall)
+    CONFIG.ballReach = 15
+    ballValue.Text = CONFIG.ballReach .. " studs"
+    updateBallAuras()
+end)
+
+autoTouchBtn.MouseButton1Click:Connect(function()
+    CONFIG.autoTouch = not CONFIG.autoTouch
+    autoTouchBtn.Text = CONFIG.autoTouch and "AUTO TOUCH: ON" or "AUTO TOUCH: OFF"
+    autoTouchBtn.BackgroundColor3 = CONFIG.autoTouch and CONFIG.colors.primary or Color3.fromRGB(100, 100, 100)
+    animateButton(autoTouchBtn)
+end)
+
+visualsBtn.MouseButton1Click:Connect(function()
+    CONFIG.showPlayerSphere = not CONFIG.showPlayerSphere
+    CONFIG.showBallAura = not CONFIG.showBallAura
+    visualsBtn.Text = (CONFIG.showPlayerSphere and CONFIG.showBallAura) and "VISUALS: ON" or "VISUALS: OFF"
+    visualsBtn.BackgroundColor3 = (CONFIG.showPlayerSphere and CONFIG.showBallAura) and CONFIG.colors.secondary or Color3.fromRGB(100, 100, 100)
+    animateButton(visualsBtn)
+end)
+
+hideBtn.MouseButton1Click:Connect(function()
+    animateButton(hideBtn)
+    TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
+        Position = UDim2.new(0, -340, 0.5, -225)
+    }):Play()
+    task.delay(0.4, function()
+        mainFrame.Visible = false
+        mainFrame.Position = UDim2.new(0, 20, 0.5, -225)
+    end)
+end)
+
+-- BOTÃO MOBILE PREMIUM
+local function buildMobileButton()
+    local mobileGui = Instance.new("ScreenGui")
+    mobileGui.Name = "CaduMobileV3"
+    mobileGui.ResetOnSpawn = false
+    mobileGui.Parent = player:WaitForChild("PlayerGui")
+
+    local floatBtn = Instance.new("TextButton")
+    floatBtn.Size = UDim2.new(0, 75, 0, 75)
+    floatBtn.Position = UDim2.new(1, -95, 1, -130)
+    floatBtn.BackgroundColor3 = CONFIG.colors.dark
+    floatBtn.Text = "⚡"
+    floatBtn.TextSize = 40
+    floatBtn.Font = Enum.Font.GothamBlack
+    floatBtn.TextColor3 = CONFIG.colors.primary
+    floatBtn.Parent = mobileGui
+    floatBtn.Active = true
+    floatBtn.Draggable = true
+    floatBtn.AutoButtonColor = false
+
+    Instance.new("UICorner", floatBtn).CornerRadius = UDim.new(1, 0)
+
+    local stroke = Instance.new("UIStroke", floatBtn)
+    stroke.Color = CONFIG.colors.primary
+    stroke.Thickness = 3
+
+    local glow = Instance.new("ImageLabel")
+    glow.Size = UDim2.new(1.5, 0, 1.5, 0)
+    glow.Position = UDim2.new(-0.25, 0, -0.25, 0)
+    glow.BackgroundTransparency = 1
+    glow.Image = "rbxassetid://243660364"
+    glow.ImageColor3 = CONFIG.colors.primary
+    glow.ImageTransparency = 0.8
+    glow.Parent = floatBtn
+
+    spawn(function()
+        while floatBtn and floatBtn.Parent do
+            TweenService:Create(glow, TweenInfo.new(1), {
+                ImageTransparency = 0.5,
+                Size = UDim2.new(1.8, 0, 1.8, 0)
+            }):Play()
+            task.wait(1)
+            TweenService:Create(glow, TweenInfo.new(1), {
+                ImageTransparency = 0.8,
+                Size = UDim2.new(1.5, 0, 1.5, 0)
+            }):Play()
+            task.wait(1)
+        end
     end)
 
-    plusPlayer.MouseButton1Click:Connect(function()
-        animateButton(plusPlayer)
-        CONFIG.playerReach = math.min(150, CONFIG.playerReach + 1)
-        playerValue.Text = CONFIG.playerReach .. " studs"
+    floatBtn.MouseButton1Click:Connect(function()
+        mainFrame.Visible = true
+        TweenService:Create(mainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Back), {
+            Position = UDim2.new(0, 20, 0.5, -225)
+        }):Play()
     end)
+end
 
-    resetPlayer.MouseButton1Click:Connect(function()
-        animateButton(resetPlayer)
-        CONFIG.playerReach = 10
-        playerValue.Text = CONFIG.playerReach .. " st
+-- TECLA INSERT
+if not isMobile then
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == Enum.KeyCode.Insert then
+            if mainFrame then
+                if mainFrame.Visible then
+                    TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
+                        Position = UDim2.new(0, -340, 0.5, -225)
+                    }):Play()
+                    task.delay(0.4, function()
+                        mainFrame.Visible = false
+                        mainFrame.Position = UDim2.new(0, 20, 0.5, -225)
+                    end)
+                else
+                    mainFrame.Visible = true
+                    TweenService:Create(mainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Back), {
+                        Position = UDim2.new(0, 20, 0.5, -225)
+                    }):Play()
+                end
+            end
+        end
+    end)
+end
+
+-- LOOPS (igual Arthur V2)
+RunService.RenderStepped:Connect(function()
+    updatePlayerSphere()
+    updateBallAuras()
+    doReach()
+end)
+
+-- INIT
+buildMainGUI()
+if isMobile then
+    buildMobileButton()
+end
+
+print("Cadu Hub V3 | Arthur V2 Edition | Player:", CONFIG.playerReach, "| Ball:", CONFIG.ballReach)
