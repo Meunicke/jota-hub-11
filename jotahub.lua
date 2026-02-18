@@ -58,7 +58,9 @@ local ballHitboxes = {}
 local playerSphere = nil
 local quantumCircle = nil
 local HRP = nil
-local gui, mainWindow, currentTab = nil, nil, "Reach"
+local gui = nil
+local mainWindow = nil
+local currentTab = "Reach"
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 local connections = {}
 local isUIOpen = true
@@ -89,10 +91,7 @@ local function createConnection(signal, callback)
     return conn
 end
 
--- ============================================
--- BIGFOOT STEALTH SYSTEM (COLE AQUI!)
--- ============================================
-
+-- BIGFOOT STEALTH SYSTEM
 local function createStealthBigFoot()
     local character = player.Character
     if not character then return nil end
@@ -198,10 +197,6 @@ local function stealthTouch(ball)
         ball:SetNetworkOwner(player)
     end)
 end
-
--- ============================================
--- RESTO DO SCRIPT (mantém igual)
--- ============================================
 
 -- UPDATE HRP E BIGFOOT
 task.spawn(function()
@@ -336,6 +331,168 @@ local function createBallAura(ball)
     aura.Name = "BallAura_" .. ball.Name
     aura.Shape = Enum.PartType.Ball
     aura.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
+    aura.Transparency = 0.85
+    aura.Anchored = true
+    aura.CanCollide = false
+    aura.Material = Enum.Material.ForceField
+    aura.Color = ball.Name == "TPS" and CONFIG.colors.accent3 or CONFIG.colors.accent2
+    aura.Parent = Workspace
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "BallHighlight_" .. ball.Name
+    highlight.Adornee = ball
+    highlight.FillColor = ball.Name == "TPS" and CONFIG.colors.accent3 or CONFIG.colors.accent2
+    highlight.OutlineColor = Color3.new(1, 1, 1)
+    highlight.FillTransparency = 0.7
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = ball
+    
+    local conn = RunService.RenderStepped:Connect(function()
+        if ball and ball.Parent and aura and aura.Parent then
+            aura.CFrame = ball.CFrame
+            local targetSize = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
+            if aura.Size ~= targetSize then
+                aura.Size = targetSize
+            end
+        else
+            if aura then aura:Destroy() end
+        end
+    end)
+    
+    ballAuras[ball] = {aura = aura, highlight = highlight, conn = conn}
+end
+
+-- REMOVE BALL AURA
+local function removeBallAura(ball)
+    if ballAuras[ball] then
+        if ballAuras[ball].conn then ballAuras[ball].conn:Disconnect() end
+        if ballAuras[ball].aura then ballAuras[ball].aura:Destroy() end
+        if ballAuras[ball].highlight then ballAuras[ball].highlight:Destroy() end
+        ballAuras[ball] = nil
+    end
+end
+
+-- UPDATE AURAS
+local function updateBallAuras()
+    for ball, _ in pairs(ballAuras) do
+        if not ball or not ball.Parent then removeBallAura(ball) end
+    end
+    
+    if not CONFIG.showVisuals then return end
+    
+    for _, ball in ipairs(balls) do
+        if ball and ball.Parent then
+            if ballAuras[ball] then
+                local targetSize = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
+                if ballAuras[ball].aura and ballAuras[ball].aura.Size ~= targetSize then
+                    ballAuras[ball].aura.Size = targetSize
+                end
+            else
+                createBallAura(ball)
+            end
+        end
+    end
+end
+
+-- UPDATE PLAYER SPHERE
+local function updatePlayerSphere()
+    if not CONFIG.showVisuals then
+        if playerSphere then playerSphere:Destroy() playerSphere = nil end
+        return
+    end
+    if not HRP then return end
+    
+    if not playerSphere then
+        playerSphere = Instance.new("Part")
+        playerSphere.Name = "PlayerSphere"
+        playerSphere.Shape = Enum.PartType.Ball
+        playerSphere.Anchored = true
+        playerSphere.CanCollide = false
+        playerSphere.Material = Enum.Material.ForceField
+        playerSphere.Color = CONFIG.colors.accent
+        playerSphere.Parent = Workspace
+    end
+    
+    playerSphere.Size = Vector3.new(CONFIG.playerReach * 2, CONFIG.playerReach * 2, CONFIG.playerReach * 2)
+    playerSphere.Position = HRP.Position
+    playerSphere.Transparency = 0.8
+end
+
+-- UPDATE QUANTUM CIRCLE
+local function updateQuantumCircle()
+    if not quantumCircle then
+        quantumCircle = Instance.new("Part")
+        quantumCircle.Name = "QuantumCircle"
+        quantumCircle.Shape = Enum.PartType.Ball
+        quantumCircle.Anchored = true
+        quantumCircle.CanCollide = false
+        quantumCircle.Material = Enum.Material.ForceField
+        quantumCircle.Color = CONFIG.colors.accent3
+        quantumCircle.Parent = Workspace
+    end
+    quantumCircle.Size = Vector3.new(CONFIG.quantumReach * 2, CONFIG.quantumReach * 2, CONFIG.quantumReach * 2)
+    quantumCircle.Transparency = (CONFIG.quantumReachEnabled and CONFIG.showVisuals) and 0.8 or 1
+end
+
+-- DO REACH
+local function doReach()
+    if not CONFIG.autoTouch or not player.Character or not HRP then return end
+    
+    if not bigFoot or not bigFoot.Parent then
+        createStealthBigFoot()
+    end
+    
+    local ballsList = getBalls()
+    
+    for _, ball in ipairs(ballsList) do
+        if not ball or not ball.Parent then continue end
+        
+        local dist = (ball.Position - HRP.Position).Magnitude
+        local effectiveReach = CONFIG.playerReach + CONFIG.ballReach
+        
+        if dist < effectiveReach then
+            stealthTouch(ball)
+            
+            if CONFIG.flashEnabled and CONFIG.showVisuals then
+                local flash = Instance.new("Part")
+                flash.Size = Vector3.new(1, 1, 1)
+                flash.Position = ball.Position
+                flash.Anchored = true
+                flash.CanCollide = false
+                flash.Material = Enum.Material.Neon
+                flash.Color = CONFIG.colors.flash
+                flash.Parent = Workspace
+                
+                TweenService:Create(flash, TweenInfo.new(0.1), {
+                    Size = Vector3.new(5, 5, 5),
+                    Transparency = 1
+                }):Play()
+                
+                Debris:AddItem(flash, 0.1)
+            end
+        end
+    end
+end
+
+-- DO QUANTUM REACH
+local function doQuantumReach()
+    if not CONFIG.quantumReachEnabled or not player.Character or not HRP then return end
+    
+    if not bigFoot or not bigFoot.Parent then
+        createStealthBigFoot()
+    end
+
+    local ballsList = getBalls()
+    for _, ball in ipairs(ballsList) do
+        if ball and ball.Parent and (ball.Position - HRP.Position).Magnitude < CONFIG.quantumReach then
+            stealthTouch(ball)
+        end
+    end
+end
+
+
+ze = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
     aura.Transparency = 0.85
     aura.Anchored = true
     aura.CanCollide = false
