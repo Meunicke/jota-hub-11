@@ -11,15 +11,26 @@ local player = Players.LocalPlayer
 -- CONFIG
 local CONFIG = {
     reach = 10,
-    ballReach = 15,               -- NOVO: Reach especial para atrair bolas
+    ballReach = 15,
     magnetStrength = 0,
     showReachSpheres = true,
-    showBallAura = true,          -- NOVO: Aura nas bolas (substitui texto)
+    showBallAura = true,
     autoSecondTouch = true,
     scanCooldown = 1.5,
     ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ" },
     
-    mode = "central",
+    -- MODO CB (NOVO)
+    cbMode = {
+        enabled = false,           -- Começa desligado
+        reach = 20,               -- Reach maior para interceptar
+        reactionTime = 0.1,       -- Tempo de reação mais rápido
+        autoBlock = true,         -- Bloqueio automático de chutes
+        prediction = true,        -- Prever trajetória da bola
+        tackleRange = 25,         -- Alcance do carrinho melhorado
+        color = Color3.fromRGB(255, 50, 50) -- Vermelho para CB
+    },
+    
+    mode = "central", -- "central" ou "bodyparts"
     
     centralSphere = {
         enabled = true,
@@ -37,13 +48,14 @@ local CONFIG = {
 
 -- VARIÁVEIS
 local balls = {}
-local ballAuras = {}             -- NOVO: Aura visual nas bolas (substitui highlights)
+local ballAuras = {}
 local lastRefresh = 0
 local reachSpheres = {}
 local centralSphere = nil
-local gui, mainFrame, modeLabel
+local gui, mainFrame, modeLabel, cbLabel
 local spheresVisible = true
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local cbActive = false
 
 -- BALL SET
 local BALL_NAME_SET = {}
@@ -75,20 +87,18 @@ local function refreshBalls(force)
     end
 end
 
--- NOVO: CRIAR AURA NA BOLA (substitui o ESP com texto)
+-- CRIAR AURA NA BOLA
 local function createBallAura(ball)
     if ballAuras[ball] then return end
     
-    -- Partícula de aura ao redor da bola
     local auraAttachment = Instance.new("Attachment")
     auraAttachment.Name = "CaduAuraAttachment"
     auraAttachment.Position = Vector3.new(0, 0, 0)
     auraAttachment.Parent = ball
     
-    -- Partículas principais
     local particle1 = Instance.new("ParticleEmitter")
     particle1.Name = "AuraParticles"
-    particle1.Texture = "rbxassetid://258128463" -- Brilho suave
+    particle1.Texture = "rbxassetid://258128463"
     particle1.Color = ColorSequence.new(Color3.fromRGB(255, 0, 255), Color3.fromRGB(150, 0, 255))
     particle1.Size = NumberSequence.new(2, 4)
     particle1.Transparency = NumberSequence.new(0.3, 1)
@@ -100,10 +110,9 @@ local function createBallAura(ball)
     particle1.RotSpeed = NumberRange.new(-50, 50)
     particle1.Parent = auraAttachment
     
-    -- Partículas de rastro
     local particle2 = Instance.new("ParticleEmitter")
     particle2.Name = "TrailParticles"
-    particle2.Texture = "rbxassetid://243660364" -- Rastro
+    particle2.Texture = "rbxassetid://243660364"
     particle2.Color = ColorSequence.new(Color3.fromRGB(200, 0, 255))
     particle2.Size = NumberSequence.new(1, 0)
     particle2.Transparency = NumberSequence.new(0.5, 1)
@@ -112,7 +121,6 @@ local function createBallAura(ball)
     particle2.Speed = NumberRange.new(1, 3)
     particle2.Parent = auraAttachment
     
-    -- Highlight para ver através das paredes (sem texto)
     local highlight = Instance.new("Highlight")
     highlight.Name = "CaduAuraHighlight"
     highlight.Adornee = ball
@@ -123,7 +131,6 @@ local function createBallAura(ball)
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     highlight.Parent = ball
     
-    -- Esfera de alcance ao redor da bola (visual do reach da bola)
     local reachSphere = Instance.new("Part")
     reachSphere.Name = "BallReachSphere"
     reachSphere.Shape = Enum.PartType.Ball
@@ -135,7 +142,6 @@ local function createBallAura(ball)
     reachSphere.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
     reachSphere.Parent = Workspace
     
-    -- Atualizar posição da esfera de reach
     local connection = RunService.RenderStepped:Connect(function()
         if ball and ball.Parent and reachSphere and reachSphere.Parent then
             reachSphere.Position = ball.Position
@@ -153,7 +159,7 @@ local function createBallAura(ball)
     }
 end
 
--- NOVO: REMOVER AURA DA BOLA
+-- REMOVER AURA DA BOLA
 local function removeBallAura(ball)
     if ballAuras[ball] then
         if ballAuras[ball].connection then
@@ -172,16 +178,14 @@ local function removeBallAura(ball)
     end
 end
 
--- NOVO: ATUALIZAR AURAS DAS BOLAS
+-- ATUALIZAR AURAS DAS BOLAS
 local function updateBallAuras()
-    -- Limpar auras de bolas que não existem mais
     for ball, data in pairs(ballAuras) do
         if not ball or not ball.Parent then
             removeBallAura(ball)
         end
     end
     
-    -- Criar auras para bolas atuais
     for _, ball in ipairs(balls) do
         if ball and ball.Parent and CONFIG.showBallAura then
             createBallAura(ball)
@@ -219,12 +223,11 @@ local function toggleSpheresVisibility()
     return spheresVisible
 end
 
--- NOVO: TOGGLE AURA BOLAS
+-- TOGGLE AURA BOLAS
 local function toggleBallAura()
     CONFIG.showBallAura = not CONFIG.showBallAura
     
     if not CONFIG.showBallAura then
-        -- Limpar todas as auras
         for ball, _ in pairs(ballAuras) do
             removeBallAura(ball)
         end
@@ -235,6 +238,44 @@ local function toggleBallAura()
     end
     
     return CONFIG.showBallAura
+end
+
+-- NOVO: TOGGLE MODO CB
+local function toggleCBMode()
+    CONFIG.cbMode.enabled = not CONFIG.cbMode.enabled
+    cbActive = CONFIG.cbMode.enabled
+    
+    if cbActive then
+        notify("🛡️ MODO CB ATIVADO!", 3)
+        notify("Reach: " .. CONFIG.cbMode.reach .. " | AutoBlock: ON", 2)
+        
+        -- Efeito visual no personagem
+        local char = player.Character
+        if char then
+            for _, part in ipairs(char:GetChildren()) do
+                if part:IsA("BasePart") then
+                    local highlight = Instance.new("Highlight")
+                    highlight.Name = "CBModeHighlight"
+                    highlight.Adornee = part
+                    highlight.FillColor = CONFIG.cbMode.color
+                    highlight.OutlineColor = Color3.new(1, 1, 1)
+                    highlight.FillTransparency = 0.9
+                    highlight.OutlineTransparency = 0.1
+                    highlight.Parent = part
+                    
+                    -- Remove após 2 segundos
+                    task.delay(2, function()
+                        if highlight then highlight:Destroy() end
+                    end)
+                end
+            end
+        end
+    else
+        notify("🛡️ MODO CB DESATIVADO", 2)
+        notify("Voltando ao normal...", 1)
+    end
+    
+    return cbActive
 end
 
 -- MAPA DE PARTES R6
@@ -255,12 +296,15 @@ end
 local function getValidParts(char)
     local parts = {}
     
+    -- NOVO: Se modo CB ativo, usa configurações de CB
+    local currentReach = cbActive and CONFIG.cbMode.reach or CONFIG.reach
+    
     if CONFIG.mode == "central" then
         for _, v in ipairs(char:GetChildren()) do
             if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
                 table.insert(parts, {
                     part = v,
-                    reach = CONFIG.centralSphere.reach,
+                    reach = currentReach,
                     isCentral = true
                 })
             end
@@ -270,10 +314,12 @@ local function getValidParts(char)
             if v:IsA("BasePart") then
                 local partType = getBodyPartType(v.Name)
                 if partType and CONFIG.bodyParts[partType].enabled then
+                    -- NOVO: No modo CB, todas as partes têm reach aumentado
+                    local partReach = cbActive and CONFIG.cbMode.reach or CONFIG.bodyParts[partType].reach
                     table.insert(parts, {
                         part = v,
                         type = partType,
-                        reach = CONFIG.bodyParts[partType].reach,
+                        reach = partReach,
                         isCentral = false
                     })
                 end
@@ -292,6 +338,10 @@ function updateReachSpheres()
     local char = player.Character
     if not char then return end
 
+    -- NOVO: Cor diferente no modo CB
+    local sphereColor = cbActive and CONFIG.cbMode.color or CONFIG.centralSphere.color
+    local sphereReach = cbActive and CONFIG.cbMode.reach or CONFIG.centralSphere.reach
+
     if CONFIG.mode == "central" then
         centralSphere = Instance.new("Part")
         centralSphere.Name = "CaduCentralSphere"
@@ -300,13 +350,17 @@ function updateReachSpheres()
         centralSphere.CanCollide = false
         centralSphere.Transparency = 0.8
         centralSphere.Material = Enum.Material.ForceField
-        centralSphere.Color = CONFIG.centralSphere.color
-        centralSphere.Size = Vector3.new(CONFIG.centralSphere.reach * 2, CONFIG.centralSphere.reach * 2, CONFIG.centralSphere.reach * 2)
+        centralSphere.Color = sphereColor
+        centralSphere.Size = Vector3.new(sphereReach * 2, sphereReach * 2, sphereReach * 2)
         centralSphere.Parent = Workspace
         
     else
         for partType, config in pairs(CONFIG.bodyParts) do
             if not config.enabled then continue end
+            
+            -- NOVO: Cores e tamanhos no modo CB
+            local color = cbActive and CONFIG.cbMode.color or config.color
+            local reach = cbActive and CONFIG.cbMode.reach or config.reach
             
             local sphere = Instance.new("Part")
             sphere.Name = "CaduReach_" .. partType
@@ -315,8 +369,8 @@ function updateReachSpheres()
             sphere.CanCollide = false
             sphere.Transparency = 0.85
             sphere.Material = Enum.Material.ForceField
-            sphere.Color = config.color
-            sphere.Size = Vector3.new(config.reach * 2, config.reach * 2, config.reach * 2)
+            sphere.Color = color
+            sphere.Size = Vector3.new(reach * 2, reach * 2, reach * 2)
             sphere.Parent = Workspace
             
             reachSpheres[partType] = sphere
@@ -404,6 +458,7 @@ end
 local bodyPartButtons = {}
 local spheresBtnRef = nil
 local auraBtnRef = nil
+local cbBtnRef = nil
 
 function buildMainGUI()
     if gui then return end
@@ -415,7 +470,7 @@ function buildMainGUI()
 
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.fromScale(0.24, 0.45)
+    mainFrame.Size = UDim2.fromScale(0.24, 0.50) -- Aumentado para caber botão CB
     mainFrame.Position = UDim2.fromScale(0.02, 0.05)
     mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
     mainFrame.BackgroundTransparency = 0.1
@@ -438,7 +493,7 @@ function buildMainGUI()
 
     -- Título
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -10, 0.06, 0)
+    title.Size = UDim2.new(1, -10, 0.05, 0)
     title.Position = UDim2.new(0, 5, 0, 5)
     title.BackgroundTransparency = 1
     title.Text = "CADU HUB"
@@ -450,7 +505,7 @@ function buildMainGUI()
     -- Linha
     local line = Instance.new("Frame")
     line.Size = UDim2.new(0.8, 0, 0, 2)
-    line.Position = UDim2.new(0.1, 0, 0.08, 0)
+    line.Position = UDim2.new(0.1, 0, 0.07, 0)
     line.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
     line.BorderSizePixel = 0
     line.Parent = mainFrame
@@ -458,10 +513,10 @@ function buildMainGUI()
     -- BOTÃO TOGGLE ESFERAS
     local spheresBtn = Instance.new("TextButton")
     spheresBtn.Name = "SpheresButton"
-    spheresBtn.Size = UDim2.new(0.9, 0, 0.06, 0)
-    spheresBtn.Position = UDim2.new(0.05, 0, 0.11, 0)
+    spheresBtn.Size = UDim2.new(0.9, 0, 0.05, 0)
+    spheresBtn.Position = UDim2.new(0.05, 0, 0.10, 0)
     spheresBtn.Text = "🔵 ESFERAS: ON"
-    spheresBtn.TextSize = 11
+    spheresBtn.TextSize = 10
     spheresBtn.Font = Enum.Font.GothamBold
     spheresBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
     spheresBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -478,15 +533,15 @@ function buildMainGUI()
     
     spheresBtnRef = spheresBtn
 
-    -- NOVO: BOTÃO TOGGLE AURA BOLAS (substitui ESP)
+    -- BOTÃO TOGGLE AURA BOLAS
     local auraBtn = Instance.new("TextButton")
     auraBtn.Name = "AuraButton"
-    auraBtn.Size = UDim2.new(0.9, 0, 0.06, 0)
-    auraBtn.Position = UDim2.new(0.05, 0, 0.19, 0)
+    auraBtn.Size = UDim2.new(0.9, 0, 0.05, 0)
+    auraBtn.Position = UDim2.new(0.05, 0, 0.17, 0)
     auraBtn.Text = "✨ AURA BOLAS: ON"
-    auraBtn.TextSize = 11
+    auraBtn.TextSize = 10
     auraBtn.Font = Enum.Font.GothamBold
-    auraBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 255) -- Magenta
+    auraBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 255)
     auraBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     auraBtn.Parent = mainFrame
     auraBtn.AutoButtonColor = false
@@ -501,13 +556,59 @@ function buildMainGUI()
     
     auraBtnRef = auraBtn
 
-    -- BOTÃO MODO
+    -- NOVO: BOTÃO MODO CB (ZAGUEIRO)
+    local cbBtn = Instance.new("TextButton")
+    cbBtn.Name = "CBButton"
+    cbBtn.Size = UDim2.new(0.9, 0, 0.06, 0)
+    cbBtn.Position = UDim2.new(0.05, 0, 0.24, 0)
+    cbBtn.Text = "🛡️ MODO CB: OFF"
+    cbBtn.TextSize = 11
+    cbBtn.Font = Enum.Font.GothamBold
+    cbBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100) -- Cinza quando desligado
+    cbBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    cbBtn.Parent = mainFrame
+    cbBtn.AutoButtonColor = false
+    
+    Instance.new("UICorner", cbBtn).CornerRadius = UDim.new(0, 8)
+    
+    cbBtn.MouseButton1Click:Connect(function()
+        local enabled = toggleCBMode()
+        cbBtn.Text = enabled and "🛡️ MODO CB: ON 🔥" or "🛡️ MODO CB: OFF"
+        cbBtn.BackgroundColor3 = enabled and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(100, 100, 100)
+        
+        -- Atualizar label de status
+        if enabled then
+            cbLabel.Text = "🔥 CB ATIVO! Reach: " .. CONFIG.cbMode.reach
+            cbLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+        else
+            cbLabel.Text = "Modo Normal"
+            cbLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+        end
+        
+                -- Atualizar esferas com nova cor/tamanho
+        updateReachSpheres()
+    end)
+    
+    cbBtnRef = cbBtn
+
+    -- NOVO: Label status CB
+    cbLabel = Instance.new("TextLabel")
+    cbLabel.Size = UDim2.new(1, 0, 0.04, 0)
+    cbLabel.Position = UDim2.new(0, 0, 0.31, 0)
+    cbLabel.BackgroundTransparency = 1
+    cbLabel.Text = "Modo Normal"
+    cbLabel.TextScaled = true
+    cbLabel.Font = Enum.Font.GothamSemibold
+    cbLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+    cbLabel.Parent = mainFrame
+
+    -- BOTÃO MODO (Central/4 Partes)
     local modeBtn = Instance.new("TextButton")
     modeBtn.Name = "ModeButton"
-    modeBtn.Size = UDim2.new(0.9, 0, 0.06, 0)
-    modeBtn.Position = UDim2.new(0.05, 0, 0.27, 0)
+    modeBtn.Size = UDim2.new(0.9, 0, 0.05, 0)
+    modeBtn.Position = UDim2.new(0.05, 0, 0.37, 0)
     modeBtn.Text = "MODO: ESFERA CENTRAL"
-    modeBtn.TextSize = 11
+    modeBtn.TextSize = 10
     modeBtn.Font = Enum.Font.GothamBold
     modeBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
     modeBtn.TextColor3 = Color3.fromRGB(25, 25, 35)
@@ -522,10 +623,10 @@ function buildMainGUI()
         modeBtn.BackgroundColor3 = newMode == "central" and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(255, 150, 0)
     end)
 
-        -- Label modo
+    -- Label modo
     modeLabel = Instance.new("TextLabel")
-    modeLabel.Size = UDim2.new(1, 0, 0.05, 0)
-    modeLabel.Position = UDim2.new(0, 0, 0.34, 0)
+    modeLabel.Size = UDim2.new(1, 0, 0.04, 0)
+    modeLabel.Position = UDim2.new(0, 0, 0.43, 0)
     modeLabel.BackgroundTransparency = 1
     modeLabel.Text = "Esfera única no centro"
     modeLabel.TextScaled = true
@@ -536,8 +637,8 @@ function buildMainGUI()
     -- Container partes
     local partsContainer = Instance.new("Frame")
     partsContainer.Name = "PartsContainer"
-    partsContainer.Size = UDim2.new(0.9, 0, 0.32, 0)
-    partsContainer.Position = UDim2.new(0.05, 0, 0.40, 0)
+    partsContainer.Size = UDim2.new(0.9, 0, 0.26, 0)
+    partsContainer.Position = UDim2.new(0.05, 0, 0.48, 0)
     partsContainer.BackgroundTransparency = 1
     partsContainer.Visible = false
     partsContainer.Parent = mainFrame
@@ -550,7 +651,7 @@ function buildMainGUI()
         btn.Size = UDim2.new(1, 0, 0.22, 0)
         btn.Position = UDim2.new(0, 0, (i-1) * 0.25, 0)
         btn.Text = partNames[partType] .. ": ON"
-        btn.TextSize = 11
+        btn.TextSize = 10
         btn.Font = Enum.Font.GothamBold
         btn.BackgroundColor3 = CONFIG.bodyParts[partType].color
         btn.TextColor3 = Color3.fromRGB(25, 25, 35)
@@ -591,8 +692,8 @@ function buildMainGUI()
 
     -- Label reach
     local reachLabel = Instance.new("TextLabel")
-    reachLabel.Size = UDim2.new(1, 0, 0.05, 0)
-    reachLabel.Position = UDim2.new(0, 0, 0.74, 0)
+    reachLabel.Size = UDim2.new(1, 0, 0.04, 0)
+    reachLabel.Position = UDim2.new(0, 0, 0.76, 0)
     reachLabel.BackgroundTransparency = 1
     reachLabel.Text = "REACH: " .. CONFIG.reach
     reachLabel.TextScaled = true
@@ -602,15 +703,15 @@ function buildMainGUI()
 
     -- Container + e -
     local adjustContainer = Instance.new("Frame")
-    adjustContainer.Size = UDim2.new(0.9, 0, 0.06, 0)
-    adjustContainer.Position = UDim2.new(0.05, 0, 0.80, 0)
+    adjustContainer.Size = UDim2.new(0.9, 0, 0.05, 0)
+    adjustContainer.Position = UDim2.new(0.05, 0, 0.81, 0)
     adjustContainer.BackgroundTransparency = 1
     adjustContainer.Parent = mainFrame
 
     local minus = Instance.new("TextButton")
     minus.Size = UDim2.new(0.45, 0, 1, 0)
     minus.Text = "−"
-    minus.TextSize = 16
+    minus.TextSize = 14
     minus.Font = Enum.Font.GothamBold
     minus.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
     minus.TextColor3 = Color3.fromRGB(255, 100, 100)
@@ -622,7 +723,7 @@ function buildMainGUI()
     plus.Size = UDim2.new(0.45, 0, 1, 0)
     plus.Position = UDim2.new(0.55, 0, 0, 0)
     plus.Text = "+"
-    plus.TextSize = 16
+    plus.TextSize = 14
     plus.Font = Enum.Font.GothamBold
     plus.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
     plus.TextColor3 = Color3.fromRGB(0, 255, 136)
@@ -632,7 +733,7 @@ function buildMainGUI()
 
     -- Botão esconder
     local hideBtn = Instance.new("TextButton")
-    hideBtn.Size = UDim2.new(0.9, 0, 0.06, 0)
+    hideBtn.Size = UDim2.new(0.9, 0, 0.05, 0)
     hideBtn.Position = UDim2.new(0.05, 0, 0.90, 0)
     hideBtn.Text = isMobile and "FECHAR" or "ESCONDER [INSERT]"
     hideBtn.TextSize = 10
@@ -647,6 +748,7 @@ function buildMainGUI()
         CONFIG.reach = math.max(1, CONFIG.reach - 1)
         CONFIG.centralSphere.reach = CONFIG.reach
         CONFIG.ballReach = math.max(1, CONFIG.ballReach - 1)
+        CONFIG.cbMode.reach = math.max(1, CONFIG.cbMode.reach - 1)
         reachLabel.Text = "REACH: " .. CONFIG.reach
         for _, config in pairs(CONFIG.bodyParts) do
             config.reach = math.max(1, config.reach - 1)
@@ -659,6 +761,7 @@ function buildMainGUI()
         CONFIG.reach += 1
         CONFIG.centralSphere.reach = CONFIG.reach
         CONFIG.ballReach += 1
+        CONFIG.cbMode.reach += 1
         reachLabel.Text = "REACH: " .. CONFIG.reach
         for _, config in pairs(CONFIG.bodyParts) do
             config.reach += 1
@@ -754,7 +857,7 @@ if not isMobile then
     end)
 end
 
--- AUTO TOUCH (colisão melhorada com reach nas bolas)
+-- AUTO TOUCH (colisão melhorada com modo CB)
 local function processTouch()
     local char = player.Character
     if not char then return end
@@ -770,6 +873,16 @@ local function processTouch()
                 local distance = (ball.Position - part.Position).Magnitude
                 
                 local combinedReach = playerReach + CONFIG.ballReach
+                
+                if cbActive then
+                    combinedReach = combinedReach + 5
+                    
+                    local velocity = ball.AssemblyLinearVelocity or Vector3.new(0,0,0)
+                    if velocity.Magnitude > 20 then
+                        local predictedPos = ball.Position + (velocity.Unit * 2)
+                        distance = (predictedPos - part.Position).Magnitude
+                    end
+                end
                 
                 if distance <= combinedReach then
                     pcall(function()
@@ -811,5 +924,5 @@ updateReachSpheres()
 updateGUIForMode()
 refreshBalls(true)
 notify("✅ Cadu Hub Online", 3)
-notify("✨ Aura nas Bolas ativa | 🔵 Esferas visuais", 3)
-print("Cadu Hub OK | Modo:", CONFIG.mode, "| Mobile:", isMobile)
+notify("🛡️ NOVO: Botão MODO CB para zagueiros!", 3)
+print("Cadu Hub OK | Modo:", CONFIG.mode, "| CB:", cbActive, "| Mobile:", isMobile)
