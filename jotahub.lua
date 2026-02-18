@@ -8,7 +8,7 @@ local Debris = game:GetService("Debris")
 
 local player = Players.LocalPlayer
 
--- CONFIG - DESIGN MODERNO ESTILO DISCORD/SPOTIFY
+-- CONFIG
 local CONFIG = {
     playerReach = 10,
     ballReach = 15,
@@ -18,22 +18,20 @@ local CONFIG = {
     antiAFK = true,
     quantumReachEnabled = false,
     quantumReach = 10,
-    -- CORREÇÃO: TPS adicionado explicitamente
     ballNames = { "TPS", "MPS", "TRS", "TCS", "PRS", "ESA", "MRS", "SSS", "AIFA", "RBZ", "SoccerBall", "Football", "Ball" },
     
     colors = {
-        -- Tema escuro moderno
-        bg = Color3.fromRGB(18, 18, 23),          -- Fundo principal quase preto
-        tabBg = Color3.fromRGB(30, 30, 38),       -- Sidebar
-        cardBg = Color3.fromRGB(35, 35, 47),      -- Cards/Seções
-        accent = Color3.fromRGB(88, 101, 242),    -- Roxo Discord
-        accent2 = Color3.fromRGB(235, 69, 158),   -- Rosa neon
-        accent3 = Color3.fromRGB(0, 255, 255),    -- Cyan Quantum
-        success = Color3.fromRGB(59, 165, 93),    -- Verde Discord
-        warning = Color3.fromRGB(250, 168, 26),   -- Amarelo
-        danger = Color3.fromRGB(237, 66, 69),     -- Vermelho Discord
+        bg = Color3.fromRGB(18, 18, 23),
+        tabBg = Color3.fromRGB(30, 30, 38),
+        cardBg = Color3.fromRGB(35, 35, 47),
+        accent = Color3.fromRGB(88, 101, 242),
+        accent2 = Color3.fromRGB(235, 69, 158),
+        accent3 = Color3.fromRGB(0, 255, 255),
+        success = Color3.fromRGB(59, 165, 93),
+        warning = Color3.fromRGB(250, 168, 26),
+        danger = Color3.fromRGB(237, 66, 69),
         text = Color3.fromRGB(255, 255, 255),
-        textDim = Color3.fromRGB(148, 155, 164),  -- Cinza Discord
+        textDim = Color3.fromRGB(148, 155, 164),
         textDark = Color3.fromRGB(78, 86, 96),
         flash = Color3.fromRGB(255, 255, 100),
         toggleOn = Color3.fromRGB(59, 165, 93),
@@ -54,7 +52,7 @@ local isMobile = UserInputService.TouchEnabled and not UserInputService.Keyboard
 local connections = {}
 local isUIOpen = true
 
--- BALL SET - CORREÇÃO: TPS prioritário
+-- BALL SET
 local BALL_NAME_SET = {}
 for _, n in ipairs(CONFIG.ballNames) do
     BALL_NAME_SET[n] = true
@@ -93,52 +91,48 @@ if CONFIG.antiAFK then
     end)
 end
 
--- GET BALLS - CORREÇÃO: Prioriza TPS e verificação melhorada
+-- GET BALLS
 local lastBallUpdate = 0
 local function getBalls()
     local now = tick()
-    if now - lastBallUpdate < 0.05 then return balls end -- Atualizado mais rápido
+    if now - lastBallUpdate < 0.05 then return balls end
     lastBallUpdate = now
     
     table.clear(balls)
     
-    -- Procura em Workspace e descendants
     for _, v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("BasePart") then
-            -- Verifica se é uma bola pelo nome
-            if BALL_NAME_SET[v.Name] then
-                table.insert(balls, v)
-            end
+        if v:IsA("BasePart") and BALL_NAME_SET[v.Name] then
+            table.insert(balls, v)
         end
     end
     
     return balls
 end
 
--- CORREÇÃO: Função específica para TPS
-local function findTPSBall()
-    for _, v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("BasePart") and v.Name == "TPS" then
-            return v
-        end
-    end
-    return nil
+-- CORREÇÃO: FUNÇÃO PEGAR A PERNA (IGUAL ARTHUR V2)
+local function getRightLeg()
+    if not player.Character then return nil end
+    
+    -- Arthur V2 style: Right Leg (R6) ou RightLowerLeg (R15)
+    local rightLeg = player.Character:FindFirstChild("Right Leg") or 
+                     player.Character:FindFirstChild("RightLowerLeg")
+    
+    return rightLeg
 end
 
--- CREATE BALL AURA - CORREÇÃO: Atualização em tempo real do tamanho
+-- CREATE BALL AURA
 local function createBallAura(ball)
     if ballAuras[ball] or not CONFIG.showVisuals then return end
     
     local aura = Instance.new("Part")
     aura.Name = "BallAura_" .. ball.Name
     aura.Shape = Enum.PartType.Ball
-    -- CORREÇÃO: Tamanho baseado no ballReach atual
     aura.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
     aura.Transparency = 0.85
     aura.Anchored = true
     aura.CanCollide = false
     aura.Material = Enum.Material.ForceField
-    aura.Color = ball.Name == "TPS" and CONFIG.colors.accent3 or CONFIG.colors.accent2 -- TPS é cyan
+    aura.Color = ball.Name == "TPS" and CONFIG.colors.accent3 or CONFIG.colors.accent2
     aura.Parent = Workspace
     
     local highlight = Instance.new("Highlight")
@@ -154,7 +148,6 @@ local function createBallAura(ball)
     local conn = RunService.RenderStepped:Connect(function()
         if ball and ball.Parent and aura and aura.Parent then
             aura.CFrame = ball.CFrame
-            -- CORREÇÃO: Atualiza tamanho dinamicamente
             local targetSize = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
             if aura.Size ~= targetSize then
                 aura.Size = targetSize
@@ -177,20 +170,17 @@ local function removeBallAura(ball)
     end
 end
 
--- UPDATE AURAS - CORREÇÃO: Atualiza tamanho existente
+-- UPDATE AURAS
 local function updateBallAuras()
-    -- Remove auras inválidas
     for ball, _ in pairs(ballAuras) do
         if not ball or not ball.Parent then removeBallAura(ball) end
     end
     
     if not CONFIG.showVisuals then return end
     
-    -- Cria ou atualiza auras
     for _, ball in ipairs(balls) do
         if ball and ball.Parent then
             if ballAuras[ball] then
-                -- CORREÇÃO: Atualiza tamanho de auras existentes
                 local targetSize = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
                 if ballAuras[ball].aura and ballAuras[ball].aura.Size ~= targetSize then
                     ballAuras[ball].aura.Size = targetSize
@@ -260,134 +250,62 @@ local function updateQuantumCircle()
     quantumCircle.Transparency = (CONFIG.quantumReachEnabled and CONFIG.showVisuals) and 0.8 or 1
 end
 
--- CORREÇÃO: DO REACH PARA TPS - Agora verifica TPS especificamente
+-- CORREÇÃO: DO REACH (IGUAL ARTHUR V2 - USA PERNA E PROCURA TOUCHINTEREST)
 local function doReach()
     if not CONFIG.autoTouch or not player.Character or not HRP then return end
     
-    local now = tick()
-    
-    local rightLeg = player.Character:FindFirstChild("Right Leg") or 
-                     player.Character:FindFirstChild("RightLowerLeg") or
-                     player.Character:FindFirstChild("RightFoot") or
-                     player.Character:FindFirstChild("HumanoidRootPart")
+    -- CORREÇÃO: Pega a perna igual Arthur V2 (Right Leg ou RightLowerLeg)
+    local rightLeg = getRightLeg()
     if not rightLeg then return end
+
+    local ballsList = getBalls()
     
-    getBalls()
-    
-    -- CORREÇÃO: Procura específica por TPS primeiro
-    local tpsBall = findTPSBall()
-    if tpsBall and tpsBall.Parent then
-        local dist = (tpsBall.Position - HRP.Position).Magnitude
-        local effectiveReach = CONFIG.playerReach + CONFIG.ballReach
-        
-        if dist < effectiveReach then
-            -- Tenta touch no TPS com prioridade máxima
-            pcall(function()
-                firetouchinterest(tpsBall, rightLeg, 0)
-                firetouchinterest(tpsBall, rightLeg, 1)
-            end)
-            
-            -- Procura TouchInterest também
-            for _, desc in ipairs(rightLeg:GetDescendants()) do
-                if desc.Name == "TouchInterest" then
-                    pcall(function()
-                        firetouchinterest(tpsBall, desc.Parent, 0)
-                        firetouchinterest(tpsBall, desc.Parent, 1)
-                    end)
-                end
-            end
-        end
-    end
-    
-    -- Depois processa outras bolas
-    for _, ball in ipairs(balls) do
-        if not ball or not ball.Parent or ball.Name == "TPS" then continue end -- Pula TPS já processado
+    for _, ball in ipairs(ballsList) do
+        if not ball or not ball.Parent then continue end
         
         local dist = (ball.Position - HRP.Position).Magnitude
         local effectiveReach = CONFIG.playerReach + CONFIG.ballReach
         
-        if CONFIG.flashEnabled and dist < effectiveReach * 2 then
-            pcall(function()
-                firetouchinterest(ball, rightLeg, 0)
-                firetouchinterest(ball, rightLeg, 1)
-            end)
-            
-            if CONFIG.showVisuals then
-                local flash = Instance.new("Part")
-                flash.Size = Vector3.new(1, 1, 1)
-                flash.Position = ball.Position
-                flash.Anchored = true
-                flash.CanCollide = false
-                flash.Material = Enum.Material.Neon
-                flash.Color = CONFIG.colors.flash
-                flash.Parent = Workspace
-                
-                TweenService:Create(flash, TweenInfo.new(0.1), {
-                    Size = Vector3.new(5, 5, 5),
-                    Transparency = 1
-                }):Play()
-                
-                Debris:AddItem(flash, 0.1)
-            end
-            
-        elseif dist < effectiveReach then
-            local touched = false
-            for _, desc in ipairs(rightLeg:GetDescendants()) do
-                if desc.Name == "TouchInterest" then
+        -- CORREÇÃO: Só executa se estiver no alcance
+        if dist < effectiveReach then
+            -- CORREÇÃO: Procura TouchInterest nos DESCENDENTES da perna (igual Arthur V2)
+            for _, d in ipairs(rightLeg:GetDescendants()) do
+                if d.Name == "TouchInterest" then
                     pcall(function()
-                        firetouchinterest(ball, desc.Parent, 0)
-                        firetouchinterest(ball, desc.Parent, 1)
+                        -- CORREÇÃO: Usa d.Parent (a parte que tem o TouchInterest)
+                        firetouchinterest(ball, d.Parent, 0)
+                        firetouchinterest(ball, d.Parent, 1)
                     end)
-                    touched = true
-                    break
                 end
-            end
-            
-            if not touched then
-                pcall(function()
-                    firetouchinterest(ball, rightLeg, 0)
-                    firetouchinterest(ball, rightLeg, 1)
-                end)
             end
         end
     end
 end
 
--- DO QUANTUM REACH TOUCH
+-- DO QUANTUM REACH TOUCH (também corrigido)
 local function doQuantumReach()
     if not CONFIG.quantumReachEnabled or not player.Character or not HRP then return end
     
-    local rightLeg = player.Character:FindFirstChild("Right Leg") or 
-                     player.Character:FindFirstChild("RightLowerLeg") or
-                     player.Character:FindFirstChild("RightFoot")
+    -- Usa a mesma lógica corrigida
+    local rightLeg = getRightLeg()
     if not rightLeg then return end
 
     local ballsList = getBalls()
     for _, ball in ipairs(ballsList) do
         if ball and ball.Parent and (ball.Position - HRP.Position).Magnitude < CONFIG.quantumReach then
-            local touched = false
             for _, d in ipairs(rightLeg:GetDescendants()) do
                 if d.Name == "TouchInterest" then
                     pcall(function()
                         firetouchinterest(ball, d.Parent, 0)
                         firetouchinterest(ball, d.Parent, 1)
                     end)
-                    touched = true
-                    break
                 end
-            end
-            
-            if not touched then
-                pcall(function()
-                    firetouchinterest(ball, rightLeg, 0)
-                    firetouchinterest(ball, rightLeg, 1)
-                end)
             end
         end
     end
 end
 
--- UI FUNCTIONS MODERNAS
+-- UI FUNCTIONS
 local function createCorner(parent, radius)
     local c = Instance.new("UICorner")
     c.CornerRadius = UDim.new(0, radius or 8)
@@ -438,7 +356,6 @@ local function createToggle(parent, text, defaultValue, callback, yPos)
     toggleFrame.Parent = parent
     createCorner(toggleFrame, 12)
     
-    -- Ícone/Indicator
     local indicator = Instance.new("Frame")
     indicator.Size = UDim2.new(0, 4, 0, 40)
     indicator.Position = UDim2.new(0, 0, 0.5, -20)
@@ -458,7 +375,6 @@ local function createToggle(parent, text, defaultValue, callback, yPos)
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = toggleFrame
     
-    -- Toggle Button Moderno
     local toggleBtn = Instance.new("Frame")
     toggleBtn.Size = UDim2.new(0, 50, 0, 28)
     toggleBtn.Position = UDim2.new(1, -65, 0.5, -14)
@@ -484,7 +400,6 @@ local function createToggle(parent, text, defaultValue, callback, yPos)
     clickArea.MouseButton1Click:Connect(function()
         isOn = not isOn
         
-        -- Animação suave
         TweenService:Create(toggleBtn, TweenInfo.new(0.2), {
             BackgroundColor3 = isOn and CONFIG.colors.success or CONFIG.colors.toggleOff
         }):Play()
@@ -512,7 +427,6 @@ local function createSlider(parent, text, value, min, max, color, callback, yPos
     section.Parent = parent
     createCorner(section, 12)
     
-    -- Indicator colorido
     local indicator = Instance.new("Frame")
     indicator.Size = UDim2.new(0, 4, 0, 60)
     indicator.Position = UDim2.new(0, 0, 0, 20)
@@ -558,7 +472,6 @@ local function createSlider(parent, text, value, min, max, color, callback, yPos
     studsLabel.TextSize = 12
     studsLabel.Parent = section
     
-        -- Slider Track
     local sliderTrack = Instance.new("Frame")
     sliderTrack.Size = UDim2.new(1, -40, 0, 8)
     sliderTrack.Position = UDim2.new(0, 20, 0, 95)
@@ -574,7 +487,6 @@ local function createSlider(parent, text, value, min, max, color, callback, yPos
     sliderFill.Parent = sliderTrack
     createCorner(sliderFill, 4)
     
-    -- Glow effect no fill
     local glow = Instance.new("ImageLabel")
     glow.Size = UDim2.new(1, 20, 1, 20)
     glow.Position = UDim2.new(0, -10, 0, -6)
@@ -596,7 +508,6 @@ local function createSlider(parent, text, value, min, max, color, callback, yPos
         return newVal
     end
     
-    -- Drag functionality
     local dragging = false
     
     sliderTrack.InputBegan:Connect(function(input)
@@ -620,7 +531,6 @@ local function createSlider(parent, text, value, min, max, color, callback, yPos
         end
     end)
     
-    -- Buttons
     local btnContainer = Instance.new("Frame")
     btnContainer.Size = UDim2.new(0, 90, 0, 35)
     btnContainer.Position = UDim2.new(1, -105, 0, 55)
@@ -662,7 +572,7 @@ local function createSlider(parent, text, value, min, max, color, callback, yPos
     return section
 end
 
--- BUILD MAIN GUI - DESIGN MODERNO
+-- BUILD MAIN GUI
 function buildMainGUI()
     if gui then return end
     
@@ -671,7 +581,7 @@ function buildMainGUI()
     gui.ResetOnSpawn = false
     gui.Parent = player:WaitForChild("PlayerGui")
     
-    -- Main Window - Mesmo tamanho de antes (500x400)
+        -- Main Window
     mainWindow = Instance.new("Frame")
     mainWindow.Size = UDim2.new(0, 500, 0, 400)
     mainWindow.Position = UDim2.new(0.5, -250, 0.5, -200)
@@ -683,7 +593,7 @@ function buildMainGUI()
     createCorner(mainWindow, 16)
     createShadow(mainWindow)
     
-    -- Make draggable
+    -- Make draggable (CORRIGIDO: só arrasta pela title bar)
     local dragging = false
     local dragInput, dragStart, startPos
     
@@ -692,7 +602,15 @@ function buildMainGUI()
         mainWindow.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
     
-    mainWindow.InputBegan:Connect(function(input)
+    -- CORREÇÃO: Drag só funciona na title bar, não em todo o frame
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 60)
+    titleBar.BackgroundColor3 = CONFIG.colors.tabBg
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainWindow
+    
+    titleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
@@ -706,7 +624,7 @@ function buildMainGUI()
         end
     end)
     
-    mainWindow.InputChanged:Connect(function(input)
+    titleBar.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
@@ -718,14 +636,7 @@ function buildMainGUI()
         end
     end)
     
-    -- Title Bar Moderna
-    local titleBar = Instance.new("Frame")
-    titleBar.Size = UDim2.new(1, 0, 0, 60)
-    titleBar.BackgroundColor3 = CONFIG.colors.tabBg
-    titleBar.BorderSizePixel = 0
-    titleBar.Parent = mainWindow
-    
-    -- Gradient no topo
+    -- Resto da title bar...
     local topGradient = Instance.new("Frame")
     topGradient.Size = UDim2.new(1, 0, 0, 3)
     topGradient.BackgroundColor3 = CONFIG.colors.accent
@@ -744,7 +655,6 @@ function buildMainGUI()
     titleText.TextXAlignment = Enum.TextXAlignment.Left
     titleText.Parent = titleBar
     
-    -- Subtitle com gradient
     local subtitle = Instance.new("TextLabel")
     subtitle.Size = UDim2.new(0, 200, 0, 20)
     subtitle.Position = UDim2.new(0, 20, 0, 38)
@@ -756,7 +666,6 @@ function buildMainGUI()
     subtitle.TextXAlignment = Enum.TextXAlignment.Left
     subtitle.Parent = titleBar
     
-    -- Status indicator
     local statusDot = Instance.new("Frame")
     statusDot.Size = UDim2.new(0, 8, 0, 8)
     statusDot.Position = UDim2.new(0, 130, 0, 22)
@@ -764,7 +673,6 @@ function buildMainGUI()
     statusDot.Parent = titleBar
     createCorner(statusDot, 4)
     
-    -- Animação pulsing
     task.spawn(function()
         while titleBar and titleBar.Parent do
             TweenService:Create(statusDot, TweenInfo.new(1), {BackgroundTransparency = 0.5}):Play()
@@ -774,14 +682,12 @@ function buildMainGUI()
         end
     end)
     
-    -- Window Controls
     local controlsFrame = Instance.new("Frame")
     controlsFrame.Size = UDim2.new(0, 80, 0, 35)
     controlsFrame.Position = UDim2.new(1, -90, 0, 15)
     controlsFrame.BackgroundTransparency = 1
     controlsFrame.Parent = titleBar
     
-    -- Minimize Button
     local minBtn = Instance.new("TextButton")
     minBtn.Size = UDim2.new(0, 32, 0, 32)
     minBtn.Position = UDim2.new(0, 0, 0, 0)
@@ -801,7 +707,6 @@ function buildMainGUI()
         mainWindow.Size = isUIOpen and UDim2.new(0, 500, 0, 400) or UDim2.new(0, 500, 0, 60)
     end)
     
-    -- Close Button
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.new(0, 32, 0, 32)
     closeBtn.Position = UDim2.new(1, -32, 0, 0)
@@ -825,7 +730,6 @@ function buildMainGUI()
     tabBar.BorderSizePixel = 0
     tabBar.Parent = mainWindow
     
-    -- Tab Content Area
     local contentArea = Instance.new("Frame")
     contentArea.Name = "ContentArea"
     contentArea.Size = UDim2.new(1, -130, 1, -60)
@@ -833,7 +737,7 @@ function buildMainGUI()
     contentArea.BackgroundTransparency = 1
     contentArea.Parent = mainWindow
     
-    -- User Card na Sidebar
+    -- User Card
     local userCard = Instance.new("Frame")
     userCard.Size = UDim2.new(1, -20, 0, 70)
     userCard.Position = UDim2.new(0, 10, 1, -80)
@@ -893,7 +797,6 @@ function buildMainGUI()
         btn.Parent = tabBar
         createCorner(btn, 10)
         
-        -- Icon
         local iconLabel = Instance.new("TextLabel")
         iconLabel.Size = UDim2.new(0, 30, 0, 30)
         iconLabel.Position = UDim2.new(0, 12, 0.5, -15)
@@ -902,7 +805,6 @@ function buildMainGUI()
         iconLabel.TextSize = 18
         iconLabel.Parent = btn
         
-        -- Text
         local textLabel = Instance.new("TextLabel")
         textLabel.Size = UDim2.new(1, -50, 1, 0)
         textLabel.Position = UDim2.new(0, 45, 0, 0)
@@ -914,7 +816,6 @@ function buildMainGUI()
         textLabel.TextXAlignment = Enum.TextXAlignment.Left
         textLabel.Parent = btn
         
-        -- Indicator
         local indicator = Instance.new("Frame")
         indicator.Size = UDim2.new(0, 3, 0, 20)
         indicator.Position = UDim2.new(0, 0, 0.5, -10)
@@ -925,7 +826,6 @@ function buildMainGUI()
         
         tabButtons[name] = {btn = btn, text = textLabel, indicator = indicator}
         
-        -- Tab Content
         local content = Instance.new("ScrollingFrame")
         content.Name = name .. "Content"
         content.Size = UDim2.new(1, -20, 1, -20)
@@ -959,7 +859,6 @@ function buildMainGUI()
     -- REACH TAB
     local reachTab = createTab("Reach", "⚡", 0)
     
-    -- Header
     local reachHeader = Instance.new("TextLabel")
     reachHeader.Size = UDim2.new(1, 0, 0, 30)
     reachHeader.BackgroundTransparency = 1
@@ -969,16 +868,13 @@ function buildMainGUI()
     reachHeader.TextSize = 12
     reachHeader.Parent = reachTab
     
-    -- Player Reach
     createSlider(reachTab, "👤 PLAYER REACH", CONFIG.playerReach, 1, 150, CONFIG.colors.accent, function(val)
         CONFIG.playerReach = val
         updatePlayerSphere()
     end, 40)
     
-    -- Ball Reach - CORREÇÃO: Agora funciona para TPS também
     createSlider(reachTab, "⚽ BALL REACH (TPS)", CONFIG.ballReach, 1, 150, CONFIG.colors.accent2, function(val)
         CONFIG.ballReach = val
-        -- CORREÇÃO: Atualiza auras imediatamente
         for ball, data in pairs(ballAuras) do
             if data.aura then
                 data.aura.Size = Vector3.new(val * 2, val * 2, val * 2)
@@ -986,13 +882,11 @@ function buildMainGUI()
         end
     end, 190)
     
-    -- Quantum Reach
     createSlider(reachTab, "🔮 QUANTUM REACH", CONFIG.quantumReach, 1, 150, CONFIG.colors.accent3, function(val)
         CONFIG.quantumReach = val
         updateQuantumCircle()
     end, 340)
     
-    -- Toggles
     createToggle(reachTab, "⚡ FLASH MODE", CONFIG.flashEnabled, function(val)
         CONFIG.flashEnabled = val
     end, 490)
@@ -1102,7 +996,7 @@ function buildMainGUI()
     end
 end
 
--- MAIN LOOP OTIMIZADO
+-- MAIN LOOP
 createConnection(RunService.RenderStepped, function()
     if isUIOpen then
         updatePlayerSphere()
@@ -1119,7 +1013,7 @@ end)
 -- Initialize
 buildMainGUI()
 
--- Notification moderna
+-- Notification
 local function notify(text, color)
     local notif = Instance.new("Frame")
     notif.Size = UDim2.new(0, 320, 0, 70)
