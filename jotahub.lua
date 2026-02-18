@@ -11,22 +11,21 @@ local player = Players.LocalPlayer
 local CONFIG = {
     reach = 10,
     magnetStrength = 0,
-    showReachSpheres = true,
+    showReachSpheres = true,      -- Toggle visual das esferas
     autoSecondTouch = true,
     scanCooldown = 1.5,
+    tackleReach = 15,             -- NOVO: Reach especial para tackle
+    tackleEnabled = true,         -- NOVO: Ativar reach no tackle
     ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ" },
     
-    -- NOVO: Modo de operação
     mode = "central", -- "central" ou "bodyparts"
     
-    -- Config Central (modo antigo)
     centralSphere = {
         enabled = true,
         color = Color3.fromRGB(0, 255, 136),
         reach = 10
     },
     
-    -- Config 4 Partes (modo novo)
     bodyParts = {
         head = { name = "Head", reach = 8, color = Color3.fromRGB(255, 50, 50), enabled = true },
         torso = { name = "Torso", reach = 10, color = Color3.fromRGB(0, 255, 136), enabled = true },
@@ -38,10 +37,11 @@ local CONFIG = {
 -- VARIÁVEIS
 local balls = {}
 local lastRefresh = 0
-local reachSpheres = {} -- Tabela para múltiplas esferas
-local centralSphere = nil -- Esfera central única
-local gui, mainFrame, modeLabel
+local reachSpheres = {}
+local centralSphere = nil
+local gui, mainFrame, modeLabel, spheresVisible = true
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local currentTool = nil
 
 -- BALL SET
 local BALL_NAME_SET = {}
@@ -85,6 +85,22 @@ local function clearAllSpheres()
     table.clear(reachSpheres)
 end
 
+-- TOGGLE VISIBILIDADE DAS ESFERAS (NOVO)
+local function toggleSpheresVisibility()
+    spheresVisible = not spheresVisible
+    CONFIG.showReachSpheres = spheresVisible
+    
+    if spheresVisible then
+        updateReachSpheres()
+        notify("🔵 Esferas VISÍVEIS", 1.5)
+    else
+        clearAllSpheres()
+        notify("⚫ Esferas ESCONDIDAS", 1.5)
+    end
+    
+    return spheresVisible
+end
+
 -- MAPA DE PARTES R6
 local function getBodyPartType(partName)
     if partName == "Head" then
@@ -104,7 +120,6 @@ local function getValidParts(char)
     local parts = {}
     
     if CONFIG.mode == "central" then
-        -- Modo central: pega todas as partes do corpo exceto HRP
         for _, v in ipairs(char:GetChildren()) do
             if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
                 table.insert(parts, {
@@ -115,7 +130,6 @@ local function getValidParts(char)
             end
         end
     else
-        -- Modo 4 partes: organiza por tipo
         for _, v in ipairs(char:GetChildren()) do
             if v:IsA("BasePart") then
                 local partType = getBodyPartType(v.Name)
@@ -136,15 +150,13 @@ end
 
 -- ATUALIZAR ESFERAS VISUAIS
 local function updateReachSpheres()
+    if not spheresVisible then return end
     clearAllSpheres()
-    
-    if not CONFIG.showReachSpheres then return end
     
     local char = player.Character
     if not char then return end
 
     if CONFIG.mode == "central" then
-        -- Criar esfera central única
         centralSphere = Instance.new("Part")
         centralSphere.Name = "CaduCentralSphere"
         centralSphere.Shape = Enum.PartType.Ball
@@ -157,7 +169,6 @@ local function updateReachSpheres()
         centralSphere.Parent = Workspace
         
     else
-        -- Criar 4 esferas para partes do corpo
         for partType, config in pairs(CONFIG.bodyParts) do
             if not config.enabled then continue end
             
@@ -179,20 +190,18 @@ end
 
 -- ATUALIZAR POSIÇÕES DAS ESFERAS
 local function updateSpheresPosition()
-    if not CONFIG.showReachSpheres then return end
+    if not spheresVisible then return end
     
     local char = player.Character
     if not char then return end
 
     if CONFIG.mode == "central" and centralSphere then
-        -- Atualizar esfera central na posição do HRP
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if hrp then
             centralSphere.Position = hrp.Position
         end
         
     elseif CONFIG.mode == "bodyparts" then
-        -- Atualizar 4 esferas nas partes do corpo
         for partType, config in pairs(CONFIG.bodyParts) do
             local sphere = reachSpheres[partType]
             if not sphere or not config.enabled then continue end
@@ -234,21 +243,16 @@ end
 -- TOGGLE MODO (CENTRAL <-> 4 PARTES)
 local function toggleMode()
     CONFIG.mode = (CONFIG.mode == "central") and "bodyparts" or "central"
-    
-    -- Atualizar esferas
     updateReachSpheres()
     
-    -- Notificar
     local modeName = CONFIG.mode == "central" and "ESFERA CENTRAL" or "4 PARTES DO CORPO"
     notify("Modo: " .. modeName, 2)
-    
-    -- Atualizar GUI
     updateGUIForMode()
     
     return CONFIG.mode
 end
 
--- TOGGLE PARTE ESPECÍFICA (só no modo 4 partes)
+-- TOGGLE PARTE ESPECÍFICA
 local function toggleBodyPart(partType)
     if CONFIG.mode ~= "bodyparts" then return end
     
@@ -260,8 +264,21 @@ local function toggleBodyPart(partType)
     return CONFIG.bodyParts[partType].enabled
 end
 
+-- VERIFICAR SE TEM TACKLE EQUIPADO (NOVO)
+local function hasTackleEquipped()
+    local char = player.Character
+    if not char then return false end
+    
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") and tool.Name:lower():match("tackle") then
+            return true, tool
+        end
+    end
+    return false, nil
+end
+
 -- GUI PRINCIPAL
-local bodyPartButtons = {} -- Referências aos botões de partes
+local bodyPartButtons = {}
 
 local function buildMainGUI()
     if gui then return end
@@ -273,7 +290,7 @@ local function buildMainGUI()
 
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.fromScale(0.24, 0.38) -- Aumentado para caber modo toggle
+    mainFrame.Size = UDim2.fromScale(0.24, 0.42) -- Aumentado para caber botão de esferas
     mainFrame.Position = UDim2.fromScale(0.02, 0.05)
     mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
     mainFrame.BackgroundTransparency = 0.1
@@ -296,7 +313,7 @@ local function buildMainGUI()
 
     -- Título
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -10, 0.08, 0)
+    title.Size = UDim2.new(1, -10, 0.07, 0)
     title.Position = UDim2.new(0, 5, 0, 5)
     title.BackgroundTransparency = 1
     title.Text = "CADU HUB"
@@ -305,23 +322,44 @@ local function buildMainGUI()
     title.TextColor3 = Color3.fromRGB(0, 255, 136)
     title.Parent = mainFrame
 
-    -- Linha divisória
+    -- Linha
     local line = Instance.new("Frame")
     line.Size = UDim2.new(0.8, 0, 0, 2)
-    line.Position = UDim2.new(0.1, 0, 0.10, 0)
+    line.Position = UDim2.new(0.1, 0, 0.09, 0)
     line.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
     line.BorderSizePixel = 0
     line.Parent = mainFrame
 
-    -- BOTÃO DE MODO (Central <-> 4 Partes)
+    -- BOTÃO TOGGLE ESFERAS (NOVO)
+    local spheresBtn = Instance.new("TextButton")
+    spheresBtn.Name = "SpheresButton"
+    spheresBtn.Size = UDim2.new(0.9, 0, 0.07, 0)
+    spheresBtn.Position = UDim2.new(0.05, 0, 0.12, 0)
+    spheresBtn.Text = "🔵 ESFERAS: ON"
+    spheresBtn.TextSize = 12
+    spheresBtn.Font = Enum.Font.GothamBold
+    spheresBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    spheresBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    spheresBtn.Parent = mainFrame
+    spheresBtn.AutoButtonColor = false
+    
+    Instance.new("UICorner", spheresBtn).CornerRadius = UDim.new(0, 8)
+    
+    spheresBtn.MouseButton1Click:Connect(function()
+        local visible = toggleSpheresVisibility()
+        spheresBtn.Text = visible and "🔵 ESFERAS: ON" or "⚫ ESFERAS: OFF"
+        spheresBtn.BackgroundColor3 = visible and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(80, 80, 80)
+    end)
+
+    -- BOTÃO MODO
     local modeBtn = Instance.new("TextButton")
     modeBtn.Name = "ModeButton"
-    modeBtn.Size = UDim2.new(0.9, 0, 0.08, 0)
-    modeBtn.Position = UDim2.new(0.05, 0, 0.13, 0)
+    modeBtn.Size = UDim2.new(0.9, 0, 0.07, 0)
+    modeBtn.Position = UDim2.new(0.05, 0, 0.21, 0)
     modeBtn.Text = "MODO: ESFERA CENTRAL"
     modeBtn.TextSize = 12
     modeBtn.Font = Enum.Font.GothamBold
-    modeBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255) -- Azul claro para modo
+    modeBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
     modeBtn.TextColor3 = Color3.fromRGB(25, 25, 35)
     modeBtn.Parent = mainFrame
     modeBtn.AutoButtonColor = false
@@ -334,10 +372,10 @@ local function buildMainGUI()
         modeBtn.BackgroundColor3 = newMode == "central" and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(255, 150, 0)
     end)
 
-    -- Label do modo atual
+    -- Label modo
     modeLabel = Instance.new("TextLabel")
-    modeLabel.Size = UDim2.new(1, 0, 0.06, 0)
-    modeLabel.Position = UDim2.new(0, 0, 0.22, 0)
+    modeLabel.Size = UDim2.new(1, 0, 0.05, 0)
+    modeLabel.Position = UDim2.new(0, 0, 0.29, 0)
     modeLabel.BackgroundTransparency = 1
     modeLabel.Text = "Esfera única no centro"
     modeLabel.TextScaled = true
@@ -345,13 +383,13 @@ local function buildMainGUI()
     modeLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
     modeLabel.Parent = mainFrame
 
-    -- Container de botões de partes do corpo (inicialmente invisível no modo central)
+    -- Container partes
     local partsContainer = Instance.new("Frame")
     partsContainer.Name = "PartsContainer"
-    partsContainer.Size = UDim2.new(0.9, 0, 0.40, 0)
-    partsContainer.Position = UDim2.new(0.05, 0, 0.28, 0)
+    partsContainer.Size = UDim2.new(0.9, 0, 0.35, 0)
+    partsContainer.Position = UDim2.new(0.05, 0, 0.34, 0)
     partsContainer.BackgroundTransparency = 1
-    partsContainer.Visible = false -- Começa invisível no modo central
+    partsContainer.Visible = false
     partsContainer.Parent = mainFrame
 
     local partOrder = {"head", "torso", "arm", "leg"}
@@ -371,7 +409,6 @@ local function buildMainGUI()
         
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
-        -- Hover effects
         btn.MouseEnter:Connect(function()
             if CONFIG.bodyParts[partType].enabled then
                 btn.BackgroundColor3 = Color3.new(
@@ -404,8 +441,8 @@ local function buildMainGUI()
 
     -- Label reach
     local reachLabel = Instance.new("TextLabel")
-    reachLabel.Size = UDim2.new(1, 0, 0.06, 0)
-    reachLabel.Position = UDim2.new(0, 0, 0.70, 0)
+    reachLabel.Size = UDim2.new(1, 0, 0.05, 0)
+    reachLabel.Position = UDim2.new(0, 0, 0.71, 0)
     reachLabel.BackgroundTransparency = 1
     reachLabel.Text = "REACH: " .. CONFIG.reach
     reachLabel.TextScaled = true
@@ -415,8 +452,8 @@ local function buildMainGUI()
 
     -- Container + e -
     local adjustContainer = Instance.new("Frame")
-    adjustContainer.Size = UDim2.new(0.9, 0, 0.08, 0)
-    adjustContainer.Position = UDim2.new(0.05, 0, 0.76, 0)
+    adjustContainer.Size = UDim2.new(0.9, 0, 0.07, 0)
+    adjustContainer.Position = UDim2.new(0.05, 0, 0.77, 0)
     adjustContainer.BackgroundTransparency = 1
     adjustContainer.Parent = mainFrame
 
@@ -445,7 +482,7 @@ local function buildMainGUI()
 
     -- Botão esconder
     local hideBtn = Instance.new("TextButton")
-    hideBtn.Size = UDim2.new(0.9, 0, 0.08, 0)
+    hideBtn.Size = UDim2.new(0.9, 0, 0.07, 0)
     hideBtn.Position = UDim2.new(0.05, 0, 0.88, 0)
     hideBtn.Text = isMobile and "FECHAR" or "ESCONDER [INSERT]"
     hideBtn.TextSize = 11
@@ -455,10 +492,11 @@ local function buildMainGUI()
     hideBtn.Parent = mainFrame
     Instance.new("UICorner", hideBtn).CornerRadius = UDim.new(0, 6)
 
-    -- FUNÇÕES DOS BOTÕES +/-
+    -- FUNÇÕES
     minus.MouseButton1Click:Connect(function()
         CONFIG.reach = math.max(1, CONFIG.reach - 1)
         CONFIG.centralSphere.reach = CONFIG.reach
+        CONFIG.tackleReach = math.max(1, CONFIG.tackleReach - 1)
         reachLabel.Text = "REACH: " .. CONFIG.reach
         for _, config in pairs(CONFIG.bodyParts) do
             config.reach = math.max(1, config.reach - 1)
@@ -470,6 +508,7 @@ local function buildMainGUI()
     plus.MouseButton1Click:Connect(function()
         CONFIG.reach += 1
         CONFIG.centralSphere.reach = CONFIG.reach
+        CONFIG.tackleReach += 1
         reachLabel.Text = "REACH: " .. CONFIG.reach
         for _, config in pairs(CONFIG.bodyParts) do
             config.reach += 1
@@ -493,16 +532,15 @@ function updateGUIForMode()
     if not mainFrame then return end
     
     local partsContainer = mainFrame:FindFirstChild("PartsContainer")
-    local modeLbl = modeLabel
     
     if CONFIG.mode == "central" then
         partsContainer.Visible = false
-        modeLbl.Text = "Esfera única no centro (HRP)"
-        modeLbl.TextColor3 = Color3.fromRGB(0, 200, 255)
+        modeLabel.Text = "Esfera única no centro (HRP)"
+        modeLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
     else
         partsContainer.Visible = true
-        modeLbl.Text = "4 esferas: Cabeça, Tronco, Braços, Pernas"
-        modeLbl.TextColor3 = Color3.fromRGB(255, 150, 0)
+        modeLabel.Text = "4 esferas: Cabeça, Tronco, Braços, Pernas"
+        modeLabel.TextColor3 = Color3.fromRGB(255, 150, 0)
     end
 end
 
@@ -566,31 +604,43 @@ if not isMobile then
     end)
 end
 
--- AUTO TOUCH APRIMORADO
+-- AUTO TOUCH APRIMORADO COM TACKLE
 local function processTouch()
     local char = player.Character
     if not char then return end
+
+    local hasTackle, tackleTool = hasTackleEquipped()
+    local isTackling = false
+    
+    if hasTackle and tackleTool then
+        isTackling = true
+    end
 
     local validParts = getValidParts(char)
     
     for _, data in ipairs(validParts) do
         local part = data.part
-        local reach = data.reach
+        local reach = (isTackling and CONFIG.tackleEnabled) and CONFIG.tackleReach or data.reach
         
         for _, ball in ipairs(balls) do
             if ball and ball.Parent then
                 local distance = (ball.Position - part.Position).Magnitude
                 
                 if distance <= reach then
-                    -- Colisão otimizada
                     local velocity = ball.AssemblyLinearVelocity or Vector3.new(0,0,0)
                     
-                    -- Só ativa se próximo ou bola não muito rápida
-                    if distance < reach * 0.5 or velocity.Magnitude < 50 then
+                    if isTackling then
                         pcall(function()
                             firetouchinterest(ball, part, 0)
                             firetouchinterest(ball, part, 1)
                         end)
+                    else
+                        if distance < reach * 0.5 or velocity.Magnitude < 50 then
+                            pcall(function()
+                                firetouchinterest(ball, part, 0)
+                                firetouchinterest(ball, part, 1)
+                            end)
+                        end
                     end
                 end
             end
@@ -598,9 +648,14 @@ local function processTouch()
     end
 end
 
-
-
-
+-- MONITORAR TOOLS
+player.CharacterAdded:Connect(function(char)
+    char.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") and child.Name:lower():match("tackle") then
+            notify("🎯 Tackle detectado! Reach aumentado", 2)
+        end
+    end)
+end)
 
 -- LOOPS
 RunService.RenderStepped:Connect(function()
@@ -630,5 +685,6 @@ updateReachSpheres()
 updateGUIForMode()
 refreshBalls(true)
 notify("✅ Cadu Hub Online", 3)
-notify("Use o botão MODO para alternar", 3)
+notify("🔵 Botão 'ESFERAS' para esconder/mostrar", 3)
+notify("🎯 Tackle = Reach aumentado automaticamente", 3)
 print("Cadu Hub OK | Modo:", CONFIG.mode, "| Mobile:", isMobile)
