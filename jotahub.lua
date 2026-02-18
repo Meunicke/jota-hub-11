@@ -571,4 +571,64 @@ local function processTouch()
     local char = player.Character
     if not char then return end
 
-    local validParts = getValidParts(c
+    local validParts = getValidParts(char)
+    
+    for _, data in ipairs(validParts) do
+        local part = data.part
+        local reach = data.reach
+        
+        for _, ball in ipairs(balls) do
+            if ball and ball.Parent then
+                local distance = (ball.Position - part.Position).Magnitude
+                
+                if distance <= reach then
+                    -- Colisão otimizada
+                    local velocity = ball.AssemblyLinearVelocity or Vector3.new(0,0,0)
+                    
+                    -- Só ativa se próximo ou bola não muito rápida
+                    if distance < reach * 0.5 or velocity.Magnitude < 50 then
+                        pcall(function()
+                            firetouchinterest(ball, part, 0)
+                            firetouchinterest(ball, part, 1)
+                        end)
+                    end
+                end
+            end
+        end
+    end
+end
+
+
+
+
+
+-- LOOPS
+RunService.RenderStepped:Connect(function()
+    updateSpheresPosition()
+    
+    if CONFIG.autoSecondTouch then
+        processTouch()
+    end
+end)
+
+task.spawn(function()
+    while true do
+        refreshBalls(false)
+        task.wait(CONFIG.scanCooldown)
+    end
+end)
+
+-- INIT
+buildMainGUI()
+if isMobile then
+    buildMobileButton()
+    notify("📱 Modo Mobile Ativo", 3)
+else
+    notify("💻 Modo PC Ativo", 3)
+end
+updateReachSpheres()
+updateGUIForMode()
+refreshBalls(true)
+notify("✅ Cadu Hub Online", 3)
+notify("Use o botão MODO para alternar", 3)
+print("Cadu Hub OK | Modo:", CONFIG.mode, "| Mobile:", isMobile)
