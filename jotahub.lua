@@ -18,6 +18,8 @@ local CONFIG = {
     antiAFK = true,
     quantumReachEnabled = false,
     quantumReach = 10,
+    -- NOVO: Expansão física da hitbox
+    expandBallHitbox = true,
     ballNames = { "TPS", "MPS", "TRS", "TCS", "PRS", "ESA", "MRS", "SSS", "AIFA", "RBZ", "SoccerBall", "Football", "Ball" },
     
     colors = {
@@ -44,6 +46,7 @@ local CONFIG = {
 -- VARIABLES
 local balls = {}
 local ballAuras = {}
+local ballHitboxes = {} -- NOVO: Hitboxes físicas expandidas
 local playerSphere = nil
 local quantumCircle = nil
 local HRP = nil
@@ -109,18 +112,92 @@ local function getBalls()
     return balls
 end
 
--- CORREÇÃO: FUNÇÃO PEGAR A PERNA (IGUAL ARTHUR V2)
-local function getRightLeg()
-    if not player.Character then return nil end
+-- NOVO: CRIAR HITBOX EXPANDIDA PARA A BOLA (FÍSICA REAL)
+local function createBallHitbox(ball)
+    if ballHitboxes[ball] or not CONFIG.expandBallHitbox then return end
     
-    -- Arthur V2 style: Right Leg (R6) ou RightLowerLeg (R15)
-    local rightLeg = player.Character:FindFirstChild("Right Leg") or 
-                     player.Character:FindFirstChild("RightLowerLeg")
+    -- Cria uma hitbox invisível maior ao redor da bola
+    local hitbox = Instance.new("Part")
+    hitbox.Name = "ExpandedHitbox_" .. ball.Name
+    hitbox.Shape = Enum.PartType.Ball
+    hitbox.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
+    hitbox.Transparency = 1 -- Invisível
+    hitbox.Anchored = true
+    hitbox.CanCollide = false
+    hitbox.Material = Enum.Material.SmoothPlastic
+    hitbox.Parent = Workspace
     
-    return rightLeg
+    -- Conexão para manter posição
+    local conn = RunService.Heartbeat:Connect(function()
+        if ball and ball.Parent and hitbox and hitbox.Parent then
+            hitbox.CFrame = ball.CFrame
+        else
+            if hitbox then hitbox:Destroy() end
+        end
+    end)
+    
+    ballHitboxes[ball] = {hitbox = hitbox, conn = conn}
 end
 
--- CREATE BALL AURA
+-- REMOVER HITBOX
+local function removeBallHitbox(ball)
+    if ballHitboxes[ball] then
+        if ballHitboxes[ball].conn then ballHitboxes[ball].conn:Disconnect() end
+        if ballHitboxes[ball].hitbox then ballHitboxes[ball].hitbox:Destroy() end
+        ballHitboxes[ball] = nil
+    end
+end
+
+-- ATUALIZAR HITBOXES
+local function updateBallHitboxes()
+    for ball, _ in pairs(ballHitboxes) do
+        if not ball or not ball.Parent then removeBallHitbox(ball) end
+    end
+    
+    if not CONFIG.expandBallHitbox then return end
+    
+    for _, ball in ipairs(balls) do
+        if ball and ball.Parent then
+            if ballHitboxes[ball] then
+                -- Atualiza tamanho
+                local targetSize = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
+                if ballHitboxes[ball].hitbox.Size ~= targetSize then
+                    ballHitboxes[ball].hitbox.Size = targetSize
+                end
+            else
+                createBallHitbox(ball)
+            end
+        end
+    end
+end
+
+-- CLEAR ALL
+local function clearAllAuras()
+    for ball, data in pairs(ballAuras) do
+        if data.conn then data.conn:Disconnect() end
+        if data.aura then data.aura:Destroy() end
+        if data.highlight then data.highlight:Destroy() end
+    end
+    ballAuras = {}
+    
+    -- Limpa hitboxes também
+    for ball, data in pairs(ballHitboxes) do
+        if data.conn then data.conn:Disconnect() end
+        if data.hitbox then data.hitbox:Destroy() end
+    end
+    ballHitboxes = {}
+    
+    if playerSphere then
+        playerSphere:Destroy()
+        playerSphere = nil
+    end
+    if quantumCircle then
+        quantumCircle:Destroy()
+        quantumCircle = nil
+    end
+end
+
+-- CREATE BALL AURA (VISUAL)
 local function createBallAura(ball)
     if ballAuras[ball] or not CONFIG.showVisuals then return end
     
@@ -192,24 +269,6 @@ local function updateBallAuras()
     end
 end
 
--- CLEAR ALL AURAS
-local function clearAllAuras()
-    for ball, data in pairs(ballAuras) do
-        if data.conn then data.conn:Disconnect() end
-        if data.aura then data.aura:Destroy() end
-        if data.highlight then data.highlight:Destroy() end
-    end
-    ballAuras = {}
-    if playerSphere then
-        playerSphere:Destroy()
-        playerSphere = nil
-    end
-    if quantumCircle then
-        quantumCircle:Destroy()
-        quantumCircle = nil
-    end
-end
-
 -- UPDATE PLAYER SPHERE
 local function updatePlayerSphere()
     if not CONFIG.showVisuals then
@@ -250,11 +309,74 @@ local function updateQuantumCircle()
     quantumCircle.Transparency = (CONFIG.quantumReachEnabled and CONFIG.showVisuals) and 0.8 or 1
 end
 
--- CORREÇÃO: DO REACH (IGUAL ARTHUR V2 - USA PERNA E PROCURA TOUCHINTEREST)
+-- PEGAR A PERNA (IGUAL ARTHUR V2)
+local function getRightLeg()
+    if not player.Character then return nil end
+    return player.Character:FindFirstChild("Right Leg") or 
+           player.Character:FindFirstChild("RightLowerLeg")
+end
+
+-- NOVO: FUNÇÃO DE TOQUE EXPANDIDO (MÚLTIPLOS PONTOS)
+local function expandedTouch(ball, leg)
+    if not ball or not leg then return end
+    
+    -- Método 1: Toque normal na bola
+    pcall(function()
+        firetouchinterest(ball, leg, 0)
+        firetouchinterest(ball, leg, 1)
+    end)
+    
+    -- Método 2: Procura TouchInterest na perna
+    for _, d in ipairs(leg:GetDescendants()) do
+        if d.Name == "TouchInterest" then
+            pcall(function()
+                firetouchinterest(ball, d.Parent, 0)
+                firetouchinterest(ball, d.Parent, 1)
+            end)
+        end
+    end
+    
+    -- Método 3: Se temos hitbox expandida, toca nela também
+    if ballHitboxes[ball] and ballHitboxes[ball].hitbox then
+        pcall(function()
+            firetouchinterest(ballHitboxes[ball].hitbox, leg, 0)
+            firetouchinterest(ballHitboxes[ball].hitbox, leg, 1)
+        end)
+    end
+    
+    -- Método 4: Toca em múltiplos pontos da bola (centro, topo, base)
+    local offsets = {
+        Vector3.new(0, 0, 0),      -- Centro
+        Vector3.new(0, 2, 0),      -- Topo
+        Vector3.new(0, -2, 0),     -- Base
+        Vector3.new(2, 0, 0),      -- Direita
+        Vector3.new(-2, 0, 0),     -- Esquerda
+    }
+    
+    for _, offset in ipairs(offsets) do
+        local touchPoint = ball.CFrame:PointToWorldSpace(offset)
+        -- Cria parte temporária no ponto de toque
+        local tempPart = Instance.new("Part")
+        tempPart.Size = Vector3.new(1, 1, 1)
+        tempPart.CFrame = CFrame.new(touchPoint)
+        tempPart.Anchored = true
+        tempPart.CanCollide = false
+        tempPart.Transparency = 1
+        tempPart.Parent = Workspace
+        
+        pcall(function()
+            firetouchinterest(tempPart, leg, 0)
+            firetouchinterest(tempPart, leg, 1)
+        end)
+        
+        Debris:AddItem(tempPart, 0.1)
+    end
+end
+
+-- DO REACH (CORRIGIDO - USA EXPANDED TOUCH)
 local function doReach()
     if not CONFIG.autoTouch or not player.Character or not HRP then return end
     
-    -- CORREÇÃO: Pega a perna igual Arthur V2 (Right Leg ou RightLowerLeg)
     local rightLeg = getRightLeg()
     if not rightLeg then return end
 
@@ -266,41 +388,43 @@ local function doReach()
         local dist = (ball.Position - HRP.Position).Magnitude
         local effectiveReach = CONFIG.playerReach + CONFIG.ballReach
         
-        -- CORREÇÃO: Só executa se estiver no alcance
         if dist < effectiveReach then
-            -- CORREÇÃO: Procura TouchInterest nos DESCENDENTES da perna (igual Arthur V2)
-            for _, d in ipairs(rightLeg:GetDescendants()) do
-                if d.Name == "TouchInterest" then
-                    pcall(function()
-                        -- CORREÇÃO: Usa d.Parent (a parte que tem o TouchInterest)
-                        firetouchinterest(ball, d.Parent, 0)
-                        firetouchinterest(ball, d.Parent, 1)
-                    end)
-                end
+            -- NOVO: Usa função de toque expandido
+            expandedTouch(ball, rightLeg)
+            
+            -- Flash effect
+            if CONFIG.flashEnabled and CONFIG.showVisuals then
+                local flash = Instance.new("Part")
+                flash.Size = Vector3.new(1, 1, 1)
+                flash.Position = ball.Position
+                flash.Anchored = true
+                flash.CanCollide = false
+                flash.Material = Enum.Material.Neon
+                flash.Color = CONFIG.colors.flash
+                flash.Parent = Workspace
+                
+                TweenService:Create(flash, TweenInfo.new(0.1), {
+                    Size = Vector3.new(5, 5, 5),
+                    Transparency = 1
+                }):Play()
+                
+                Debris:AddItem(flash, 0.1)
             end
         end
     end
 end
 
--- DO QUANTUM REACH TOUCH (também corrigido)
+-- DO QUANTUM REACH TOUCH (TAMBÉM CORRIGIDO)
 local function doQuantumReach()
     if not CONFIG.quantumReachEnabled or not player.Character or not HRP then return end
     
-    -- Usa a mesma lógica corrigida
     local rightLeg = getRightLeg()
     if not rightLeg then return end
 
     local ballsList = getBalls()
     for _, ball in ipairs(ballsList) do
         if ball and ball.Parent and (ball.Position - HRP.Position).Magnitude < CONFIG.quantumReach then
-            for _, d in ipairs(rightLeg:GetDescendants()) do
-                if d.Name == "TouchInterest" then
-                    pcall(function()
-                        firetouchinterest(ball, d.Parent, 0)
-                        firetouchinterest(ball, d.Parent, 1)
-                    end)
-                end
-            end
+            expandedTouch(ball, rightLeg)
         end
     end
 end
@@ -581,7 +705,7 @@ function buildMainGUI()
     gui.ResetOnSpawn = false
     gui.Parent = player:WaitForChild("PlayerGui")
     
-        -- Main Window
+    -- Main Window
     mainWindow = Instance.new("Frame")
     mainWindow.Size = UDim2.new(0, 500, 0, 400)
     mainWindow.Position = UDim2.new(0.5, -250, 0.5, -200)
@@ -593,7 +717,7 @@ function buildMainGUI()
     createCorner(mainWindow, 16)
     createShadow(mainWindow)
     
-    -- Make draggable (CORRIGIDO: só arrasta pela title bar)
+    -- Make draggable (só arrasta pela title bar)
     local dragging = false
     local dragInput, dragStart, startPos
     
@@ -602,7 +726,6 @@ function buildMainGUI()
         mainWindow.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
     
-    -- CORREÇÃO: Drag só funciona na title bar, não em todo o frame
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
     titleBar.Size = UDim2.new(1, 0, 0, 60)
@@ -636,7 +759,7 @@ function buildMainGUI()
         end
     end)
     
-    -- Resto da title bar...
+    -- Title Bar Content
     local topGradient = Instance.new("Frame")
     topGradient.Size = UDim2.new(1, 0, 0, 3)
     topGradient.BackgroundColor3 = CONFIG.colors.accent
@@ -887,14 +1010,26 @@ function buildMainGUI()
         updateQuantumCircle()
     end, 340)
     
+    -- NOVO: Toggle para expandir hitbox física
+    createToggle(reachTab, "🎯 EXPAND HITBOX", CONFIG.expandBallHitbox, function(val)
+        CONFIG.expandBallHitbox = val
+        if not val then
+            for ball, data in pairs(ballHitboxes) do
+                if data.conn then data.conn:Disconnect() end
+                if data.hitbox then data.hitbox:Destroy() end
+            end
+            ballHitboxes = {}
+        end
+    end, 490)
+    
     createToggle(reachTab, "⚡ FLASH MODE", CONFIG.flashEnabled, function(val)
         CONFIG.flashEnabled = val
-    end, 490)
+    end, 570)
     
     createToggle(reachTab, "🔮 QUANTUM TOUCH", CONFIG.quantumReachEnabled, function(val)
         CONFIG.quantumReachEnabled = val
         updateQuantumCircle()
-    end, 570)
+    end, 650)
     
     -- SETTINGS TAB
     local settingsTab = createTab("Settings", "⚙️", 1)
@@ -926,7 +1061,7 @@ function buildMainGUI()
         CONFIG.antiAFK = val
     end, 200)
     
-    -- INFO TAB
+        -- INFO TAB
     local infoTab = createTab("Info", "ℹ️", 2)
     
     local infoCard = Instance.new("Frame")
@@ -949,7 +1084,7 @@ function buildMainGUI()
     infoText.Size = UDim2.new(1, -20, 0, 120)
     infoText.Position = UDim2.new(0, 10, 0, 50)
     infoText.BackgroundTransparency = 1
-    infoText.Text = "Enhanced reach system for Roblox sports games.\n\nFeatures:\n• Player & Ball Reach\n• Quantum Touch System\n• TPS Ball Detection\n• Flash Mode\n• Anti-AFK Protection"
+    infoText.Text = "Enhanced reach system for Roblox sports games.\n\nFeatures:\n• Expanded Ball Hitbox\n• Multi-Point Touch System\n• TPS Ball Detection\n• Quantum Touch\n• Anti-AFK Protection"
     infoText.TextColor3 = CONFIG.colors.textDim
     infoText.Font = Enum.Font.Gotham
     infoText.TextSize = 12
@@ -1001,6 +1136,7 @@ createConnection(RunService.RenderStepped, function()
     if isUIOpen then
         updatePlayerSphere()
         updateBallAuras()
+        updateBallHitboxes()
         if quantumCircle and HRP then
             quantumCircle.Position = HRP.Position
             quantumCircle.Transparency = (CONFIG.quantumReachEnabled and CONFIG.showVisuals) and 0.8 or 1
