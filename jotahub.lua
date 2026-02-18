@@ -5,45 +5,29 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
 
 local player = Players.LocalPlayer
 
 -- CONFIG
 local CONFIG = {
-    reach = 10,
-    ballReach = 8,                -- Reduzido para não atrapalhar
+    playerReach = 10,
+    ballReach = 15,
     magnetStrength = 0,
-    showReachSpheres = true,
+    showPlayerSphere = true,
     showBallAura = true,
-    autoSecondTouch = true,
-    scanCooldown = 1.5,
-    ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ" },
+    autoTouch = true,
+    scanCooldown = 0.1,
+    ballNames = { "Ball", "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ", "SoccerBall", "Football" },
     
-    -- MODO CB
-    cbMode = {
-        enabled = false,
-        reach = 18,
-        reactionTime = 0.1,
-        autoBlock = true,
-        prediction = true,
-        tackleRange = 22,
-        color = Color3.fromRGB(255, 50, 50)
-    },
-    
-    mode = "central",
-    
-    centralSphere = {
-        enabled = true,
-        color = Color3.fromRGB(0, 255, 136),
-        reach = 10
-    },
-    
-    -- CORREÇÃO: Reach maior para pernas (chute/afastar)
-    bodyParts = {
-        head = { name = "Head", reach = 8, color = Color3.fromRGB(255, 50, 50), enabled = true },
-        torso = { name = "Torso", reach = 10, color = Color3.fromRGB(0, 255, 136), enabled = true },
-        arm = { name = "Arm", reach = 12, color = Color3.fromRGB(0, 150, 255), enabled = true },
-        leg = { name = "Leg", reach = 16, color = Color3.fromRGB(255, 200, 0), enabled = true } -- AUMENTADO!
+    -- CORES NEON
+    colors = {
+        primary = Color3.fromRGB(0, 255, 255),      -- Ciano neon
+        secondary = Color3.fromRGB(255, 0, 255),    -- Magenta neon
+        accent = Color3.fromRGB(255, 200, 0),       -- Amarelo ouro
+        dark = Color3.fromRGB(10, 10, 15),          -- Fundo escuro
+        darker = Color3.fromRGB(5, 5, 8),           -- Mais escuro
+        glow = Color3.fromRGB(0, 200, 255)          -- Brilho
     }
 }
 
@@ -51,13 +35,10 @@ local CONFIG = {
 local balls = {}
 local ballAuras = {}
 local lastRefresh = 0
-local reachSpheres = {}
-local centralSphere = nil
-local gui, mainFrame, modeLabel, cbLabel
-local spheresVisible = true
+local playerSphere = nil
+local gui, mainFrame
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-local cbActive = false
-local lastTouchTime = {} -- NOVO: Cooldown por bola para não travar
+local activeTweens = {}
 
 -- BALL SET
 local BALL_NAME_SET = {}
@@ -65,124 +46,164 @@ for _, n in ipairs(CONFIG.ballNames) do
     BALL_NAME_SET[n] = true
 end
 
--- NOTIFY
+-- NOTIFY ESTILIZADO
 local function notify(txt, t)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "Cadu Hub",
+            Title = "✨ Cadu Hub V3",
             Text = txt,
-            Duration = t or 2
+            Duration = t or 3
         })
     end)
 end
 
--- REFRESH BALLS
-local function refreshBalls(force)
-    if not force and tick() - lastRefresh < CONFIG.scanCooldown then return end
-    lastRefresh = tick()
-    table.clear(balls)
+-- CRIAR PARTÍCULAS DE FUNDO
+local function createBackgroundParticles()
+    local particleGui = Instance.new("ScreenGui")
+    particleGui.Name = "BackgroundFX"
+    particleGui.ResetOnSpawn = false
+    particleGui.Parent = player:WaitForChild("PlayerGui")
+    particleGui.DisplayOrder = -1
+    
+    for i = 1, 20 do
+        local particle = Instance.new("Frame")
+        particle.Size = UDim2.new(0, math.random(2, 6), 0, math.random(2, 6))
+        particle.Position = UDim2.new(math.random(), 0, math.random(), 0)
+        particle.BackgroundColor3 = CONFIG.colors.primary
+        particle.BackgroundTransparency = 0.8
+        particle.BorderSizePixel = 0
+        particle.Parent = particleGui
+        
+        -- Animação flutuante
+        local tween = TweenService:Create(particle, TweenInfo.new(
+            math.random(3, 8),
+            Enum.EasingStyle.Sine,
+            Enum.EasingDirection.InOut,
+            -1,
+            true
+        ), {
+            Position = UDim2.new(math.random(), 0, math.random(), 0),
+            BackgroundTransparency = math.random() * 0.5 + 0.3
+        })
+        tween:Play()
+    end
+end
 
-    for _, v in ipairs(Workspace:GetDescendants()) do
-        if v:IsA("BasePart") and BALL_NAME_SET[v.Name] then
-            balls[#balls+1] = v
+-- REFRESH BALLS
+local function refreshBalls()
+    table.clear(balls)
+    for _, obj in pairs(Workspace:GetChildren()) do
+        if obj:IsA("BasePart") and BALL_NAME_SET[obj.Name] then
+            table.insert(balls, obj)
+        end
+    end
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and BALL_NAME_SET[obj.Name] and not table.find(balls, obj) then
+            table.insert(balls, obj)
         end
     end
 end
 
--- CRIAR AURA NA BOLA
+-- CRIAR AURA NA BOLA COM EFEITOS
 local function createBallAura(ball)
     if ballAuras[ball] then return end
     
-    local auraAttachment = Instance.new("Attachment")
-    auraAttachment.Name = "CaduAuraAttachment"
-    auraAttachment.Position = Vector3.new(0, 0, 0)
-    auraAttachment.Parent = ball
+    -- Esfera de reach com glow
+    local reachSphere = Instance.new("Part")
+    reachSphere.Name = "BallAuraSphere"
+    reachSphere.Shape = Enum.PartType.Ball
+    reachSphere.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
+    reachSphere.Transparency = 0.85
+    reachSphere.Anchored = true
+    reachSphere.CanCollide = false
+    reachSphere.CastShadow = false
+    reachSphere.Material = Enum.Material.ForceField
+    reachSphere.Color = CONFIG.colors.secondary
+    reachSphere.Parent = Workspace
     
-    local particle1 = Instance.new("ParticleEmitter")
-    particle1.Name = "AuraParticles"
-    particle1.Texture = "rbxassetid://258128463"
-    particle1.Color = ColorSequence.new(Color3.fromRGB(255, 0, 255), Color3.fromRGB(150, 0, 255))
-    particle1.Size = NumberSequence.new(2, 4)
-    particle1.Transparency = NumberSequence.new(0.3, 1)
-    particle1.Lifetime = NumberRange.new(0.5, 1)
-    particle1.Rate = 20
-    particle1.Speed = NumberRange.new(2, 5)
-    particle1.SpreadAngle = Vector2.new(180, 180)
-    particle1.Rotation = NumberRange.new(0, 360)
-    particle1.RotSpeed = NumberRange.new(-50, 50)
-    particle1.Parent = auraAttachment
+    -- Inner glow
+    local innerSphere = Instance.new("Part")
+    innerSphere.Name = "BallInnerGlow"
+    innerSphere.Shape = Enum.PartType.Ball
+    innerSphere.Size = Vector3.new(CONFIG.ballReach * 1.5, CONFIG.ballReach * 1.5, CONFIG.ballReach * 1.5)
+    innerSphere.Transparency = 0.9
+    innerSphere.Anchored = true
+    innerSphere.CanCollide = false
+    innerSphere.CastShadow = false
+    innerSphere.Material = Enum.Material.Neon
+    innerSphere.Color = CONFIG.colors.secondary
+    innerSphere.Parent = Workspace
     
-    local particle2 = Instance.new("ParticleEmitter")
-    particle2.Name = "TrailParticles"
-    particle2.Texture = "rbxassetid://243660364"
-    particle2.Color = ColorSequence.new(Color3.fromRGB(200, 0, 255))
-    particle2.Size = NumberSequence.new(1, 0)
-    particle2.Transparency = NumberSequence.new(0.5, 1)
-    particle2.Lifetime = NumberRange.new(0.3, 0.6)
-    particle2.Rate = 10
-    particle2.Speed = NumberRange.new(1, 3)
-    particle2.Parent = auraAttachment
-    
+    -- Highlight premium
     local highlight = Instance.new("Highlight")
-    highlight.Name = "CaduAuraHighlight"
+    highlight.Name = "BallPremiumHighlight"
     highlight.Adornee = ball
-    highlight.FillColor = Color3.fromRGB(255, 0, 255)
-    highlight.OutlineColor = Color3.fromRGB(200, 0, 255)
-    highlight.FillTransparency = 0.8
-    highlight.OutlineTransparency = 0.3
+    highlight.FillColor = CONFIG.colors.secondary
+    highlight.OutlineColor = Color3.new(1, 1, 1)
+    highlight.FillTransparency = 0.7
+    highlight.OutlineTransparency = 0
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     highlight.Parent = ball
     
-    local reachSphere = Instance.new("Part")
-    reachSphere.Name = "BallReachSphere"
-    reachSphere.Shape = Enum.PartType.Ball
-    reachSphere.Anchored = true
-    reachSphere.CanCollide = false
-    reachSphere.Transparency = 0.95
-    reachSphere.Material = Enum.Material.ForceField
-    reachSphere.Color = Color3.fromRGB(255, 100, 255)
-    reachSphere.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
-    reachSphere.Parent = Workspace
+    -- Partículas na bola
+    local attachment = Instance.new("Attachment")
+    attachment.Position = Vector3.new(0, 0, 0)
+    attachment.Parent = ball
     
+    local particle = Instance.new("ParticleEmitter")
+    particle.Texture = "rbxassetid://258128463"
+    particle.Color = ColorSequence.new(CONFIG.colors.secondary)
+    particle.Size = NumberSequence.new(1, 3)
+    particle.Transparency = NumberSequence.new(0.5, 1)
+    particle.Lifetime = NumberRange.new(0.5, 1.5)
+    particle.Rate = 15
+    particle.Speed = NumberRange.new(2, 6)
+    particle.SpreadAngle = Vector2.new(180, 180)
+    particle.Parent = attachment
+    
+    -- Conexão suave
     local connection = RunService.RenderStepped:Connect(function()
-        if ball and ball.Parent and reachSphere and reachSphere.Parent then
-            reachSphere.Position = ball.Position
+        if ball and ball.Parent then
+            if reachSphere and reachSphere.Parent then
+                reachSphere.CFrame = ball.CFrame
+            end
+            if innerSphere and innerSphere.Parent then
+                innerSphere.CFrame = ball.CFrame
+            end
         else
             if reachSphere then reachSphere:Destroy() end
+            if innerSphere then innerSphere:Destroy() end
+            if attachment then attachment:Destroy() end
         end
     end)
     
     ballAuras[ball] = {
-        attachment = auraAttachment,
-        particles = {particle1, particle2},
-        highlight = highlight,
         reachSphere = reachSphere,
+        innerSphere = innerSphere,
+        highlight = highlight,
+        attachment = attachment,
         connection = connection
     }
 end
 
--- REMOVER AURA DA BOLA
+-- REMOVER AURA
 local function removeBallAura(ball)
     if ballAuras[ball] then
         if ballAuras[ball].connection then
             ballAuras[ball].connection:Disconnect()
         end
-        if ballAuras[ball].reachSphere then
-            ballAuras[ball].reachSphere:Destroy()
-        end
-        if ballAuras[ball].highlight then
-            ballAuras[ball].highlight:Destroy()
-        end
-        if ballAuras[ball].attachment then
-            ballAuras[ball].attachment:Destroy()
+        for _, obj in pairs({"reachSphere", "innerSphere", "highlight", "attachment"}) do
+            if ballAuras[ball][obj] then
+                ballAuras[ball][obj]:Destroy()
+            end
         end
         ballAuras[ball] = nil
     end
 end
 
--- ATUALIZAR AURAS DAS BOLAS
+-- ATUALIZAR AURAS
 local function updateBallAuras()
-    for ball, data in pairs(ballAuras) do
+    for ball, _ in pairs(ballAuras) do
         if not ball or not ball.Parent then
             removeBallAura(ball)
         end
@@ -197,821 +218,650 @@ local function updateBallAuras()
     end
 end
 
--- LIMPAR TODAS AS ESFERAS
-local function clearAllSpheres()
-    if centralSphere then
-        centralSphere:Destroy()
-        centralSphere = nil
-    end
-    for _, sphere in pairs(reachSpheres) do
-        if sphere then sphere:Destroy() end
-    end
-    table.clear(reachSpheres)
-end
-
--- TOGGLE VISIBILIDADE DAS ESFERAS
-local function toggleSpheresVisibility()
-    spheresVisible = not spheresVisible
-    CONFIG.showReachSpheres = spheresVisible
-    
-    if spheresVisible then
-        updateReachSpheres()
-        notify("🔵 Esferas VISÍVEIS", 1.5)
-    else
-        clearAllSpheres()
-        notify("⚫ Esferas ESCONDIDAS", 1.5)
-    end
-    
-    return spheresVisible
-end
-
--- TOGGLE AURA BOLAS
-local function toggleBallAura()
-    CONFIG.showBallAura = not CONFIG.showBallAura
-    
-    if not CONFIG.showBallAura then
-        for ball, _ in pairs(ballAuras) do
-            removeBallAura(ball)
+-- ATUALIZAR ESFERA DO JOGADOR COM EFEITOS
+local function updatePlayerSphere()
+    if not CONFIG.showPlayerSphere then
+        if playerSphere then
+            playerSphere:Destroy()
+            playerSphere = nil
         end
-        notify("✨ Aura das Bolas DESLIGADA", 1.5)
-    else
-        updateBallAuras()
-        notify("✨ Aura das Bolas LIGADA", 1.5)
+        return
     end
     
-    return CONFIG.showBallAura
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    if not playerSphere then
+        -- Esfera externa
+        playerSphere = Instance.new("Part")
+        playerSphere.Name = "PlayerAuraSphere"
+        playerSphere.Shape = Enum.PartType.Ball
+        playerSphere.Transparency = 0.7
+        playerSphere.Anchored = true
+        playerSphere.CanCollide = false
+        playerSphere.CastShadow = false
+        playerSphere.Material = Enum.Material.ForceField
+        playerSphere.Color = CONFIG.colors.primary
+        playerSphere.Parent = Workspace
+        
+        -- Anel rotativo
+        local ring = Instance.new("Part")
+        ring.Name = "PlayerRing"
+        ring.Shape = Enum.PartType.Cylinder
+        ring.Size = Vector3.new(0.5, CONFIG.playerReach * 2, CONFIG.playerReach * 2)
+        ring.Transparency = 0.5
+        ring.Anchored = true
+        ring.CanCollide = false
+        ring.CastShadow = false
+        ring.Material = Enum.Material.Neon
+        ring.Color = CONFIG.colors.accent
+        ring.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(90), 0)
+        ring.Parent = playerSphere
+        
+        -- Animação do anel
+        spawn(function()
+            while ring and ring.Parent do
+                local rotation = tick() * 2
+                ring.CFrame = hrp.CFrame * CFrame.Angles(0, rotation, math.rad(90))
+                RunService.RenderStepped:Wait()
+            end
+        end)
+        
+        -- Partículas no jogador
+        local attachment = Instance.new("Attachment")
+        attachment.Parent = hrp
+        
+        local particle = Instance.new("ParticleEmitter")
+        particle.Texture = "rbxassetid://243660364"
+        particle.Color = ColorSequence.new(CONFIG.colors.primary)
+        particle.Size = NumberSequence.new(0.5, 2)
+        particle.Transparency = NumberSequence.new(0.3, 1)
+        particle.Lifetime = NumberRange.new(0.5, 1)
+        particle.Rate = 20
+        particle.Speed = NumberRange.new(1, 3)
+        particle.Parent = attachment
+        
+        playerSphere:SetAttribute("Ring", ring)
+        playerSphere:SetAttribute("Attachment", attachment)
+    end
+    
+    playerSphere.Size = Vector3.new(CONFIG.playerReach * 2, CONFIG.playerReach * 2, CONFIG.playerReach * 2)
+    playerSphere.CFrame = hrp.CFrame
 end
 
--- TOGGLE MODO CB
-local function toggleCBMode()
-    CONFIG.cbMode.enabled = not CONFIG.cbMode.enabled
-    cbActive = CONFIG.cbMode.enabled
+-- AUTO TOUCH OTIMIZADO
+local function processTouch()
+    if not CONFIG.autoTouch then return end
     
-    if cbActive then
-        notify("🛡️ MODO CB ATIVADO!", 3)
-        notify("Reach: " .. CONFIG.cbMode.reach .. " | AutoBlock: ON", 2)
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    local myPos = hrp.Position
+    
+    for _, ball in ipairs(balls) do
+        if not ball or not ball.Parent then continue end
         
-        local char = player.Character
-        if char then
+        local dist = (ball.Position - myPos).Magnitude
+        local effectiveReach = CONFIG.playerReach + CONFIG.ballReach
+        
+        if dist <= effectiveReach then
+            -- Efeito visual ao tocar
+            if dist < 5 then
+                local touchEffect = Instance.new("Part")
+                touchEffect.Size = Vector3.new(1, 1, 1)
+                touchEffect.Position = ball.Position
+                touchEffect.Anchored = true
+                touchEffect.CanCollide = false
+                touchEffect.Material = Enum.Material.Neon
+                touchEffect.Color = CONFIG.colors.accent
+                touchEffect.Parent = Workspace
+                
+                TweenService:Create(touchEffect, TweenInfo.new(0.3), {
+                    Size = Vector3.new(4, 4, 4),
+                    Transparency = 1
+                }):Play()
+                
+                Debris:AddItem(touchEffect, 0.3)
+            end
+            
+            -- Touch em todas as partes
             for _, part in ipairs(char:GetChildren()) do
                 if part:IsA("BasePart") then
-                    local highlight = Instance.new("Highlight")
-                    highlight.Name = "CBModeHighlight"
-                    highlight.Adornee = part
-                    highlight.FillColor = CONFIG.cbMode.color
-                    highlight.OutlineColor = Color3.new(1, 1, 1)
-                    highlight.FillTransparency = 0.9
-                    highlight.OutlineTransparency = 0.1
-                    highlight.Parent = part
-                    
-                    task.delay(2, function()
-                        if highlight then highlight:Destroy() end
-                    end)
-                end
-            end
-        end
-    else
-        notify("🛡️ MODO CB DESATIVADO", 2)
-    end
-    
-    return cbActive
-end
-
--- MAPA DE PARTES R6
-local function getBodyPartType(partName)
-    if partName == "Head" then
-        return "head"
-    elseif partName == "Torso" then
-        return "torso"
-    elseif partName:match("Arm") or partName:match("Hand") then
-        return "arm"
-    elseif partName:match("Leg") or partName:match("Foot") then
-        return "leg"
-    end
-    return nil
-end
-
--- OBTER PARTES VÁLIDAS
-local function getValidParts(char)
-    local parts = {}
-    
-    local currentReach = cbActive and CONFIG.cbMode.reach or CONFIG.reach
-    
-    if CONFIG.mode == "central" then
-        for _, v in ipairs(char:GetChildren()) do
-            if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
-                table.insert(parts, {
-                    part = v,
-                    reach = currentReach,
-                    isCentral = true
-                })
-            end
-        end
-    else
-        for _, v in ipairs(char:GetChildren()) do
-            if v:IsA("BasePart") then
-                local partType = getBodyPartType(v.Name)
-                if partType and CONFIG.bodyParts[partType].enabled then
-                    local partReach = cbActive and CONFIG.cbMode.reach or CONFIG.bodyParts[partType].reach
-                    table.insert(parts, {
-                        part = v,
-                        type = partType,
-                        reach = partReach,
-                        isCentral = false
-                    })
-                end
-            end
-        end
-    end
-    
-    return parts
-end
-
--- ATUALIZAR ESFERAS VISUAIS
-function updateReachSpheres()
-    if not spheresVisible then return end
-    clearAllSpheres()
-    
-    local char = player.Character
-    if not char then return end
-
-    local sphereColor = cbActive and CONFIG.cbMode.color or CONFIG.centralSphere.color
-    local sphereReach = cbActive and CONFIG.cbMode.reach or CONFIG.centralSphere.reach
-
-    if CONFIG.mode == "central" then
-        centralSphere = Instance.new("Part")
-        centralSphere.Name = "CaduCentralSphere"
-        centralSphere.Shape = Enum.PartType.Ball
-        centralSphere.Anchored = true
-        centralSphere.CanCollide = false
-        centralSphere.Transparency = 0.8
-        centralSphere.Material = Enum.Material.ForceField
-        centralSphere.Color = sphereColor
-        centralSphere.Size = Vector3.new(sphereReach * 2, sphereReach * 2, sphereReach * 2)
-        centralSphere.Parent = Workspace
-        
-    else
-        for partType, config in pairs(CONFIG.bodyParts) do
-            if not config.enabled then continue end
-            
-            local color = cbActive and CONFIG.cbMode.color or config.color
-            local reach = cbActive and CONFIG.cbMode.reach or config.reach
-            
-            local sphere = Instance.new("Part")
-            sphere.Name = "CaduReach_" .. partType
-            sphere.Shape = Enum.PartType.Ball
-            sphere.Anchored = true
-            sphere.CanCollide = false
-            sphere.Transparency = 0.85
-            sphere.Material = Enum.Material.ForceField
-            sphere.Color = color
-            sphere.Size = Vector3.new(reach * 2, reach * 2, reach * 2)
-            sphere.Parent = Workspace
-            
-            reachSpheres[partType] = sphere
-        end
-    end
-end
-
--- ATUALIZAR POSIÇÕES DAS ESFERAS
-function updateSpheresPosition()
-    if not spheresVisible then return end
-    
-    local char = player.Character
-    if not char then return end
-
-    if CONFIG.mode == "central" and centralSphere then
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            centralSphere.Position = hrp.Position
-        end
-        
-    elseif CONFIG.mode == "bodyparts" then
-        for partType, config in pairs(CONFIG.bodyParts) do
-            local sphere = reachSpheres[partType]
-            if not sphere or not config.enabled then continue end
-
-            if partType == "head" then
-                local head = char:FindFirstChild("Head")
-                if head then sphere.Position = head.Position end
-                
-            elseif partType == "torso" then
-                local torso = char:FindFirstChild("Torso")
-                if torso then sphere.Position = torso.Position end
-                
-            elseif partType == "arm" then
-                local leftArm = char:FindFirstChild("Left Arm")
-                local rightArm = char:FindFirstChild("Right Arm")
-                if leftArm and rightArm then
-                    sphere.Position = (leftArm.Position + rightArm.Position) / 2
-                elseif leftArm then
-                    sphere.Position = leftArm.Position
-                elseif rightArm then
-                    sphere.Position = rightArm.Position
-                end
-                
-            elseif partType == "leg" then
-                local leftLeg = char:FindFirstChild("Left Leg")
-                local rightLeg = char:FindFirstChild("Right Leg")
-                if leftLeg and rightLeg then
-                    sphere.Position = (leftLeg.Position + rightLeg.Position) / 2
-                elseif leftLeg then
-                    sphere.Position = leftLeg.Position
-                elseif rightLeg then
-                    sphere.Position = rightLeg.Position
-                end
-            end
-        end
-    end
-end
-
--- TOGGLE MODO
-function toggleMode()
-    CONFIG.mode = (CONFIG.mode == "central") and "bodyparts" or "central"
-    updateReachSpheres()
-    
-    local modeName = CONFIG.mode == "central" and "ESFERA CENTRAL" or "4 PARTES DO CORPO"
-    notify("Modo: " .. modeName, 2)
-    updateGUIForMode()
-    
-    return CONFIG.mode
-end
-
--- TOGGLE PARTE ESPECÍFICA
-function toggleBodyPart(partType)
-    if CONFIG.mode ~= "bodyparts" then return end
-    
-    CONFIG.bodyParts[partType].enabled = not CONFIG.bodyParts[partType].enabled
-    updateReachSpheres()
-    
-    local status = CONFIG.bodyParts[partType].enabled and "ON" or "OFF"
-    notify(partType:upper() .. ": " .. status, 1)
-    return CONFIG.bodyParts[partType].enabled
-end
-
--- GUI PRINCIPAL
-local bodyPartButtons = {}
-local spheresBtnRef = nil
-local auraBtnRef = nil
-local cbBtnRef = nil
-
-function buildMainGUI()
-    if gui then return end
-
-    gui = Instance.new("ScreenGui")
-    gui.Name = "CaduHubGUI"
-    gui.ResetOnSpawn = false
-    gui.Parent = player:WaitForChild("PlayerGui")
-
-    mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.fromScale(0.24, 0.50)
-    mainFrame.Position = UDim2.fromScale(0.02, 0.05)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-    mainFrame.BackgroundTransparency = 0.1
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = gui
-
-    local stroke = Instance.new("UIStroke", mainFrame)
-    stroke.Color = Color3.fromRGB(0, 255, 136)
-    stroke.Thickness = 2
-
-    local corner = Instance.new("UICorner", mainFrame)
-    corner.CornerRadius = UDim.new(0, 12)
-
-    local gradient = Instance.new("UIGradient", mainFrame)
-    gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 45)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 30))
-    })
-    gradient.Rotation = 45
-
-    -- Título
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -10, 0.05, 0)
-    title.Position = UDim2.new(0, 5, 0, 5)
-    title.BackgroundTransparency = 1
-    title.Text = "CADU HUB"
-    title.TextScaled = true
-    title.Font = Enum.Font.GothamBold
-    title.TextColor3 = Color3.fromRGB(0, 255, 136)
-    title.Parent = mainFrame
-
-    -- Linha
-    local line = Instance.new("Frame")
-    line.Size = UDim2.new(0.8, 0, 0, 2)
-    line.Position = UDim2.new(0.1, 0, 0.07, 0)
-    line.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
-    line.BorderSizePixel = 0
-    line.Parent = mainFrame
-
-    -- BOTÃO ESFERAS
-    local spheresBtn = Instance.new("TextButton")
-    spheresBtn.Name = "SpheresButton"
-    spheresBtn.Size = UDim2.new(0.9, 0, 0.05, 0)
-    spheresBtn.Position = UDim2.new(0.05, 0, 0.10, 0)
-    spheresBtn.Text = "🔵 ESFERAS: ON"
-    spheresBtn.TextSize = 10
-    spheresBtn.Font = Enum.Font.GothamBold
-    spheresBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-    spheresBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    spheresBtn.Parent = mainFrame
-    spheresBtn.AutoButtonColor = false
-    
-    Instance.new("UICorner", spheresBtn).CornerRadius = UDim.new(0, 8)
-    
-    spheresBtn.MouseButton1Click:Connect(function()
-        local visible = toggleSpheresVisibility()
-        spheresBtn.Text = visible and "🔵 ESFERAS: ON" or "⚫ ESFERAS: OFF"
-        spheresBtn.BackgroundColor3 = visible and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(80, 80, 80)
-    end)
-    
-    spheresBtnRef = spheresBtn
-
-    -- BOTÃO AURA
-    local auraBtn = Instance.new("TextButton")
-    auraBtn.Name = "AuraButton"
-    auraBtn.Size = UDim2.new(0.9, 0, 0.05, 0)
-    auraBtn.Position = UDim2.new(0.05, 0, 0.17, 0)
-    auraBtn.Text = "✨ AURA BOLAS: ON"
-    auraBtn.TextSize = 10
-    auraBtn.Font = Enum.Font.GothamBold
-    auraBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 255)
-    auraBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    auraBtn.Parent = mainFrame
-    auraBtn.AutoButtonColor = false
-    
-    Instance.new("UICorner", auraBtn).CornerRadius = UDim.new(0, 8)
-    
-    auraBtn.MouseButton1Click:Connect(function()
-        local enabled = toggleBallAura()
-        auraBtn.Text = enabled and "✨ AURA BOLAS: ON" or "✨ AURA BOLAS: OFF"
-        auraBtn.BackgroundColor3 = enabled and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(80, 80, 80)
-    end)
-    
-    auraBtnRef = auraBtn
-
-    -- BOTÃO CB
-    local cbBtn = Instance.new("TextButton")
-    cbBtn.Name = "CBButton"
-    cbBtn.Size = UDim2.new(0.9, 0, 0.06, 0)
-    cbBtn.Position = UDim2.new(0.05, 0, 0.24, 0)
-    cbBtn.Text = "🛡️ MODO CB: OFF"
-    cbBtn.TextSize = 11
-    cbBtn.Font = Enum.Font.GothamBold
-    cbBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-    cbBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    cbBtn.Parent = mainFrame
-    cbBtn.AutoButtonColor = false
-    
-    Instance.new("UICorner", cbBtn).CornerRadius = UDim.new(0, 8)
-    
-    cbBtn.MouseButton1Click:Connect(function()
-        local enabled = toggleCBMode()
-        cbBtn.Text = enabled and "🛡️ MODO CB: ON 🔥" or "🛡️ MODO CB: OFF"
-        cbBtn.BackgroundColor3 = enabled and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(100, 100, 100)
-        
-        if enabled then
-            cbLabel.Text = "🔥 CB ATIVO! Reach: " .. CONFIG.cbMode.reach
-            cbLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
-        else
-            cbLabel.Text = "Modo Normal"
-            cbLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-        end
-        
-        updateReachSpheres()
-    end)
-    
-    cbBtnRef = cbBtn
-
-    -- Label CB
-    cbLabel = Instance.new("TextLabel")
-    cbLabel.Size = UDim2.new(1, 0, 0.04, 0)
-    cbLabel.Position = UDim2.new(0, 0, 0.31, 0)
-    cbLabel.BackgroundTransparency = 1
-    cbLabel.Text = "Modo Normal"
-    cbLabel.TextScaled = true
-    cbLabel.Font = Enum.Font.GothamSemibold
-    cbLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-    cbLabel.Parent = mainFrame
-  
--- BOTÃO MODO
-    local modeBtn = Instance.new("TextButton")
-    modeBtn.Name = "ModeButton"
-    modeBtn.Size = UDim2.new(0.9, 0, 0.05, 0)
-    modeBtn.Position = UDim2.new(0.05, 0, 0.37, 0)
-    modeBtn.Text = "MODO: ESFERA CENTRAL"
-    modeBtn.TextSize = 10
-    modeBtn.Font = Enum.Font.GothamBold
-    modeBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-    modeBtn.TextColor3 = Color3.fromRGB(25, 25, 35)
-    modeBtn.Parent = mainFrame
-    modeBtn.AutoButtonColor = false
-    
-    Instance.new("UICorner", modeBtn).CornerRadius = UDim.new(0, 8)
-    
-    modeBtn.MouseButton1Click:Connect(function()
-        local newMode = toggleMode()
-        modeBtn.Text = "MODO: " .. (newMode == "central" and "ESFERA CENTRAL" or "4 PARTES")
-        modeBtn.BackgroundColor3 = newMode == "central" and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(255, 150, 0)
-    end)
-
-    -- Label modo
-    modeLabel = Instance.new("TextLabel")
-    modeLabel.Size = UDim2.new(1, 0, 0.04, 0)
-    modeLabel.Position = UDim2.new(0, 0, 0.43, 0)
-    modeLabel.BackgroundTransparency = 1
-    modeLabel.Text = "Esfera única no centro"
-    modeLabel.TextScaled = true
-    modeLabel.Font = Enum.Font.GothamSemibold
-    modeLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-    modeLabel.Parent = mainFrame
-
-    -- Container partes
-    local partsContainer = Instance.new("Frame")
-    partsContainer.Name = "PartsContainer"
-    partsContainer.Size = UDim2.new(0.9, 0, 0.26, 0)
-    partsContainer.Position = UDim2.new(0.05, 0, 0.48, 0)
-    partsContainer.BackgroundTransparency = 1
-    partsContainer.Visible = false
-    partsContainer.Parent = mainFrame
-
-    local partOrder = {"head", "torso", "arm", "leg"}
-    local partNames = {head = "CABEÇA", torso = "TRONCO", arm = "BRAÇOS", leg = "PERNAS"}
-
-    for i, partType in ipairs(partOrder) do
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0.22, 0)
-        btn.Position = UDim2.new(0, 0, (i-1) * 0.25, 0)
-        btn.Text = partNames[partType] .. ": ON"
-        btn.TextSize = 10
-        btn.Font = Enum.Font.GothamBold
-        btn.BackgroundColor3 = CONFIG.bodyParts[partType].color
-        btn.TextColor3 = Color3.fromRGB(25, 25, 35)
-        btn.Parent = partsContainer
-        btn.AutoButtonColor = false
-        
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-
-        btn.MouseEnter:Connect(function()
-            if CONFIG.bodyParts[partType].enabled then
-                btn.BackgroundColor3 = Color3.new(
-                    math.min(CONFIG.bodyParts[partType].color.R + 0.2, 1),
-                    math.min(CONFIG.bodyParts[partType].color.G + 0.2, 1),
-                    math.min(CONFIG.bodyParts[partType].color.B + 0.2, 1)
-                )
-            else
-                btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-            end
-        end)
-
-        btn.MouseLeave:Connect(function()
-            if CONFIG.bodyParts[partType].enabled then
-                btn.BackgroundColor3 = CONFIG.bodyParts[partType].color
-            else
-                btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-            end
-        end)
-
-        btn.MouseButton1Click:Connect(function()
-            local enabled = toggleBodyPart(partType)
-            btn.Text = partNames[partType] .. ": " .. (enabled and "ON" or "OFF")
-            btn.BackgroundColor3 = enabled and CONFIG.bodyParts[partType].color or Color3.fromRGB(60, 60, 60)
-            btn.TextColor3 = enabled and Color3.fromRGB(25, 25, 35) or Color3.fromRGB(150, 150, 150)
-        end)
-
-        bodyPartButtons[partType] = btn
-    end
-
-    -- Label reach
-    local reachLabel = Instance.new("TextLabel")
-    reachLabel.Size = UDim2.new(1, 0, 0.04, 0)
-    reachLabel.Position = UDim2.new(0, 0, 0.76, 0)
-    reachLabel.BackgroundTransparency = 1
-    reachLabel.Text = "REACH: " .. CONFIG.reach
-    reachLabel.TextScaled = true
-    reachLabel.Font = Enum.Font.GothamSemibold
-    reachLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
-    reachLabel.Parent = mainFrame
-
-    -- Container + e -
-    local adjustContainer = Instance.new("Frame")
-    adjustContainer.Size = UDim2.new(0.9, 0, 0.05, 0)
-    adjustContainer.Position = UDim2.new(0.05, 0, 0.81, 0)
-    adjustContainer.BackgroundTransparency = 1
-    adjustContainer.Parent = mainFrame
-
-    local minus = Instance.new("TextButton")
-    minus.Size = UDim2.new(0.45, 0, 1, 0)
-    minus.Text = "−"
-    minus.TextSize = 14
-    minus.Font = Enum.Font.GothamBold
-    minus.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-    minus.TextColor3 = Color3.fromRGB(255, 100, 100)
-    minus.Parent = adjustContainer
-    minus.AutoButtonColor = false
-    Instance.new("UICorner", minus).CornerRadius = UDim.new(0, 6)
-
-    local plus = Instance.new("TextButton")
-    plus.Size = UDim2.new(0.45, 0, 1, 0)
-    plus.Position = UDim2.new(0.55, 0, 0, 0)
-    plus.Text = "+"
-    plus.TextSize = 14
-    plus.Font = Enum.Font.GothamBold
-    plus.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-    plus.TextColor3 = Color3.fromRGB(0, 255, 136)
-    plus.Parent = adjustContainer
-    plus.AutoButtonColor = false
-    Instance.new("UICorner", plus).CornerRadius = UDim.new(0, 6)
-
-    -- Botão esconder
-    local hideBtn = Instance.new("TextButton")
-    hideBtn.Size = UDim2.new(0.9, 0, 0.05, 0)
-    hideBtn.Position = UDim2.new(0.05, 0, 0.90, 0)
-    hideBtn.Text = isMobile and "FECHAR" or "ESCONDER [INSERT]"
-    hideBtn.TextSize = 10
-    hideBtn.Font = Enum.Font.GothamSemibold
-    hideBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
-    hideBtn.TextColor3 = Color3.fromRGB(200, 200, 210)
-    hideBtn.Parent = mainFrame
-    Instance.new("UICorner", hideBtn).CornerRadius = UDim.new(0, 6)
-
-    -- FUNÇÕES
-    minus.MouseButton1Click:Connect(function()
-        CONFIG.reach = math.max(1, CONFIG.reach - 1)
-        CONFIG.centralSphere.reach = CONFIG.reach
-        CONFIG.ballReach = math.max(1, CONFIG.ballReach - 1)
-        CONFIG.cbMode.reach = math.max(1, CONFIG.cbMode.reach - 1)
-        reachLabel.Text = "REACH: " .. CONFIG.reach
-        for _, config in pairs(CONFIG.bodyParts) do
-            config.reach = math.max(1, config.reach - 1)
-        end
-        updateReachSpheres()
-        notify("Reach: " .. CONFIG.reach, 1)
-    end)
-
-    plus.MouseButton1Click:Connect(function()
-        CONFIG.reach += 1
-        CONFIG.centralSphere.reach = CONFIG.reach
-        CONFIG.ballReach += 1
-        CONFIG.cbMode.reach += 1
-        reachLabel.Text = "REACH: " .. CONFIG.reach
-        for _, config in pairs(CONFIG.bodyParts) do
-            config.reach += 1
-        end
-        updateReachSpheres()
-        notify("Reach: " .. CONFIG.reach, 1)
-    end)
-
-    hideBtn.MouseButton1Click:Connect(function()
-        mainFrame.Visible = false
-        if isMobile then
-            notify("Use o botão flutuante", 2)
-        else
-            notify("Pressione INSERT", 2)
-        end
-    end)
-end
-
--- ATUALIZAR GUI BASEADO NO MODO
-function updateGUIForMode()
-    if not mainFrame then return end
-    
-    local partsContainer = mainFrame:FindFirstChild("PartsContainer")
-    
-    if CONFIG.mode == "central" then
-        partsContainer.Visible = false
-        modeLabel.Text = "Esfera única no centro (HRP)"
-        modeLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
-    else
-        partsContainer.Visible = true
-        modeLabel.Text = "4 esferas: Cabeça, Tronco, Braços, Pernas"
-        modeLabel.TextColor3 = Color3.fromRGB(255, 150, 0)
-    end
-end
-
--- BOTÃO FLUTUANTE MOBILE
-local function buildMobileButton()
-    local mobileGui = Instance.new("ScreenGui")
-    mobileGui.Name = "CaduMobileBtn"
-    mobileGui.ResetOnSpawn = false
-    mobileGui.Parent = player:WaitForChild("PlayerGui")
-
-    local floatBtn = Instance.new("TextButton")
-    floatBtn.Name = "FloatButton"
-    floatBtn.Size = UDim2.new(0, 65, 0, 65)
-    floatBtn.Position = UDim2.new(1, -85, 1, -140)
-    floatBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-    floatBtn.Text = "CADU\nHUB"
-    floatBtn.TextSize = 11
-    floatBtn.Font = Enum.Font.GothamBold
-    floatBtn.TextColor3 = Color3.fromRGB(0, 255, 136)
-    floatBtn.Parent = mobileGui
-    floatBtn.Active = true
-    floatBtn.Draggable = true
-    floatBtn.AutoButtonColor = false
-
-    local btnStroke = Instance.new("UIStroke", floatBtn)
-    btnStroke.Color = Color3.fromRGB(0, 255, 136)
-    btnStroke.Thickness = 2
-
-    local btnCorner = Instance.new("UICorner", floatBtn)
-    btnCorner.CornerRadius = UDim.new(1, 0)
-
-    local btnGradient = Instance.new("UIGradient", floatBtn)
-    btnGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 50)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 30))
-    })
-
-    floatBtn.MouseButton1Down:Connect(function()
-        floatBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
-        floatBtn.TextColor3 = Color3.fromRGB(25, 25, 35)
-    end)
-    
-    floatBtn.MouseButton1Up:Connect(function()
-        floatBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-        floatBtn.TextColor3 = Color3.fromRGB(0, 255, 136)
-    end)
-
-    floatBtn.MouseButton1Click:Connect(function()
-        mainFrame.Visible = not mainFrame.Visible
-    end)
-end
-
--- TECLA INSERT (PC apenas)
-if not isMobile then
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not gameProcessed and input.KeyCode == Enum.KeyCode.Insert then
-            if mainFrame then
-                mainFrame.Visible = not mainFrame.Visible
-            end
-        end
-    end)
-end
-
--- AUTO TOUCH INTELIGENTE
-local function processTouch()
-    local char = player.Character
-    if not char then return end
-
-    local validParts = getValidParts(char)
-    local currentTime = tick()
-    
-    for _, data in ipairs(validParts) do
-        local part = data.part
-        local partType = data.type
-        local playerReach = data.reach
-        
-        for _, ball in ipairs(balls) do
-            if not ball or not ball.Parent then continue end
-            
-            local ballId = tostring(ball)
-            if lastTouchTime[ballId] and (currentTime - lastTouchTime[ballId]) < 0.3 then
-                continue
-            end
-            
-            local distance = (ball.Position - part.Position).Magnitude
-            local effectiveReach = playerReach
-            
-            if partType == "leg" then
-                effectiveReach = playerReach * 0.7
-            else
-                effectiveReach = playerReach * 0.5
-            end
-            
-            if distance <= effectiveReach then
-                local velocity = ball.AssemblyLinearVelocity or Vector3.new(0,0,0)
-                local directionToPlayer = (part.Position - ball.Position).Unit
-                local dotProduct = velocity.Unit:Dot(directionToPlayer)
-                
-                local shouldTouch = false
-                
-                if distance < 3 then
-                    shouldTouch = true
-                elseif dotProduct > 0.3 then
-                    shouldTouch = true
-                elseif cbActive and dotProduct > -0.5 then
-                    shouldTouch = true
-                end
-                
-                if shouldTouch then
                     pcall(function()
                         firetouchinterest(ball, part, 0)
                         firetouchinterest(ball, part, 1)
                     end)
-                    lastTouchTime[ballId] = currentTime
                 end
             end
-        end
-    end
-    
-    for id, time in pairs(lastTouchTime) do
-        if currentTime - time > 5 then
-            lastTouchTime[id] = nil
         end
     end
 end
 
--- NOVO: FUNÇÃO BÔNUS - VELOCÍMETRO DAS BOLAS
-local function showBallSpeed()
-    local speedGui = Instance.new("ScreenGui")
-    speedGui.Name = "CaduSpeedMeter"
-    speedGui.ResetOnSpawn = false
-    speedGui.Parent = player:WaitForChild("PlayerGui")
-    
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 150, 0, 60)
-    frame.Position = UDim2.new(0.5, -75, 0.85, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-    frame.BorderSizePixel = 0
-    frame.Parent = speedGui
-    
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
-    
-    local stroke = Instance.new("UIStroke", frame)
-    stroke.Color = Color3.fromRGB(0, 255, 136)
-    stroke.Thickness = 2
-    
+-- GUI ULTRA ESTILIZADA
+function buildMainGUI()
+    if gui then return end
+
+    gui = Instance.new("ScreenGui")
+    gui.Name = "CaduHubPremium"
+    gui.ResetOnSpawn = false
+    gui.Parent = player:WaitForChild("PlayerGui")
+
+    -- Frame principal com glassmorphism
+    mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 300, 0, 400)
+    mainFrame.Position = UDim2.new(0, 20, 0.5, -200)
+    mainFrame.BackgroundColor3 = CONFIG.colors.dark
+    mainFrame.BackgroundTransparency = 0.15
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = gui
+
+    -- Cantos arredondados
+    local corner = Instance.new("UICorner", mainFrame)
+    corner.CornerRadius = UDim.new(0, 20)
+
+    -- Stroke neon
+    local stroke = Instance.new("UIStroke", mainFrame)
+    stroke.Color = CONFIG.colors.primary
+    stroke.Thickness = 3
+    stroke.Transparency = 0.3
+
+    -- Gradiente de fundo
+    local gradient = Instance.new("UIGradient", mainFrame)
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, CONFIG.colors.dark),
+        ColorSequenceKeypoint.new(1, CONFIG.colors.darker)
+    })
+    gradient.Rotation = 45
+
+    -- Glow effect
+    local glow = Instance.new("ImageLabel")
+    glow.Name = "Glow"
+    glow.Size = UDim2.new(1.5, 0, 1.5, 0)
+    glow.Position = UDim2.new(-0.25, 0, -0.25, 0)
+    glow.BackgroundTransparency = 1
+    glow.Image = "rbxassetid://243660364"
+    glow.ImageColor3 = CONFIG.colors.primary
+    glow.ImageTransparency = 0.9
+    glow.Parent = mainFrame
+
+    -- Título com animação
+    local titleContainer = Instance.new("Frame")
+    titleContainer.Size = UDim2.new(1, -20, 0, 50)
+    titleContainer.Position = UDim2.new(0, 10, 0, 10)
+    titleContainer.BackgroundTransparency = 1
+    titleContainer.Parent = mainFrame
+
+    local titleBg = Instance.new("Frame")
+    titleBg.Size = UDim2.new(1, 0, 1, 0)
+    titleBg.BackgroundColor3 = CONFIG.colors.primary
+    titleBg.BackgroundTransparency = 0.9
+    titleBg.Parent = titleContainer
+    Instance.new("UICorner", titleBg).CornerRadius = UDim.new(0, 12)
+
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0.4, 0)
+    title.Size = UDim2.new(1, 0, 1, 0)
     title.BackgroundTransparency = 1
-    title.Text = "⚡ VELOCIDADE DA BOLA"
-    title.TextColor3 = Color3.fromRGB(0, 255, 136)
-    title.Font = Enum.Font.GothamBold
-    title.TextScaled = true
-    title.Parent = frame
+    title.Text = "⚡ CADU HUB V3 ⚡"
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.Font = Enum.Font.GothamBlack
+    title.TextSize = 24
+    title.Parent = titleContainer
+
+    -- Subtítulo
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Size = UDim2.new(1, -20, 0, 20)
+    subtitle.Position = UDim2.new(0, 10, 0, 65)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = "PREMIUM EDITION"
+    subtitle.TextColor3 = CONFIG.colors.accent
+    subtitle.Font = Enum.Font.GothamBold
+    subtitle.TextSize = 12
+    subtitle.Parent = mainFrame
+
+    -- Container de controles
+    local controlsContainer = Instance.new("Frame")
+    controlsContainer.Size = UDim2.new(1, -20, 0, 280)
+    controlsContainer.Position = UDim2.new(0, 10, 0, 95)
+    controlsContainer.BackgroundTransparency = 1
+    controlsContainer.Parent = mainFrame
+
+    -- FUNÇÃO PARA CRIAR SEÇÃO
+    local function createSection(name, yPos, color, icon)
+        local section = Instance.new("Frame")
+        section.Size = UDim2.new(1, 0, 0, 80)
+        section.Position = UDim2.new(0, 0, 0, yPos)
+        section.BackgroundColor3 = CONFIG.colors.darker
+        section.BackgroundTransparency = 0.5
+        section.Parent = controlsContainer
+        Instance.new("UICorner", section).CornerRadius = UDim.new(0, 12)
+
+        local sectionStroke = Instance.new("UIStroke", section)
+        sectionStroke.Color = color
+        sectionStroke.Thickness = 1
+        sectionStroke.Transparency = 0.5
+
+        local iconLabel = Instance.new("TextLabel")
+        iconLabel.Size = UDim2.new(0, 30, 0, 30)
+        iconLabel.Position = UDim2.new(0, 10, 0, 5)
+        iconLabel.BackgroundTransparency = 1
+        iconLabel.Text = icon
+        iconLabel.TextSize = 20
+        iconLabel.Parent = section
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, -50, 0, 25)
+        nameLabel.Position = UDim2.new(0, 45, 0, 5)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = name
+        nameLabel.TextColor3 = color
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextSize = 14
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.Parent = section
+
+        local valueLabel = Instance.new("TextLabel")
+        valueLabel.Size = UDim2.new(1, -20, 0, 20)
+        valueLabel.Position = UDim2.new(0, 10, 0, 30)
+        valueLabel.BackgroundTransparency = 1
+        valueLabel.Text = "0 studs"
+        valueLabel.TextColor3 = Color3.new(1, 1, 1)
+        valueLabel.Font = Enum.Font.Gotham
+        valueLabel.TextSize = 16
+        valueLabel.Parent = section
+
+        return section, valueLabel
+    end
+
+    -- SEÇÃO PLAYER REACH
+    local playerSection, playerValue = createSection("PLAYER REACH", 0, CONFIG.colors.primary, "👤")
     
-    local speedLabel = Instance.new("TextLabel")
-    speedLabel.Size = UDim2.new(1, 0, 0.6, 0)
-    speedLabel.Position = UDim2.new(0, 0, 0.4, 0)
-    speedLabel.BackgroundTransparency = 1
-    speedLabel.Text = "0 km/h"
-    speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    speedLabel.Font = Enum.Font.GothamBold
-    speedLabel.TextScaled = true
-    speedLabel.Parent = frame
+    local minusPlayer = Instance.new("TextButton")
+    minusPlayer.Size = UDim2.new(0, 60, 0, 25)
+    minusPlayer.Position = UDim2.new(0, 10, 0, 52)
+    minusPlayer.Text = "−"
+    minusPlayer.Font = Enum.Font.GothamBlack
+    minusPlayer.TextSize = 18
+    minusPlayer.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    minusPlayer.TextColor3 = Color3.new(1, 1, 1)
+    minusPlayer.Parent = playerSection
+    Instance.new("UICorner", minusPlayer).CornerRadius = UDim.new(0, 8)
+
+    local plusPlayer = Instance.new("TextButton")
+    plusPlayer.Size = UDim2.new(0, 60, 0, 25)
+    plusPlayer.Position = UDim2.new(0, 80, 0, 52)
+    plusPlayer.Text = "+"
+    plusPlayer.Font = Enum.Font.GothamBlack
+    plusPlayer.TextSize = 18
+    plusPlayer.BackgroundColor3 = CONFIG.colors.primary
+    plusPlayer.TextColor3 = Color3.new(0, 0, 0)
+    plusPlayer.Parent = playerSection
+    Instance.new("UICorner", plusPlayer).CornerRadius = UDim.new(0, 8)
+
+    local resetPlayer = Instance.new("TextButton")
+    resetPlayer.Size = UDim2.new(0, 70, 0, 25)
+    resetPlayer.Position = UDim2.new(0, 150, 0, 52)
+    resetPlayer.Text = "RESET"
+    resetPlayer.Font = Enum.Font.GothamBold
+    resetPlayer.TextSize = 12
+    resetPlayer.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
+    resetPlayer.TextColor3 = Color3.new(1, 1, 1)
+    resetPlayer.Parent = playerSection
+    Instance.new("UICorner", resetPlayer).CornerRadius = UDim.new(0, 8)
+
+    -- SEÇÃO BALL REACH
+    local ballSection, ballValue = createSection("BALL REACH", 90, CONFIG.colors.secondary, "⚽")
+
+    local minusBall = Instance.new("TextButton")
+    minusBall.Size = UDim2.new(0, 60, 0, 25)
+    minusBall.Position = UDim2.new(0, 10, 0, 52)
+    minusBall.Text = "−"
+    minusBall.Font = Enum.Font.GothamBlack
+    minusBall.TextSize = 18
+    minusBall.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    minusBall.TextColor3 = Color3.new(1, 1, 1)
+    minusBall.Parent = ballSection
+    Instance.new("UICorner", minusBall).CornerRadius = UDim.new(0, 8)
+
+    local plusBall = Instance.new("TextButton")
+    plusBall.Size = UDim2.new(0, 60, 0, 25)
+    plusBall.Position = UDim2.new(0, 80, 0, 52)
+    plusBall.Text = "+"
+    plusBall.Font = Enum.Font.GothamBlack
+    plusBall.TextSize = 18
+    plusBall.BackgroundColor3 = CONFIG.colors.secondary
+    plusBall.TextColor3 = Color3.new(0, 0, 0)
+    plusBall.Parent = ballSection
+    Instance.new("UICorner", plusBall).CornerRadius = UDim.new(0, 8)
+
+    local resetBall = Instance.new("TextButton")
+    resetBall.Size = UDim2.new(0, 70, 0, 25)
+    resetBall.Position = UDim2.new(0, 150, 0, 52)
+    resetBall.Text = "RESET"
+    resetBall.Font = Enum.Font.GothamBold
+    resetBall.TextSize = 12
+    resetBall.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
+    resetBall.TextColor3 = Color3.new(1, 1, 1)
+    resetBall.Parent = ballSection
+    Instance.new("UICorner", resetBall).CornerRadius = UDim.new(0, 8)
+
+        -- SESSÃO TOGGLES
+    local toggleSection = Instance.new("Frame")
+    toggleSection.Size = UDim2.new(1, 0, 0, 90)
+    toggleSection.Position = UDim2.new(0, 0, 0, 180)
+    toggleSection.BackgroundColor3 = CONFIG.colors.darker
+    toggleSection.BackgroundTransparency = 0.5
+    toggleSection.Parent = controlsContainer
+    Instance.new("UICorner", toggleSection).CornerRadius = UDim.new(0, 12)
+
+    local toggleStroke = Instance.new("UIStroke", toggleSection)
+    toggleStroke.Color = CONFIG.colors.accent
+    toggleStroke.Thickness = 1
+    toggleStroke.Transparency = 0.5
+
+    local toggleTitle = Instance.new("TextLabel")
+    toggleTitle.Size = UDim2.new(1, -20, 0, 25)
+    toggleTitle.Position = UDim2.new(0, 10, 0, 5)
+    toggleTitle.BackgroundTransparency = 1
+    toggleTitle.Text = "🔧 CONTROLES"
+    toggleTitle.TextColor3 = CONFIG.colors.accent
+    toggleTitle.Font = Enum.Font.GothamBold
+    toggleTitle.TextSize = 14
+    toggleTitle.TextXAlignment = Enum.TextXAlignment.Left
+    toggleTitle.Parent = toggleSection
+
+    -- Auto Touch Toggle
+    local autoTouchBtn = Instance.new("TextButton")
+    autoTouchBtn.Size = UDim2.new(0, 130, 0, 25)
+    autoTouchBtn.Position = UDim2.new(0, 10, 0, 35)
+    autoTouchBtn.Text = "AUTO TOUCH: ON"
+    autoTouchBtn.Font = Enum.Font.GothamBold
+    autoTouchBtn.TextSize = 11
+    autoTouchBtn.BackgroundColor3 = CONFIG.colors.primary
+    autoTouchBtn.TextColor3 = Color3.new(0, 0, 0)
+    autoTouchBtn.Parent = toggleSection
+    Instance.new("UICorner", autoTouchBtn).CornerRadius = UDim.new(0, 8)
+
+    -- Visuals Toggle
+    local visualsBtn = Instance.new("TextButton")
+    visualsBtn.Size = UDim2.new(0, 130, 0, 25)
+    visualsBtn.Position = UDim2.new(0, 10, 0, 65)
+    visualsBtn.Text = "VISUALS: ON"
+    visualsBtn.Font = Enum.Font.GothamBold
+    visualsBtn.TextSize = 11
+    visualsBtn.BackgroundColor3 = CONFIG.colors.secondary
+    visualsBtn.TextColor3 = Color3.new(0, 0, 0)
+    visualsBtn.Parent = toggleSection
+    Instance.new("UICorner", visualsBtn).CornerRadius = UDim.new(0, 8)
+
+    -- Hide Button
+    local hideBtn = Instance.new("TextButton")
+    hideBtn.Size = UDim2.new(0, 120, 0, 50)
+    hideBtn.Position = UDim2.new(1, -130, 0, 35)
+    hideBtn.Text = isMobile and "❌ FECHAR" or "❌ ESCONDER\n[INSERT]"
+    hideBtn.Font = Enum.Font.GothamBold
+    hideBtn.TextSize = 11
+    hideBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    hideBtn.TextColor3 = Color3.new(1, 1, 1)
+    hideBtn.Parent = toggleSection
+    Instance.new("UICorner", hideBtn).CornerRadius = UDim.new(0, 10)
+
+    -- ANIMAÇÃO DE ENTRADA
+    mainFrame.Position = UDim2.new(0, -320, 0.5, -200)
+    TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+        Position = UDim2.new(0, 20, 0.5, -200)
+    }):Play()
+
+    -- FUNÇÕES COM ANIMAÇÕES
+    local function animateButton(btn)
+        local original = btn.BackgroundColor3
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.new(1, 1, 1)}):Play()
+        task.wait(0.1)
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = original}):Play()
+    end
+
+    local function updatePlayerDisplay()
+        playerValue.Text = CONFIG.playerReach .. " studs"
+        TweenService:Create(playerValue, TweenInfo.new(0.2), {TextColor3 = CONFIG.colors.accent}):Play()
+        task.delay(0.2, function()
+            TweenService:Create(playerValue, TweenInfo.new(0.2), {TextColor3 = Color3.new(1, 1, 1)}):Play()
+        end)
+    end
+
+    local function updateBallDisplay()
+        ballValue.Text = CONFIG.ballReach .. " studs"
+        TweenService:Create(ballValue, TweenInfo.new(0.2), {TextColor3 = CONFIG.colors.accent}):Play()
+        task.delay(0.2, function()
+            TweenService:Create(ballValue, TweenInfo.new(0.2), {TextColor3 = Color3.new(1, 1, 1)}):Play()
+        end)
+    end
+
+    minusPlayer.MouseButton1Click:Connect(function()
+        animateButton(minusPlayer)
+        CONFIG.playerReach = math.max(1, CONFIG.playerReach - 1)
+        updatePlayerDisplay()
+        updatePlayerSphere()
+    end)
+
+    plusPlayer.MouseButton1Click:Connect(function()
+        animateButton(plusPlayer)
+        CONFIG.playerReach = math.min(50, CONFIG.playerReach + 1)
+        updatePlayerDisplay()
+        updatePlayerSphere()
+    end)
+
+    resetPlayer.MouseButton1Click:Connect(function()
+        animateButton(resetPlayer)
+        CONFIG.playerReach = 10
+        updatePlayerDisplay()
+        updatePlayerSphere()
+    end)
+
+    minusBall.MouseButton1Click:Connect(function()
+        animateButton(minusBall)
+        CONFIG.ballReach = math.max(1, CONFIG.ballReach - 1)
+        updateBallDisplay()
+        updateBallAuras()
+    end)
+
+    plusBall.MouseButton1Click:Connect(function()
+        animateButton(plusBall)
+        CONFIG.ballReach = math.min(50, CONFIG.ballReach + 1)
+        updateBallDisplay()
+        updateBallAuras()
+    end)
+
+    resetBall.MouseButton1Click:Connect(function()
+        animateButton(resetBall)
+        CONFIG.ballReach = 15
+        updateBallDisplay()
+        updateBallAuras()
+    end)
+
+    autoTouchBtn.MouseButton1Click:Connect(function()
+        CONFIG.autoTouch = not CONFIG.autoTouch
+        autoTouchBtn.Text = CONFIG.autoTouch and "AUTO TOUCH: ON" or "AUTO TOUCH: OFF"
+        autoTouchBtn.BackgroundColor3 = CONFIG.autoTouch and CONFIG.colors.primary or Color3.fromRGB(100, 100, 100)
+        animateButton(autoTouchBtn)
+    end)
+
+    visualsBtn.MouseButton1Click:Connect(function()
+        CONFIG.showPlayerSphere = not CONFIG.showPlayerSphere
+        CONFIG.showBallAura = not CONFIG.showBallAura
+        visualsBtn.Text = (CONFIG.showPlayerSphere and CONFIG.showBallAura) and "VISUALS: ON" or "VISUALS: OFF"
+        visualsBtn.BackgroundColor3 = (CONFIG.showPlayerSphere and CONFIG.showBallAura) and CONFIG.colors.secondary or Color3.fromRGB(100, 100, 100)
+        animateButton(visualsBtn)
+        updatePlayerSphere()
+        updateBallAuras()
+    end)
+
+    hideBtn.MouseButton1Click:Connect(function()
+        animateButton(hideBtn)
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+            Position = UDim2.new(0, -320, 0.5, -200)
+        }):Play()
+        task.delay(0.3, function()
+            mainFrame.Visible = false
+            mainFrame.Position = UDim2.new(0, 20, 0.5, -200)
+        end)
+        notify("Pressione INSERT ou use o botão mobile para reabrir", 2)
+    end)
+
+    -- Atualizar displays iniciais
+    updatePlayerDisplay()
+    updateBallDisplay()
+end
+
+-- BOTÃO FLUTUANTE MOBILE PREMIUM
+local function buildMobileButton()
+    local mobileGui = Instance.new("ScreenGui")
+    mobileGui.Name = "CaduMobilePremium"
+    mobileGui.ResetOnSpawn = false
+    mobileGui.Parent = player:WaitForChild("PlayerGui")
+
+    local floatBtn = Instance.new("TextButton")
+    floatBtn.Size = UDim2.new(0, 70, 0, 70)
+    floatBtn.Position = UDim2.new(1, -90, 1, -120)
+    floatBtn.BackgroundColor3 = CONFIG.colors.dark
+    floatBtn.Text = "⚡"
+    floatBtn.TextSize = 35
+    floatBtn.Font = Enum.Font.GothamBlack
+    floatBtn.TextColor3 = CONFIG.colors.primary
+    floatBtn.Parent = mobileGui
+    floatBtn.Active = true
+    floatBtn.Draggable = true
+    floatBtn.AutoButtonColor = false
     
-    -- Atualizar velocidade
-    RunService.RenderStepped:Connect(function()
-        local maxSpeed = 0
-        for _, ball in ipairs(balls) do
-            if ball and ball.Parent then
-                local velocity = ball.AssemblyLinearVelocity or Vector3.new(0,0,0)
-                local speed = velocity.Magnitude
-                if speed > maxSpeed then
-                    maxSpeed = speed
+    local corner = Instance.new("UICorner", floatBtn)
+    corner.CornerRadius = UDim.new(1, 0)
+    
+    local stroke = Instance.new("UIStroke", floatBtn)
+    stroke.Color = CONFIG.colors.primary
+    stroke.Thickness = 3
+    
+    -- Glow animado
+    local glow = Instance.new("ImageLabel")
+    glow.Size = UDim2.new(1.5, 0, 1.5, 0)
+    glow.Position = UDim2.new(-0.25, 0, -0.25, 0)
+    glow.BackgroundTransparency = 1
+    glow.Image = "rbxassetid://243660364"
+    glow.ImageColor3 = CONFIG.colors.primary
+    glow.ImageTransparency = 0.8
+    glow.Parent = floatBtn
+    
+    -- Animação de pulso
+    spawn(function()
+        while floatBtn and floatBtn.Parent do
+            TweenService:Create(glow, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                ImageTransparency = 0.5,
+                Size = UDim2.new(1.8, 0, 1.8, 0)
+            }):Play()
+            task.wait(1)
+            TweenService:Create(glow, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                ImageTransparency = 0.8,
+                Size = UDim2.new(1.5, 0, 1.5, 0)
+            }):Play()
+            task.wait(1)
+        end
+    end)
+    
+    -- Efeito hover
+    floatBtn.MouseEnter:Connect(function()
+        TweenService:Create(floatBtn, TweenInfo.new(0.2), {
+            BackgroundColor3 = CONFIG.colors.primary,
+            TextColor3 = CONFIG.colors.dark
+        }):Play()
+    end)
+    
+    floatBtn.MouseLeave:Connect(function()
+        TweenService:Create(floatBtn, TweenInfo.new(0.2), {
+            BackgroundColor3 = CONFIG.colors.dark,
+            TextColor3 = CONFIG.colors.primary
+        }):Play()
+    end)
+
+    floatBtn.MouseButton1Click:Connect(function()
+        mainFrame.Visible = true
+        TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+            Position = UDim2.new(0, 20, 0.5, -200)
+        }):Play()
+    end)
+end
+
+-- TECLA INSERT
+if not isMobile then
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == Enum.KeyCode.Insert then
+            if mainFrame then
+                if mainFrame.Visible then
+                    TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+                        Position = UDim2.new(0, -320, 0.5, -200)
+                    }):Play()
+                    task.delay(0.3, function()
+                        mainFrame.Visible = false
+                        mainFrame.Position = UDim2.new(0, 20, 0.5, -200)
+                    end)
+                else
+                    mainFrame.Visible = true
+                    TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+                        Position = UDim2.new(0, 20, 0.5, -200)
+                    }):Play()
                 end
             end
-        end
-        
-        -- Converter para km/h (aproximado)
-        local kmh = math.floor(maxSpeed * 3.6)
-        speedLabel.Text = kmh .. " km/h"
-        
-        -- Mudar cor baseado na velocidade
-        if kmh > 100 then
-            speedLabel.TextColor3 = Color3.fromRGB(255, 50, 50) -- Vermelho (rápido)
-        elseif kmh > 50 then
-            speedLabel.TextColor3 = Color3.fromRGB(255, 200, 0) -- Amarelo (médio)
-        else
-            speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- Branco (lento)
         end
     end)
 end
 
 -- LOOPS
 RunService.RenderStepped:Connect(function()
-    updateSpheresPosition()
+    updatePlayerSphere()
     updateBallAuras()
     
-    if CONFIG.autoSecondTouch then
+    if CONFIG.autoTouch then
         processTouch()
     end
 end)
 
 task.spawn(function()
     while true do
-        refreshBalls(false)
+        refreshBalls()
         task.wait(CONFIG.scanCooldown)
     end
 end)
 
+-- LIMPEZA
+player.CharacterRemoving:Connect(function()
+    if playerSphere then
+        playerSphere:Destroy()
+        playerSphere = nil
+    end
+    for ball, _ in pairs(ballAuras) do
+        removeBallAura(ball)
+    end
+end)
+
+player.CharacterAdded:Connect(function(newChar)
+    task.wait(0.5)
+    updatePlayerSphere()
+end)
+
 -- INIT
+createBackgroundParticles()
 buildMainGUI()
 if isMobile then
     buildMobileButton()
-    notify("📱 Modo Mobile Ativo", 3)
-else
-    notify("💻 Modo PC Ativo", 3)
 end
-updateReachSpheres()
-updateGUIForMode()
-refreshBalls(true)
 
--- BÔNUS: Ativar velocímetro
-showBallSpeed()
+if not player.Character then
+    player.CharacterAdded:Wait()
+end
+task.wait(0.5)
 
-notify("✅ Cadu Hub Online", 3)
-notify("⚡ Velocímetro das Bolas ativo!", 3)
-print("Cadu Hub OK | Pernas:", CONFIG.bodyParts.leg.reach, "| CB:", cbActive)
+updatePlayerSphere()
+refreshBalls()
+notify("✨ CADU HUB V3 PREMIUM ✨", 3)
+notify("🎨 Estilo 200% ativado!", 2)
+print("Cadu Hub V3 Premium | Player:", CONFIG.playerReach, "| Ball:", CONFIG.ballReach)
