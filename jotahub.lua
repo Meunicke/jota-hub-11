@@ -1,20 +1,57 @@
--- AGUARDA O JOGO CARREGAR COMPLETAMENTE
-repeat task.wait() until game and game:IsLoaded()
+-- PROTEÇÃO CONTRA ERROS DE AMBIENTE
+local success, err = pcall(function()
+    -- Aguarda o jogo existir
+    if not game then
+        repeat task.wait(0.1) until game
+    end
+    
+    -- Aguarda carregar
+    if game:IsLoaded() then
+        -- ok
+    else
+        game.Loaded:Wait()
+    end
+end)
 
--- SERVICES
-local UserInputService = game:GetService("UserInputService")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
-local TweenService = game:GetService("TweenService")
-local Debris = game:GetService("Debris")
+if not success then
+    warn("Erro ao aguardar jogo:", err)
+    task.wait(3) -- Delay de segurança
+end
+
+-- PEGA OS SERVIÇOS COM PROTEÇÃO
+local Services = {}
+setmetatable(Services, {
+    __index = function(t, k)
+        local s, r = pcall(function()
+            return game:GetService(k)
+        end)
+        if s then return r end
+        
+        -- Fallback direto
+        return game[k]
+    end
+})
+
+local UserInputService = Services.UserInputService
+local Players = Services.Players
+local RunService = Services.RunService
+local Workspace = Services.Workspace
+local TweenService = Services.TweenService
+local Debris = Services.Debris
+
+-- VERIFICAÇÃO CRÍTICA
+if not Players then
+    error("Não foi possível acessar Players. Executar como cliente.")
+    return
+end
 
 local player = Players.LocalPlayer
-
--- VERIFICAÇÃO DE SEGURANÇA
 if not player then
-    warn("LocalPlayer não encontrado. Script deve rodar no cliente.")
-    return
+    warn("Aguardando LocalPlayer...")
+    repeat 
+        task.wait(0.1)
+        player = Players.LocalPlayer
+    until player
 end
 
 -- CONFIG
@@ -50,6 +87,9 @@ local CONFIG = {
         gradient2 = Color3.fromRGB(235, 69, 158)
     }
 }
+
+-- Resto do seu código...
+
 
 -- STEALTH CONFIG
 local STEALTH_CONFIG = {
