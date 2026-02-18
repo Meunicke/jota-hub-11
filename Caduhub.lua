@@ -1,5 +1,5 @@
 -- ==========================================
--- MOBILE HUB COMPACTO - TOUCH OPTIMIZED
+-- PREMIUM MOBILE HUB v3.0 - PROFESSIONAL
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -15,32 +15,42 @@ local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 
 -- ==========================================
--- CONFIG
+-- CONFIGURAÇÃO PROFISSIONAL
 -- ==========================================
 local THEME = {
-    bg = Color3.fromRGB(15, 15, 20),
-    card = Color3.fromRGB(30, 30, 40),
+    bg = Color3.fromRGB(10, 10, 15),
+    card = Color3.fromRGB(25, 25, 35),
     accent = Color3.fromRGB(29, 185, 84),
     accent2 = Color3.fromRGB(229, 9, 20),
+    accent3 = Color3.fromRGB(0, 200, 255),
     text = Color3.fromRGB(255, 255, 255),
-    textDim = Color3.fromRGB(150, 150, 150)
+    textDim = Color3.fromRGB(150, 150, 170)
 }
 
 local CONFIG = {
+    -- Alcances
     playerReach = 10,
     ballReach = 15,
+    quantumReach = 25,
+    
+    -- Funcionalidades
     autoTouch = true,
     showVisuals = true,
     flashEnabled = false,
     quantumReachEnabled = false,
-    quantumReach = 10,
     expandBallHitbox = true,
     antiAFK = true,
-    ballNames = { "TPS", "MPS", "TRS", "TCS", "PRS", "ESA", "MRS", "SSS", "AIFA", "RBZ", "SoccerBall", "Football", "Ball" }
+    
+    -- BigFoot Config
+    bigFootSize = 10,
+    bigFootOffset = 2,
+    
+    -- Bolas suportadas
+    ballNames = { "TPS", "MPS", "TRS", "TCS", "PRS", "ESA", "MRS", "SSS", "AIFA", "RBZ", "SoccerBall", "Football", "Ball", "Basketball", "Volleyball" }
 }
 
 -- ==========================================
--- VARIÁVEIS
+-- VARIÁVEIS GLOBAIS
 -- ==========================================
 local balls = {}
 local ballAuras = {}
@@ -49,183 +59,364 @@ local playerSphere = nil
 local quantumCircle = nil
 local bigFoot = nil
 local HRP = nil
+local humanoid = nil
+local character = nil
 local isScriptActive = false
-local BALL_NAME_SET = {}
 local currentTab = "main"
 local isMinimized = false
+local gui = nil
+local mainFrame = nil
+local minimizeButton = nil
+local BALL_NAME_SET = {}
 
 for _, n in ipairs(CONFIG.ballNames) do BALL_NAME_SET[n] = true end
 
 -- ==========================================
--- FUNÇÕES SEGURAS
+-- SISTEMA DE SEGURANÇA ANTI-ERRO
 -- ==========================================
 local function safeCall(func, ...)
     local success, result = pcall(func, ...)
-    if not success then warn("[Error]: " .. tostring(result)) end
+    if not success then
+        warn("[SafeCall Error]: " .. tostring(result))
+    end
     return success, result
 end
 
 local function safeDestroy(obj)
-    if obj and obj.Parent then safeCall(function() obj:Destroy() end) end
-end
-
-local function getHRP()
-    local char = player and player.Character
-    return char and char:FindFirstChild("HumanoidRootPart")
+    if obj and obj.Parent then
+        safeCall(function() obj:Destroy() end)
+    end
 end
 
 -- ==========================================
--- BIGFOOT SYSTEM
+-- SISTEMA DE PERSONAGEM E HUMANOIDE
+-- ==========================================
+local function setupCharacter(char)
+    character = char
+    humanoid = nil
+    HRP = nil
+    
+    -- Aguarda Humanoid
+    humanoid = char:WaitForChild("Humanoid", 5)
+    if not humanoid then
+        warn("[Character] Humanoid não encontrado!")
+        return false
+    end
+    
+    -- Aguarda HumanoidRootPart
+    HRP = char:WaitForChild("HumanoidRootPart", 5)
+    if not HRP then
+        -- Tenta achar em outro lugar
+        HRP = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+    end
+    
+    if not HRP then
+        warn("[Character] HRP não encontrado!")
+        return false
+    end
+    
+    print("[Character] Setup completo: " .. char.Name)
+    return true
+end
+
+-- ==========================================
+-- SISTEMA BIGFOOT PROFISSIONAL
 -- ==========================================
 local function createBigFoot()
-    local char = player.Character
-    if not char then return nil end
+    if not character or not HRP then
+        warn("[BigFoot] Sem character ou HRP")
+        return nil
+    end
     
+    -- Remove anterior
     safeDestroy(bigFoot)
     
-    local leg = char:FindFirstChild("Right Leg") or char:FindFirstChild("RightLowerLeg") or char:FindFirstChild("RightFoot") or char:FindFirstChild("HumanoidRootPart")
-    if not leg then return nil end
+    -- Encontra a melhor parte para anexar (perna ou HRP)
+    local attachPart = nil
     
-    safeCall(function()
+    -- Tenta achar perna
+    local legNames = {"Right Leg", "RightLowerLeg", "RightFoot", "RightUpperLeg", "Left Leg", "LeftLowerLeg", "LeftFoot"}
+    for _, name in ipairs(legNames) do
+        attachPart = character:FindFirstChild(name)
+        if attachPart then break end
+    end
+    
+    -- Fallback para HRP ou torso
+    if not attachPart then
+        attachPart = HRP or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+    end
+    
+    if not attachPart then
+        warn("[BigFoot] Nenhuma parte válida para anexar")
+        return nil
+    end
+    
+    print("[BigFoot] Anexando em: " .. attachPart.Name)
+    
+    local success, result = safeCall(function()
+        -- Cria BigFoot
         bigFoot = Instance.new("Part")
-        bigFoot.Name = "BigFoot"
+        bigFoot.Name = "BigFoot_Collision"
         bigFoot.Shape = Enum.PartType.Ball
-        bigFoot.Size = Vector3.new(8, 8, 8)
+        bigFoot.Size = Vector3.new(CONFIG.bigFootSize, CONFIG.bigFootSize, CONFIG.bigFootSize)
         bigFoot.Transparency = 1
         bigFoot.CanCollide = false
+        bigFoot.CanQuery = false
         bigFoot.CanTouch = true
-        bigFoot.Parent = char
+        bigFoot.Parent = character
         
-        RunService.Heartbeat:Connect(function()
-            if bigFoot and bigFoot.Parent and leg and leg.Parent then
-                bigFoot.CFrame = leg.CFrame * CFrame.new(0, -leg.Size.Y/2, 0)
+        -- Conecta ao movimento da parte
+        local connection = RunService.Heartbeat:Connect(function()
+            if not bigFoot or not bigFoot.Parent then return end
+            if not attachPart or not attachPart.Parent then
+                -- Tenta recriar se a parte sumiu
+                createBigFoot()
+                return
             end
+            
+            -- Posição abaixo da parte
+            local offset = CFrame.new(0, -CONFIG.bigFootOffset, 0)
+            
+            -- Adiciona jitter aleatório para bypass anti-cheat
+            if math.random() > 0.7 then
+                offset = offset + CFrame.new(
+                    math.random(-5, 5) / 100,
+                    math.random(-5, 5) / 100,
+                    math.random(-5, 5) / 100
+                )
+            end
+            
+            bigFoot.CFrame = attachPart.CFrame * offset
         end)
+        
+        return bigFoot
     end)
     
-    return bigFoot
+    if success and bigFoot then
+        print("[BigFoot] Criado com sucesso!")
+        return bigFoot
+    else
+        warn("[BigFoot] Falha ao criar")
+        return nil
+    end
 end
 
 local function touchBall(ball)
-    if not ball or not bigFoot then return end
+    if not ball or not bigFoot or not bigFoot.Parent then return end
+    
     safeCall(function()
+        -- Método principal
         firetouchinterest(ball, bigFoot, 0)
         task.wait()
         firetouchinterest(ball, bigFoot, 1)
+        
+        -- Método alternativo: teleporta BigFoot para a bola e toca
+        local originalCFrame = bigFoot.CFrame
+        bigFoot.CFrame = ball.CFrame
+        task.wait()
+        firetouchinterest(ball, bigFoot, 0)
+        firetouchinterest(ball, bigFoot, 1)
+        bigFoot.CFrame = originalCFrame
     end)
 end
 
 -- ==========================================
--- BALL SYSTEM
+-- SISTEMA DE BOLAS
 -- ==========================================
 local function getBalls()
     table.clear(balls)
-    for _, v in ipairs(Workspace:GetDescendants()) do
-        if v and v:IsA("BasePart") and BALL_NAME_SET[v.Name] then
-            table.insert(balls, v)
+    safeCall(function()
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj and obj:IsA("BasePart") and BALL_NAME_SET[obj.Name] then
+                table.insert(balls, obj)
+            end
         end
-    end
+    end)
     return balls
 end
 
 -- ==========================================
--- MOBILE HUB UI
+-- HUB UI PROFISSIONAL COM IMAGENS
 -- ==========================================
-local function createMobileHub()
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "MobileHub"
+
+-- IDs de imagens (você pode trocar por seus próprios)
+local IMAGES = {
+    -- Substitua esses IDs pelos seus próprios no Roblox
+    logo = "rbxassetid://0",           -- Logo do hub
+    menuIcon = "rbxassetid://0",       -- Ícone do botão flutuante
+    tabMain = "rbxassetid://0",        -- Ícone aba Main
+    tabVisual = "rbxassetid://0",      -- Ícone aba Visual
+    tabConfig = "rbxassetid://0",      -- Ícone aba Config
+    
+    -- Se não tiver imagens, usa emojis:
+    emoji = {
+        logo = "⚡",
+        menu = "☰",
+        main = "🎮",
+        visual = "👁",
+        config = "⚙",
+        close = "✕",
+        minimize = "−",
+        maximize = "□"
+    }
+}
+
+local function createPremiumHub()
+    -- ScreenGui
+    gui = Instance.new("ScreenGui")
+    gui.Name = "PremiumHub_" .. tostring(math.random(1000, 9999))
     gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.Parent = CoreGui
     
-    -- Frame Principal (Menor para mobile)
-    local main = Instance.new("Frame")
-    main.Name = "Main"
-    main.Size = UDim2.new(0, 350, 0, 500)
-    main.Position = UDim2.new(0.5, -175, 0.5, -250)
-    main.BackgroundColor3 = THEME.bg
-    main.BorderSizePixel = 0
-    main.Active = true
-    main.Draggable = true
-    main.Parent = gui
+    -- Frame Principal
+    mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 380, 0, 520)
+    mainFrame.Position = UDim2.new(0.5, -190, 0.5, -260)
+    mainFrame.BackgroundColor3 = THEME.bg
+    mainFrame.BorderSizePixel = 0
+    mainFrame.ClipsDescendants = true
+    mainFrame.Parent = gui
     
-    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = UDim.new(0, 16)
+    mainCorner.Parent = mainFrame
     
-    -- Header
+    -- Sombra
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    shadow.Size = UDim2.new(1, 40, 1, 40)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://6015897843"
+    shadow.ImageColor3 = Color3.new(0, 0, 0)
+    shadow.ImageTransparency = 0.4
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(49, 49, 450, 450)
+    shadow.ZIndex = -1
+    shadow.Parent = mainFrame
+    
+    -- ==========================================
+    -- HEADER PROFISSIONAL
+    -- ==========================================
     local header = Instance.new("Frame")
-    header.Size = UDim2.new(1, 0, 0, 50)
+    header.Name = "Header"
+    header.Size = UDim2.new(1, 0, 0, 55)
     header.BackgroundColor3 = THEME.card
     header.BorderSizePixel = 0
-    header.Parent = main
+    header.Parent = mainFrame
     
-    Instance.new("UICorner", header).CornerRadius = UDim.new(0, 0)
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0, 0)
+    headerCorner.Parent = header
+    
+    -- Logo/Ícone
+    local logoContainer = Instance.new("Frame")
+    logoContainer.Size = UDim2.new(0, 40, 0, 40)
+    logoContainer.Position = UDim2.new(0, 10, 0.5, -20)
+    logoContainer.BackgroundColor3 = THEME.accent
+    logoContainer.BorderSizePixel = 0
+    logoContainer.Parent = header
+    
+    Instance.new("UICorner", logoContainer).CornerRadius = UDim.new(0, 8)
+    
+    local logoIcon = Instance.new("TextLabel")
+    logoIcon.Size = UDim2.new(1, 0, 1, 0)
+    logoIcon.BackgroundTransparency = 1
+    logoIcon.Text = IMAGES.emoji.logo
+    logoIcon.TextSize = 24
+    logoIcon.Parent = logoContainer
     
     -- Título
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -120, 1, 0)
-    title.Position = UDim2.new(0, 15, 0, 0)
+    title.Size = UDim2.new(0, 200, 1, 0)
+    title.Position = UDim2.new(0, 60, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "⚡ PREMIUM HUB"
-    title.TextColor3 = THEME.accent
-    title.TextSize = 18
+    title.Text = "PREMIUM HUB"
+    title.TextColor3 = THEME.text
+    title.TextSize = 20
     title.Font = Enum.Font.GothamBold
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = header
     
+    -- Subtítulo
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Size = UDim2.new(0, 200, 0, 15)
+    subtitle.Position = UDim2.new(0, 60, 0, 32)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = "v3.0 PRO"
+    subtitle.TextColor3 = THEME.accent
+    subtitle.TextSize = 11
+    subtitle.Font = Enum.Font.GothamSemibold
+    subtitle.TextXAlignment = Enum.TextXAlignment.Left
+    subtitle.Parent = header
+    
     -- Botão Minimizar (GRANDE para mobile)
     local minBtn = Instance.new("TextButton")
-    minBtn.Size = UDim2.new(0, 40, 0, 40)
-    minBtn.Position = UDim2.new(1, -90, 0.5, -20)
-    minBtn.BackgroundColor3 = THEME.card
-    minBtn.Text = "−"
+    minBtn.Name = "MinimizeBtn"
+    minBtn.Size = UDim2.new(0, 45, 0, 45)
+    minBtn.Position = UDim2.new(1, -100, 0.5, -22.5)
+    minBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    minBtn.Text = IMAGES.emoji.minimize
     minBtn.TextColor3 = THEME.text
     minBtn.TextSize = 24
     minBtn.Font = Enum.Font.GothamBold
+    minBtn.AutoButtonColor = true
     minBtn.Parent = header
     
-    Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 8)
+    Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 10)
     
     -- Botão Fechar (GRANDE para mobile)
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 40, 0, 40)
-    closeBtn.Position = UDim2.new(1, -45, 0.5, -20)
+    closeBtn.Name = "CloseBtn"
+    closeBtn.Size = UDim2.new(0, 45, 0, 45)
+    closeBtn.Position = UDim2.new(1, -50, 0.5, -22.5)
     closeBtn.BackgroundColor3 = THEME.accent2
-    closeBtn.Text = "✕"
+    closeBtn.Text = IMAGES.emoji.close
     closeBtn.TextColor3 = THEME.text
     closeBtn.TextSize = 20
     closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.AutoButtonColor = true
     closeBtn.Parent = header
     
-    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 10)
     
-    -- Container de Abas (NA PARTE DE BAIXO para fácil acesso no mobile)
+    -- ==========================================
+    -- CONTEÚDO (Área das abas)
+    -- ==========================================
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Name = "Content"
+    contentFrame.Size = UDim2.new(1, -20, 1, -130)
+    contentFrame.Position = UDim2.new(0, 10, 0, 65)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.ClipsDescendants = true
+    contentFrame.Parent = mainFrame
+    
+    -- ==========================================
+    -- TAB BAR (Na parte inferior)
+    -- ==========================================
     local tabBar = Instance.new("Frame")
     tabBar.Name = "TabBar"
-    tabBar.Size = UDim2.new(1, 0, 0, 60)
-    tabBar.Position = UDim2.new(0, 0, 1, -60)
+    tabBar.Size = UDim2.new(1, 0, 0, 65)
+    tabBar.Position = UDim2.new(0, 0, 1, -65)
     tabBar.BackgroundColor3 = THEME.card
     tabBar.BorderSizePixel = 0
-    tabBar.Parent = main
+    tabBar.Parent = mainFrame
     
     Instance.new("UICorner", tabBar).CornerRadius = UDim.new(0, 0)
     
-    -- Layout das abas
     local tabLayout = Instance.new("UIListLayout")
     tabLayout.FillDirection = Enum.FillDirection.Horizontal
     tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    tabLayout.Padding = UDim.new(0, 10)
+    tabLayout.Padding = UDim.new(0, 15)
     tabLayout.Parent = tabBar
     
-    -- Container de conteúdo
-    local content = Instance.new("Frame")
-    content.Name = "Content"
-    content.Size = UDim2.new(1, -20, 1, -130)
-    content.Position = UDim2.new(0, 10, 0, 60)
-    content.BackgroundTransparency = 1
-    content.ClipsDescendants = true
-    content.Parent = main
-    
-    -- Páginas
+    -- ==========================================
+    -- SISTEMA DE PÁGINAS
+    -- ==========================================
     local pages = {}
     
     local function createPage(name)
@@ -235,12 +426,12 @@ local function createMobileHub()
         page.BackgroundTransparency = 1
         page.ScrollBarThickness = 4
         page.ScrollBarImageColor3 = THEME.accent
-        page.CanvasSize = UDim2.new(0, 0, 0, 400)
+        page.CanvasSize = UDim2.new(0, 0, 0, 500)
         page.Visible = false
-        page.Parent = content
+        page.Parent = contentFrame
         
         local layout = Instance.new("UIListLayout")
-        layout.Padding = UDim.new(0, 10)
+        layout.Padding = UDim.new(0, 12)
         layout.Parent = page
         
         pages[name] = page
@@ -249,32 +440,63 @@ local function createMobileHub()
     
     local mainPage = createPage("main")
     local visualPage = createPage("visual")
-    local settingsPage = createPage("settings")
+    local configPage = createPage("config")
     
-    -- Função criar botão de aba (GRANDE para mobile)
-    local function createTabButton(name, icon, pageName)
+    -- ==========================================
+    -- CRIAR BOTÕES DE ABA COM IMAGENS
+    -- ==========================================
+    local function createTabButton(name, icon, pageName, isActive)
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 90, 0, 45)
-        btn.BackgroundColor3 = (currentTab == pageName) and THEME.accent or THEME.bg
-        btn.Text = icon .. " " .. name
-        btn.TextColor3 = THEME.text
-        btn.TextSize = 12
-        btn.Font = Enum.Font.GothamBold
-        btn.AutoButtonColor = true
+        btn.Name = name .. "Tab"
+        btn.Size = UDim2.new(0, 100, 0, 50)
+        btn.BackgroundColor3 = isActive and THEME.accent or Color3.fromRGB(40, 40, 50)
+        btn.Text = ""
+        btn.AutoButtonColor = false
         btn.Parent = tabBar
         
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 12)
+        btnCorner.Parent = btn
         
+        -- Ícone (Texto por enquanto, pode ser ImageLabel)
+        local iconLabel = Instance.new("TextLabel")
+        iconLabel.Size = UDim2.new(1, 0, 0, 24)
+        iconLabel.Position = UDim2.new(0, 0, 0, 5)
+        iconLabel.BackgroundTransparency = 1
+        iconLabel.Text = icon
+        iconLabel.TextSize = 22
+        iconLabel.Parent = btn
+        
+        -- Nome
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 0, 16)
+        nameLabel.Position = UDim2.new(0, 0, 0, 28)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = name
+        nameLabel.TextColor3 = isActive and THEME.text or THEME.textDim
+        nameLabel.TextSize = 11
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.Parent = btn
+        
+        -- Clique
         btn.MouseButton1Click:Connect(function()
             currentTab = pageName
             
-            -- Atualiza visual dos botões
+            -- Atualiza todos os botões
             for _, child in ipairs(tabBar:GetChildren()) do
                 if child:IsA("TextButton") then
-                    child.BackgroundColor3 = THEME.bg
+                    TweenService:Create(child, TweenInfo.new(0.2), {
+                        BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+                    }):Play()
+                    child:FindFirstChildOfClass("TextLabel").TextColor3 = THEME.textDim
                 end
             end
-            btn.BackgroundColor3 = THEME.accent
+            
+            -- Ativa o clicado
+            TweenService:Create(btn, TweenInfo.new(0.2), {
+                BackgroundColor3 = THEME.accent
+            }):Play()
+            nameLabel.TextColor3 = THEME.text
             
             -- Troca página
             for _, page in pairs(pages) do
@@ -287,29 +509,31 @@ local function createMobileHub()
     end
     
     -- Criar abas
-    createTabButton("Main", "⚡", "main")
-    createTabButton("Visual", "👁", "visual")
-    createTabButton("Config", "⚙", "settings")
+    createTabButton("Main", IMAGES.emoji.main, "main", true)
+    createTabButton("Visual", IMAGES.emoji.visual, "visual", false)
+    createTabButton("Config", IMAGES.emoji.config, "config", false)
     
-    -- Mostrar página inicial
+    -- Mostrar primeira página
     mainPage.Visible = true
     
     -- ==========================================
-    -- FUNÇÃO CRIAR TOGGLE (Mobile-friendly)
+    -- COMPONENTES UI
     -- ==========================================
+    
+    -- Toggle Switch
     local function createToggle(parent, title, desc, default, callback)
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, 0, 0, 70)
+        frame.Size = UDim2.new(1, 0, 0, 75)
         frame.BackgroundColor3 = THEME.card
         frame.BorderSizePixel = 0
         frame.Parent = parent
         
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
         
         -- Título
         local t = Instance.new("TextLabel")
-        t.Size = UDim2.new(1, -70, 0, 25)
-        t.Position = UDim2.new(0, 12, 0, 8)
+        t.Size = UDim2.new(1, -80, 0, 25)
+        t.Position = UDim2.new(0, 15, 0, 10)
         t.BackgroundTransparency = 1
         t.Text = title
         t.TextColor3 = THEME.text
@@ -320,21 +544,21 @@ local function createMobileHub()
         
         -- Descrição
         local d = Instance.new("TextLabel")
-        d.Size = UDim2.new(1, -70, 0, 30)
-        d.Position = UDim2.new(0, 12, 0, 32)
+        d.Size = UDim2.new(1, -80, 0, 30)
+        d.Position = UDim2.new(0, 15, 0, 35)
         d.BackgroundTransparency = 1
         d.Text = desc
         d.TextColor3 = THEME.textDim
-        d.TextSize = 11
+        d.TextSize = 12
         d.Font = Enum.Font.Gotham
         d.TextXAlignment = Enum.TextXAlignment.Left
         d.TextWrapped = true
         d.Parent = frame
         
-        -- Toggle (MAIOR para mobile)
+        -- Toggle
         local toggle = Instance.new("Frame")
-        toggle.Size = UDim2.new(0, 50, 0, 28)
-        toggle.Position = UDim2.new(1, -60, 0.5, -14)
+        toggle.Size = UDim2.new(0, 55, 0, 30)
+        toggle.Position = UDim2.new(1, -70, 0.5, -15)
         toggle.BackgroundColor3 = default and THEME.accent or Color3.fromRGB(60, 60, 70)
         toggle.BorderSizePixel = 0
         toggle.Parent = frame
@@ -342,15 +566,15 @@ local function createMobileHub()
         Instance.new("UICorner", toggle).CornerRadius = UDim.new(1, 0)
         
         local circle = Instance.new("Frame")
-        circle.Size = UDim2.new(0, 24, 0, 24)
-        circle.Position = default and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
+        circle.Size = UDim2.new(0, 26, 0, 26)
+        circle.Position = default and UDim2.new(1, -28, 0.5, -13) or UDim2.new(0, 2, 0.5, -13)
         circle.BackgroundColor3 = THEME.text
         circle.BorderSizePixel = 0
         circle.Parent = toggle
         
         Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
         
-        -- Botão invisível maior para facilitar toque
+        -- Botão invisível grande
         local hitbox = Instance.new("TextButton")
         hitbox.Size = UDim2.new(1, 0, 1, 0)
         hitbox.BackgroundTransparency = 1
@@ -362,12 +586,12 @@ local function createMobileHub()
         hitbox.MouseButton1Click:Connect(function()
             enabled = not enabled
             
-            TweenService:Create(toggle, TweenInfo.new(0.2), {
+            TweenService:Create(toggle, TweenInfo.new(0.25), {
                 BackgroundColor3 = enabled and THEME.accent or Color3.fromRGB(60, 60, 70)
             }):Play()
             
-            TweenService:Create(circle, TweenInfo.new(0.2), {
-                Position = enabled and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
+            TweenService:Create(circle, TweenInfo.new(0.25), {
+                Position = enabled and UDim2.new(1, -28, 0.5, -13) or UDim2.new(0, 2, 0.5, -13)
             }):Play()
             
             if callback then callback(enabled) end
@@ -375,23 +599,21 @@ local function createMobileHub()
         
         return frame
     end
-    
-    -- ==========================================
-    -- FUNÇÃO CRIAR SLIDER (Mobile-friendly)
-    -- ==========================================
+
+-- Slider
     local function createSlider(parent, title, min, max, default, callback)
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, 0, 0, 60)
+        frame.Size = UDim2.new(1, 0, 0, 70)
         frame.BackgroundColor3 = THEME.card
         frame.BorderSizePixel = 0
         frame.Parent = parent
         
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
         
-        -- Título e valor
+        -- Labels
         local t = Instance.new("TextLabel")
         t.Size = UDim2.new(0.5, 0, 0, 20)
-        t.Position = UDim2.new(0, 12, 0, 8)
+        t.Position = UDim2.new(0, 15, 0, 10)
         t.BackgroundTransparency = 1
         t.Text = title
         t.TextColor3 = THEME.text
@@ -402,7 +624,7 @@ local function createMobileHub()
         
         local val = Instance.new("TextLabel")
         val.Size = UDim2.new(0.5, 0, 0, 20)
-        val.Position = UDim2.new(0.5, -12, 0, 8)
+        val.Position = UDim2.new(0.5, -15, 0, 10)
         val.BackgroundTransparency = 1
         val.Text = tostring(default)
         val.TextColor3 = THEME.accent
@@ -413,8 +635,8 @@ local function createMobileHub()
         
         -- Track
         local track = Instance.new("Frame")
-        track.Size = UDim2.new(1, -24, 0, 8)
-        track.Position = UDim2.new(0, 12, 0, 35)
+        track.Size = UDim2.new(1, -30, 0, 8)
+        track.Position = UDim2.new(0, 15, 0, 40)
         track.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
         track.BorderSizePixel = 0
         track.Parent = frame
@@ -429,23 +651,23 @@ local function createMobileHub()
         
         Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
         
-        -- Knob (MAIOR para mobile)
+        -- Knob maior para mobile
         local knob = Instance.new("TextButton")
-        knob.Size = UDim2.new(0, 20, 0, 20)
-        knob.Position = UDim2.new((default - min) / (max - min), -10, 0.5, -10)
+        knob.Size = UDim2.new(0, 24, 0, 24)
+        knob.Position = UDim2.new((default - min) / (max - min), -12, 0.5, -12)
         knob.BackgroundColor3 = THEME.text
         knob.Text = ""
         knob.Parent = track
         
         Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
         
-        -- Área de toque maior (invisível)
-        local touchArea = Instance.new("TextButton")
-        touchArea.Size = UDim2.new(1, 0, 3, 0)
-        touchArea.Position = UDim2.new(0, 0, 0.5, -1.5)
-        touchArea.BackgroundTransparency = 1
-        touchArea.Text = ""
-        touchArea.Parent = track
+        -- Área de toque expandida
+        local touchPad = Instance.new("TextButton")
+        touchPad.Size = UDim2.new(1, 0, 3, 0)
+        touchPad.Position = UDim2.new(0, 0, 0.5, -1.5)
+        touchPad.BackgroundTransparency = 1
+        touchPad.Text = ""
+        touchPad.Parent = track
         
         local dragging = false
         
@@ -454,7 +676,7 @@ local function createMobileHub()
             local value = math.floor(min + (pos * (max - min)))
             
             fill.Size = UDim2.new(pos, 0, 1, 0)
-            knob.Position = UDim2.new(pos, -10, 0.5, -10)
+            knob.Position = UDim2.new(pos, -12, 0.5, -12)
             val.Text = tostring(value)
             
             if callback then callback(value) end
@@ -466,7 +688,7 @@ local function createMobileHub()
             end
         end)
         
-        touchArea.InputBegan:Connect(function(input)
+        touchPad.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = true
                 update(input)
@@ -497,7 +719,7 @@ local function createMobileHub()
         CONFIG.autoTouch = v
     end)
     
-    createToggle(mainPage, "Expand Hitbox", "Hitboxes maiores", CONFIG.expandBallHitbox, function(v)
+    createToggle(mainPage, "Expand Hitbox", "Aumentar hitbox das bolas", CONFIG.expandBallHitbox, function(v)
         CONFIG.expandBallHitbox = v
         if not v then
             for ball, data in pairs(ballHitboxes) do
@@ -507,7 +729,7 @@ local function createMobileHub()
         end
     end)
     
-    createToggle(mainPage, "Anti AFK", "Prevenir kick", CONFIG.antiAFK, function(v)
+    createToggle(mainPage, "Anti AFK", "Prevenir desconexão por AFK", CONFIG.antiAFK, function(v)
         CONFIG.antiAFK = v
     end)
     
@@ -520,12 +742,11 @@ local function createMobileHub()
     end)
     
     -- VISUAL PAGE
-    createToggle(visualPage, "Show Visuals", "Mostrar auras", CONFIG.showVisuals, function(v)
+    createToggle(visualPage, "Show Visuals", "Mostrar auras e esferas", CONFIG.showVisuals, function(v)
         CONFIG.showVisuals = v
         if not v then
             for ball, data in pairs(ballAuras) do
                 safeDestroy(data.aura)
-                safeDestroy(data.highlight)
             end
             ballAuras = {}
             safeDestroy(playerSphere)
@@ -533,27 +754,105 @@ local function createMobileHub()
         end
     end)
     
-    createToggle(visualPage, "Flash Effect", "Flash ao tocar", CONFIG.flashEnabled, function(v)
+    createToggle(visualPage, "Flash Effect", "Flash ao tocar na bola", CONFIG.flashEnabled, function(v)
         CONFIG.flashEnabled = v
     end)
     
-    -- SETTINGS PAGE
-    createToggle(settingsPage, "Quantum Reach", "Alcance quântico", CONFIG.quantumReachEnabled, function(v)
+    -- CONFIG PAGE
+    createToggle(configPage, "Quantum Reach", "Alcance quântico extendido", CONFIG.quantumReachEnabled, function(v)
         CONFIG.quantumReachEnabled = v
     end)
     
-    createSlider(settingsPage, "Quantum Range", 1, 100, CONFIG.quantumReach, function(v)
+    createSlider(configPage, "Quantum Range", 1, 100, CONFIG.quantumReach, function(v)
         CONFIG.quantumReach = v
     end)
     
+    createSlider(configPage, "BigFoot Size", 5, 20, CONFIG.bigFootSize, function(v)
+        CONFIG.bigFootSize = v
+        createBigFoot() -- Recria com novo tamanho
+    end)
+    
     -- ==========================================
-    -- BOTÕES DE AÇÃO (Fechar/Minimizar)
+    -- BOTÃO FLUTUANTE (Minimizado)
+    -- ==========================================
+    minimizeButton = Instance.new("TextButton")
+    minimizeButton.Name = "FloatButton"
+    minimizeButton.Size = UDim2.new(0, 60, 0, 60)
+    minimizeButton.Position = UDim2.new(1, -70, 0, 10)
+    minimizeButton.BackgroundColor3 = THEME.accent
+    minimizeButton.Text = IMAGES.emoji.menu
+    minimizeButton.TextSize = 28
+    minimizeButton.Font = Enum.Font.GothamBold
+    minimizeButton.Visible = false
+    minimizeButton.Parent = gui
+    
+    Instance.new("UICorner", minimizeButton).CornerRadius = UDim.new(1, 0)
+    
+    -- Sombra do botão flutuante
+    local floatShadow = Instance.new("ImageLabel")
+    floatShadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    floatShadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    floatShadow.Size = UDim2.new(1, 20, 1, 20)
+    floatShadow.BackgroundTransparency = 1
+    floatShadow.Image = "rbxassetid://6015897843"
+    floatShadow.ImageColor3 = Color3.new(0, 0, 0)
+    floatShadow.ImageTransparency = 0.5
+    floatShadow.ScaleType = Enum.ScaleType.Slice
+    floatShadow.SliceCenter = Rect.new(49, 49, 450, 450)
+    floatShadow.ZIndex = -1
+    floatShadow.Parent = minimizeButton
+    
+    -- ==========================================
+    -- SISTEMA DE MINIMIZAR/RESTAURAR CORRIGIDO
     -- ==========================================
     
-    -- Fechar (funciona no mobile)
+    local function minimizeHub()
+        isMinimized = true
+        
+        -- Animação de minimizar
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0)
+        }):Play()
+        
+        task.wait(0.3)
+        mainFrame.Visible = false
+        
+        -- Mostrar botão flutuante com animação
+        minimizeButton.Visible = true
+        minimizeButton.Size = UDim2.new(0, 0, 0, 0)
+        
+        TweenService:Create(minimizeButton, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+            Size = UDim2.new(0, 60, 0, 60)
+        }):Play()
+    end
+    
+    local function restoreHub()
+        isMinimized = false
+        
+        -- Esconder botão flutuante
+        TweenService:Create(minimizeButton, TweenInfo.new(0.2), {
+            Size = UDim2.new(0, 0, 0, 0)
+        }):Play()
+        
+        task.wait(0.2)
+        minimizeButton.Visible = false
+        
+        -- Restaurar hub
+        mainFrame.Visible = true
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+            Size = UDim2.new(0, 380, 0, 520),
+            Position = UDim2.new(0.5, -190, 0.5, -260)
+        }):Play()
+    end
+    
+    -- Conectar botões
+    minBtn.MouseButton1Click:Connect(minimizeHub)
+    minimizeButton.MouseButton1Click:Connect(restoreHub)
+    
+    -- Fechar completamente
     closeBtn.MouseButton1Click:Connect(function()
-        -- Animação de saída
-        TweenService:Create(main, TweenInfo.new(0.3), {
+        TweenService:Create(mainFrame, TweenInfo.new(0.3), {
             Size = UDim2.new(0, 0, 0, 0),
             Position = UDim2.new(0.5, 0, 0.5, 0)
         }):Play()
@@ -562,10 +861,9 @@ local function createMobileHub()
         gui:Destroy()
         isScriptActive = false
         
-        -- Limpar tudo
+        -- Limpar objetos
         for ball, data in pairs(ballAuras) do
             safeDestroy(data.aura)
-            safeDestroy(data.highlight)
         end
         for ball, data in pairs(ballHitboxes) do
             safeDestroy(data.hitbox)
@@ -575,92 +873,52 @@ local function createMobileHub()
         safeDestroy(bigFoot)
     end)
     
-    -- Minimizar (funciona no mobile)
-    minBtn.MouseButton1Click:Connect(function()
-        isMinimized = not isMinimized
-        
-        if isMinimized then
-            -- Minimizar para um botão flutuante pequeno
-            TweenService:Create(main, TweenInfo.new(0.3), {
-                Size = UDim2.new(0, 60, 0, 60),
-                Position = UDim2.new(1, -70, 0, 10)
-            }):Play()
-            
-                -- Esconder conteúdo
-            for _, child in ipairs(main:GetChildren()) do
-                if child.Name ~= "Header" then
-                    child.Visible = false
-                end
-            end
-            
-            -- Esconder header também
-            header.Visible = false
-            
-            -- Criar indicador visual
-            local indicator = Instance.new("TextLabel")
-            indicator.Name = "Indicator"
-            indicator.Size = UDim2.new(1, 0, 1, 0)
-            indicator.BackgroundTransparency = 1
-            indicator.Text = "⚡"
-            indicator.TextSize = 30
-            indicator.Parent = main
-            
-            -- Tocar para restaurar
-            main.InputBegan:Connect(function(input)
-                if isMinimized and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then
-                    isMinimized = false
-                    
-                    safeDestroy(indicator)
-                    header.Visible = true
-                    
-                    for _, child in ipairs(main:GetChildren()) do
-                        child.Visible = true
-                    end
-                    
-                    TweenService:Create(main, TweenInfo.new(0.3), {
-                        Size = UDim2.new(0, 350, 0, 500),
-                        Position = UDim2.new(0.5, -175, 0.5, -250)
-                    }):Play()
-                end
-            end)
-            
-        else
-            -- Restaurar (código acima já restaura no clique)
-        end
-    end)
-    
     -- Animação de entrada
-    main.Size = UDim2.new(0, 0, 0, 0)
-    main.Position = UDim2.new(0.5, 0, 0.5, 0)
+    mainFrame.Size = UDim2.new(0, 0, 0, 0)
+    mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
     
-    TweenService:Create(main, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
-        Size = UDim2.new(0, 350, 0, 500),
-        Position = UDim2.new(0.5, -175, 0.5, -250)
+    TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
+        Size = UDim2.new(0, 380, 0, 520),
+        Position = UDim2.new(0.5, -190, 0.5, -260)
     }):Play()
     
     return gui
 end
 
 -- ==========================================
--- INICIALIZAÇÃO
+-- INICIALIZAÇÃO DO SISTEMA
 -- ==========================================
-local function init()
-    -- Aguardar personagem
-    if not player.Character then
-        player.CharacterAdded:Wait()
+local function initialize()
+    -- Setup do personagem
+    if player.Character then
+        setupCharacter(player.Character)
     end
     
-    HRP = getHRP()
-    while not HRP do
-        task.wait(0.1)
-        HRP = getHRP()
+    player.CharacterAdded:Connect(function(char)
+        task.wait(0.5) -- Aguarda personagem carregar completamente
+        if setupCharacter(char) then
+            task.wait(0.5)
+            createBigFoot()
+        end
+    end)
+    
+    player.CharacterRemoving:Connect(function()
+        safeDestroy(bigFoot)
+        HRP = nil
+        humanoid = nil
+        character = nil
+    end)
+    
+    -- Aguarda setup inicial
+    if not HRP then
+        repeat task.wait(0.1) until HRP
     end
     
-    -- Criar BigFoot
+    -- Cria BigFoot inicial
     task.delay(1, createBigFoot)
     
-    -- Criar UI
-    createMobileHub()
+    -- Cria UI
+    createPremiumHub()
     
     -- Anti-AFK
     player.Idled:Connect(function()
@@ -676,11 +934,20 @@ local function init()
     task.spawn(function()
         while isScriptActive do
             safeCall(function()
-                if not HRP or not HRP.Parent then
-                    HRP = getHRP()
+                -- Atualiza referências
+                if not character or not character.Parent then
+                    character = player.Character
                 end
+                if not HRP or not HRP.Parent then
+                    HRP = character and character:FindFirstChild("HumanoidRootPart")
+                end
+                if not humanoid or not humanoid.Parent then
+                    humanoid = character and character:FindFirstChild("Humanoid")
+                end
+                
                 if not HRP then return end
                 
+                -- Recria BigFoot se necessário
                 if not bigFoot or not bigFoot.Parent then
                     createBigFoot()
                 end
@@ -689,6 +956,7 @@ local function init()
                 
                 -- Visuals
                 if CONFIG.showVisuals then
+                    -- Cria auras
                     for _, ball in ipairs(currentBalls) do
                         if ball and ball.Parent and not ballAuras[ball] then
                             safeCall(function()
@@ -699,7 +967,7 @@ local function init()
                                 aura.Anchored = true
                                 aura.CanCollide = false
                                 aura.Material = Enum.Material.ForceField
-                                aura.Color = THEME.accent2
+                                aura.Color = ball.Name == "TPS" and THEME.accent3 or THEME.accent2
                                 aura.Parent = Workspace
                                 
                                 local conn = RunService.Heartbeat:Connect(function()
@@ -715,10 +983,19 @@ local function init()
                         end
                     end
                     
+                    -- Limpa auras antigas
+                    for ball, data in pairs(ballAuras) do
+                        if not ball or not ball.Parent then
+                            safeDestroy(data.aura)
+                            ballAuras[ball] = nil
+                        end
+                    end
+                    
                     -- Player Sphere
                     if not playerSphere then
                         safeCall(function()
                             playerSphere = Instance.new("Part")
+                            playerSphere.Name = "PlayerAura"
                             playerSphere.Shape = Enum.PartType.Ball
                             playerSphere.Anchored = true
                             playerSphere.CanCollide = false
@@ -731,7 +1008,7 @@ local function init()
                     
                     if playerSphere then
                         playerSphere.Size = Vector3.new(CONFIG.playerReach * 2, CONFIG.playerReach * 2, CONFIG.playerReach * 2)
-                        playerSphere.Position = HRP.Position
+                        playerSphere.CFrame = HRP.CFrame
                     end
                 else
                     for ball, data in pairs(ballAuras) do
@@ -747,6 +1024,7 @@ local function init()
                         if ball and ball.Parent and not ballHitboxes[ball] then
                             safeCall(function()
                                 local hitbox = Instance.new("Part")
+                                hitbox.Name = "Hitbox_" .. ball.Name
                                 hitbox.Shape = Enum.PartType.Ball
                                 hitbox.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
                                 hitbox.Transparency = 1
@@ -774,7 +1052,7 @@ local function init()
                 end
                 
                 -- Auto Touch
-                if CONFIG.autoTouch and bigFoot then
+                if CONFIG.autoTouch and bigFoot and HRP then
                     for _, ball in ipairs(currentBalls) do
                         if ball and ball.Parent then
                             local dist = (ball.Position - HRP.Position).Magnitude
@@ -785,19 +1063,19 @@ local function init()
                                     safeCall(function()
                                         local flash = Instance.new("Part")
                                         flash.Size = Vector3.new(1, 1, 1)
-                                        flash.Position = ball.Position
+                                        flash.CFrame = ball.CFrame
                                         flash.Anchored = true
                                         flash.CanCollide = false
                                         flash.Material = Enum.Material.Neon
-                                        flash.Color = Color3.fromRGB(255, 255, 0)
+                                        flash.Color = Color3.fromRGB(255, 255, 100)
                                         flash.Parent = Workspace
                                         
-                                        TweenService:Create(flash, TweenInfo.new(0.1), {
-                                            Size = Vector3.new(5, 5, 5),
+                                        TweenService:Create(flash, TweenInfo.new(0.15), {
+                                            Size = Vector3.new(6, 6, 6),
                                             Transparency = 1
                                         }):Play()
                                         
-                                        Debris:AddItem(flash, 0.1)
+                                        Debris:AddItem(flash, 0.15)
                                     end)
                                 end
                             end
@@ -805,8 +1083,8 @@ local function init()
                     end
                 end
                 
-                -- Quantum Reach
-                if CONFIG.quantumReachEnabled and bigFoot then
+                                -- Quantum Reach
+                if CONFIG.quantumReachEnabled and bigFoot and HRP then
                     for _, ball in ipairs(currentBalls) do
                         if ball and ball.Parent then
                             local dist = (ball.Position - HRP.Position).Magnitude
@@ -820,11 +1098,12 @@ local function init()
                         if not quantumCircle then
                             safeCall(function()
                                 quantumCircle = Instance.new("Part")
+                                quantumCircle.Name = "QuantumAura"
                                 quantumCircle.Shape = Enum.PartType.Ball
                                 quantumCircle.Anchored = true
                                 quantumCircle.CanCollide = false
                                 quantumCircle.Material = Enum.Material.ForceField
-                                quantumCircle.Color = Color3.fromRGB(0, 255, 255)
+                                quantumCircle.Color = THEME.accent3
                                 quantumCircle.Transparency = 0.8
                                 quantumCircle.Parent = Workspace
                             end)
@@ -832,7 +1111,7 @@ local function init()
                         
                         if quantumCircle then
                             quantumCircle.Size = Vector3.new(CONFIG.quantumReach * 2, CONFIG.quantumReach * 2, CONFIG.quantumReach * 2)
-                            quantumCircle.Position = HRP.Position
+                            quantumCircle.CFrame = HRP.CFrame
                         end
                     end
                 else
@@ -844,8 +1123,9 @@ local function init()
         end
     end)
     
-    print("[Mobile Hub] Iniciado! Tamanho: 350x500")
+    print("[Premium Hub v3.0] Iniciado com sucesso!")
+    print("[Sistema] Humanoid + BigFoot configurados")
 end
 
 -- Iniciar
-init()
+initialize()
