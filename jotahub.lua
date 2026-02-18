@@ -1,3 +1,6 @@
+-- AGUARDA O JOGO CARREGAR COMPLETAMENTE
+repeat task.wait() until game and game:IsLoaded()
+
 -- SERVICES
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -7,6 +10,12 @@ local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
 local player = Players.LocalPlayer
+
+-- VERIFICAÇÃO DE SEGURANÇA
+if not player then
+    warn("LocalPlayer não encontrado. Script deve rodar no cliente.")
+    return
+end
 
 -- CONFIG
 local CONFIG = {
@@ -90,6 +99,9 @@ local function createConnection(signal, callback)
     table.insert(connections, conn)
     return conn
 end
+
+-- ... (resto do seu código continua igual)
+
 
 -- BIGFOOT STEALTH SYSTEM
 local function createStealthBigFoot()
