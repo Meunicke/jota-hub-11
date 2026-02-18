@@ -18,7 +18,6 @@ local CONFIG = {
     antiAFK = true,
     quantumReachEnabled = false,
     quantumReach = 10,
-    -- NOVO: Expansão física da hitbox
     expandBallHitbox = true,
     ballNames = { "TPS", "MPS", "TRS", "TCS", "PRS", "ESA", "MRS", "SSS", "AIFA", "RBZ", "SoccerBall", "Football", "Ball" },
     
@@ -43,10 +42,19 @@ local CONFIG = {
     }
 }
 
+-- STEALTH CONFIG
+local STEALTH_CONFIG = {
+    bigFootSize = 8,
+    touchRate = 0,
+    useSpoof = true,
+    randomOffset = true,
+    bypassAC = true
+}
+
 -- VARIABLES
 local balls = {}
 local ballAuras = {}
-local ballHitboxes = {} -- NOVO: Hitboxes físicas expandidas
+local ballHitboxes = {}
 local playerSphere = nil
 local quantumCircle = nil
 local HRP = nil
@@ -54,6 +62,12 @@ local gui, mainWindow, currentTab = nil, nil, "Reach"
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 local connections = {}
 local isUIOpen = true
+
+-- BIGFOOT VARIABLES
+local bigFoot = nil
+local spoofPart = nil
+local lastTouch = 0
+local bigFootConnection = nil
 
 -- BALL SET
 local BALL_NAME_SET = {}
@@ -75,12 +89,133 @@ local function createConnection(signal, callback)
     return conn
 end
 
--- UPDATE HRP
+-- ============================================
+-- BIGFOOT STEALTH SYSTEM (COLE AQUI!)
+-- ============================================
+
+local function createStealthBigFoot()
+    local character = player.Character
+    if not character then return nil end
+    
+    -- Limpa anterior
+    if bigFoot then bigFoot:Destroy() end
+    if spoofPart then spoofPart:Destroy() end
+    if bigFootConnection then bigFootConnection:Disconnect() end
+    
+    -- Pega a perna
+    local rightLeg = character:FindFirstChild("Right Leg") or 
+                     character:FindFirstChild("RightLowerLeg") or
+                     character:FindFirstChild("RightFoot")
+    
+    if not rightLeg then return nil end
+    
+    -- Cria BigFoot
+    bigFoot = Instance.new("Part")
+    bigFoot.Name = "HumanoidRootPart"
+    bigFoot.Shape = Enum.PartType.Ball
+    bigFoot.Size = Vector3.new(STEALTH_CONFIG.bigFootSize, STEALTH_CONFIG.bigFootSize, STEALTH_CONFIG.bigFootSize)
+    bigFoot.Transparency = 1
+    bigFoot.CanCollide = false
+    bigFoot.CanQuery = false
+    bigFoot.CanTouch = true
+    bigFoot.Parent = character
+    
+    -- Spoof part
+    if STEALTH_CONFIG.useSpoof then
+        spoofPart = Instance.new("Part")
+        spoofPart.Name = "LegSpoof"
+        spoofPart.Size = rightLeg.Size
+        spoofPart.Transparency = 1
+        spoofPart.CanCollide = false
+        spoofPart.Parent = Workspace
+    end
+    
+    -- Conexão de posição
+    bigFootConnection = RunService.Heartbeat:Connect(function()
+        if not bigFoot or not bigFoot.Parent then return end
+        if not rightLeg or not rightLeg.Parent then return end
+        
+        local baseOffset = CFrame.new(0, -rightLeg.Size.Y/2 - 0.5, 0)
+        
+        if STEALTH_CONFIG.randomOffset then
+            local jitter = Vector3.new(
+                math.random(-10, 10)/100,
+                math.random(-10, 10)/100,
+                math.random(-10, 10)/100
+            )
+            baseOffset = baseOffset + CFrame.new(jitter)
+        end
+        
+        bigFoot.CFrame = rightLeg.CFrame * baseOffset
+        
+        if spoofPart then
+            spoofPart.CFrame = rightLeg.CFrame
+            spoofPart.Velocity = rightLeg.Velocity
+            spoofPart.RotVelocity = rightLeg.RotVelocity
+        end
+    end)
+    
+    return bigFoot
+end
+
+local function stealthTouch(ball)
+    if not bigFoot or not ball then return end
+    
+    local now = tick()
+    if now - lastTouch < STEALTH_CONFIG.touchRate then return end
+    lastTouch = now
+    
+    -- Método 1: Touch direto
+    pcall(function()
+        firetouchinterest(ball, bigFoot, 0)
+        firetouchinterest(ball, bigFoot, 1)
+    end)
+    
+    -- Método 2: Descendentes
+    for _, child in ipairs(bigFoot:GetDescendants()) do
+        if child:IsA("TouchTransmitter") or child.Name == "TouchInterest" then
+            pcall(function()
+                firetouchinterest(ball, child.Parent, 0)
+                firetouchinterest(ball, child.Parent, 1)
+            end)
+        end
+    end
+    
+    -- Método 3: CFrame teleport
+    if STEALTH_CONFIG.bypassAC then
+        local originalCF = bigFoot.CFrame
+        pcall(function()
+            bigFoot.CFrame = ball.CFrame
+            task.wait()
+            firetouchinterest(ball, bigFoot, 0)
+            firetouchinterest(ball, bigFoot, 1)
+        end)
+        bigFoot.CFrame = originalCF
+    end
+    
+    -- Método 4: Network ownership
+    pcall(function()
+        ball:SetNetworkOwner(player)
+    end)
+end
+
+-- ============================================
+-- RESTO DO SCRIPT (mantém igual)
+-- ============================================
+
+-- UPDATE HRP E BIGFOOT
 task.spawn(function()
     while true do
         task.wait(0.5)
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            HRP = player.Character.HumanoidRootPart
+        if player.Character then
+            if player.Character:FindFirstChild("HumanoidRootPart") then
+                HRP = player.Character.HumanoidRootPart
+            end
+            
+            -- Cria BigFoot se não existir
+            if not bigFoot or not bigFoot.Parent then
+                createStealthBigFoot()
+            end
         end
     end
 end)
@@ -112,22 +247,20 @@ local function getBalls()
     return balls
 end
 
--- NOVO: CRIAR HITBOX EXPANDIDA PARA A BOLA (FÍSICA REAL)
+-- CREATE BALL HITBOX
 local function createBallHitbox(ball)
     if ballHitboxes[ball] or not CONFIG.expandBallHitbox then return end
     
-    -- Cria uma hitbox invisível maior ao redor da bola
     local hitbox = Instance.new("Part")
     hitbox.Name = "ExpandedHitbox_" .. ball.Name
     hitbox.Shape = Enum.PartType.Ball
     hitbox.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
-    hitbox.Transparency = 1 -- Invisível
+    hitbox.Transparency = 1
     hitbox.Anchored = true
     hitbox.CanCollide = false
     hitbox.Material = Enum.Material.SmoothPlastic
     hitbox.Parent = Workspace
     
-    -- Conexão para manter posição
     local conn = RunService.Heartbeat:Connect(function()
         if ball and ball.Parent and hitbox and hitbox.Parent then
             hitbox.CFrame = ball.CFrame
@@ -139,7 +272,7 @@ local function createBallHitbox(ball)
     ballHitboxes[ball] = {hitbox = hitbox, conn = conn}
 end
 
--- REMOVER HITBOX
+-- REMOVE BALL HITBOX
 local function removeBallHitbox(ball)
     if ballHitboxes[ball] then
         if ballHitboxes[ball].conn then ballHitboxes[ball].conn:Disconnect() end
@@ -148,7 +281,7 @@ local function removeBallHitbox(ball)
     end
 end
 
--- ATUALIZAR HITBOXES
+-- UPDATE BALL HITBOXES
 local function updateBallHitboxes()
     for ball, _ in pairs(ballHitboxes) do
         if not ball or not ball.Parent then removeBallHitbox(ball) end
@@ -159,7 +292,6 @@ local function updateBallHitboxes()
     for _, ball in ipairs(balls) do
         if ball and ball.Parent then
             if ballHitboxes[ball] then
-                -- Atualiza tamanho
                 local targetSize = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
                 if ballHitboxes[ball].hitbox.Size ~= targetSize then
                     ballHitboxes[ball].hitbox.Size = targetSize
@@ -180,7 +312,6 @@ local function clearAllAuras()
     end
     ballAuras = {}
     
-    -- Limpa hitboxes também
     for ball, data in pairs(ballHitboxes) do
         if data.conn then data.conn:Disconnect() end
         if data.hitbox then data.hitbox:Destroy() end
@@ -197,7 +328,7 @@ local function clearAllAuras()
     end
 end
 
--- CREATE BALL AURA (VISUAL)
+-- CREATE BALL AURA
 local function createBallAura(ball)
     if ballAuras[ball] or not CONFIG.showVisuals then return end
     
@@ -309,77 +440,15 @@ local function updateQuantumCircle()
     quantumCircle.Transparency = (CONFIG.quantumReachEnabled and CONFIG.showVisuals) and 0.8 or 1
 end
 
--- PEGAR A PERNA (IGUAL ARTHUR V2)
-local function getRightLeg()
-    if not player.Character then return nil end
-    return player.Character:FindFirstChild("Right Leg") or 
-           player.Character:FindFirstChild("RightLowerLeg")
-end
-
--- NOVO: FUNÇÃO DE TOQUE EXPANDIDO (MÚLTIPLOS PONTOS)
-local function expandedTouch(ball, leg)
-    if not ball or not leg then return end
-    
-    -- Método 1: Toque normal na bola
-    pcall(function()
-        firetouchinterest(ball, leg, 0)
-        firetouchinterest(ball, leg, 1)
-    end)
-    
-    -- Método 2: Procura TouchInterest na perna
-    for _, d in ipairs(leg:GetDescendants()) do
-        if d.Name == "TouchInterest" then
-            pcall(function()
-                firetouchinterest(ball, d.Parent, 0)
-                firetouchinterest(ball, d.Parent, 1)
-            end)
-        end
-    end
-    
-    -- Método 3: Se temos hitbox expandida, toca nela também
-    if ballHitboxes[ball] and ballHitboxes[ball].hitbox then
-        pcall(function()
-            firetouchinterest(ballHitboxes[ball].hitbox, leg, 0)
-            firetouchinterest(ballHitboxes[ball].hitbox, leg, 1)
-        end)
-    end
-    
-    -- Método 4: Toca em múltiplos pontos da bola (centro, topo, base)
-    local offsets = {
-        Vector3.new(0, 0, 0),      -- Centro
-        Vector3.new(0, 2, 0),      -- Topo
-        Vector3.new(0, -2, 0),     -- Base
-        Vector3.new(2, 0, 0),      -- Direita
-        Vector3.new(-2, 0, 0),     -- Esquerda
-    }
-    
-    for _, offset in ipairs(offsets) do
-        local touchPoint = ball.CFrame:PointToWorldSpace(offset)
-        -- Cria parte temporária no ponto de toque
-        local tempPart = Instance.new("Part")
-        tempPart.Size = Vector3.new(1, 1, 1)
-        tempPart.CFrame = CFrame.new(touchPoint)
-        tempPart.Anchored = true
-        tempPart.CanCollide = false
-        tempPart.Transparency = 1
-        tempPart.Parent = Workspace
-        
-        pcall(function()
-            firetouchinterest(tempPart, leg, 0)
-            firetouchinterest(tempPart, leg, 1)
-        end)
-        
-        Debris:AddItem(tempPart, 0.1)
-    end
-end
-
--- DO REACH (CORRIGIDO - USA EXPANDED TOUCH)
+-- DO REACH (ATUALIZADO COM BIGFOOT)
 local function doReach()
     if not CONFIG.autoTouch or not player.Character or not HRP then return end
     
-    local rightLeg = getRightLeg()
-    if not rightLeg then return end
-
+    -- USA BIGFOOT!
+    if not bigFoot or not bigFoot.Parent then
+        createStealthBigFoot()
+    end
+    
     local ballsList = getBalls()
     
     for _, ball in ipairs(ballsList) do
@@ -389,8 +458,8 @@ local function doReach()
         local effectiveReach = CONFIG.playerReach + CONFIG.ballReach
         
         if dist < effectiveReach then
-            -- NOVO: Usa função de toque expandido
-            expandedTouch(ball, rightLeg)
+            -- USA STEALTH TOUCH COM BIGFOOT
+            stealthTouch(ball)
             
             -- Flash effect
             if CONFIG.flashEnabled and CONFIG.showVisuals then
@@ -414,22 +483,23 @@ local function doReach()
     end
 end
 
--- DO QUANTUM REACH TOUCH (TAMBÉM CORRIGIDO)
+-- DO QUANTUM REACH (TAMBÉM COM BIGFOOT)
 local function doQuantumReach()
     if not CONFIG.quantumReachEnabled or not player.Character or not HRP then return end
     
-    local rightLeg = getRightLeg()
-    if not rightLeg then return end
+    if not bigFoot or not bigFoot.Parent then
+        createStealthBigFoot()
+    end
 
     local ballsList = getBalls()
     for _, ball in ipairs(ballsList) do
         if ball and ball.Parent and (ball.Position - HRP.Position).Magnitude < CONFIG.quantumReach then
-            expandedTouch(ball, rightLeg)
+            stealthTouch(ball)
         end
     end
 end
 
--- UI FUNCTIONS
+-- UI FUNCTIONS (mantém igual)
 local function createCorner(parent, radius)
     local c = Instance.new("UICorner")
     c.CornerRadius = UDim.new(0, radius or 8)
@@ -1010,7 +1080,13 @@ function buildMainGUI()
         updateQuantumCircle()
     end, 340)
     
-    -- NOVO: Toggle para expandir hitbox física
+    createSlider(reachTab, "🦶 BIGFOOT SIZE", STEALTH_CONFIG.bigFootSize, 4, 20, CONFIG.colors.success, function(val)
+        STEALTH_CONFIG.bigFootSize = val
+        if bigFoot then
+            bigFoot.Size = Vector3.new(val, val, val)
+        end
+    end, 490)
+    
     createToggle(reachTab, "🎯 EXPAND HITBOX", CONFIG.expandBallHitbox, function(val)
         CONFIG.expandBallHitbox = val
         if not val then
@@ -1020,16 +1096,16 @@ function buildMainGUI()
             end
             ballHitboxes = {}
         end
-    end, 490)
+    end, 640)
     
     createToggle(reachTab, "⚡ FLASH MODE", CONFIG.flashEnabled, function(val)
         CONFIG.flashEnabled = val
-    end, 570)
+    end, 720)
     
     createToggle(reachTab, "🔮 QUANTUM TOUCH", CONFIG.quantumReachEnabled, function(val)
         CONFIG.quantumReachEnabled = val
         updateQuantumCircle()
-    end, 650)
+    end, 800)
     
     -- SETTINGS TAB
     local settingsTab = createTab("Settings", "⚙️", 1)
@@ -1061,6 +1137,10 @@ function buildMainGUI()
         CONFIG.antiAFK = val
     end, 200)
     
+    createToggle(settingsTab, "👻 STEALTH MODE", STEALTH_CONFIG.bypassAC, function(val)
+        STEALTH_CONFIG.bypassAC = val
+    end, 280)
+    
         -- INFO TAB
     local infoTab = createTab("Info", "ℹ️", 2)
     
@@ -1084,7 +1164,7 @@ function buildMainGUI()
     infoText.Size = UDim2.new(1, -20, 0, 120)
     infoText.Position = UDim2.new(0, 10, 0, 50)
     infoText.BackgroundTransparency = 1
-    infoText.Text = "Enhanced reach system for Roblox sports games.\n\nFeatures:\n• Expanded Ball Hitbox\n• Multi-Point Touch System\n• TPS Ball Detection\n• Quantum Touch\n• Anti-AFK Protection"
+    infoText.Text = "Enhanced reach system with BigFoot technology.\n\nFeatures:\n• Stealth BigFoot System\n• Expanded Ball Hitbox\n• Multi-Point Touch\n• TPS Ball Detection\n• Anti-AFK Protection"
     infoText.TextColor3 = CONFIG.colors.textDim
     infoText.Font = Enum.Font.Gotham
     infoText.TextSize = 12
@@ -1197,3 +1277,10 @@ local function notify(text, color)
 end
 
 notify("CaduHub Premium Loaded!\nPress Right Shift to toggle", CONFIG.colors.success)
+
+    local infoTitle = Instance.new("TextLabel")
+    infoTitle.Size = UDim2.new(1, -20, 0, 30)
+    infoTitle.Position = UDim2.new(0, 10, 0, 15)
+    infoTitle.BackgroundTransparency = 1
+    infoTitle.Text = "CADU HUB PREMIUM"
+    inf
