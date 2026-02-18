@@ -11,14 +11,14 @@ local player = Players.LocalPlayer
 local CONFIG = {
     reach = 10,
     magnetStrength = 0,
-    showReachSpheres = true,      -- Toggle visual das esferas
+    showReachSpheres = true,
     autoSecondTouch = true,
     scanCooldown = 1.5,
-    tackleReach = 15,             -- NOVO: Reach especial para tackle
-    tackleEnabled = true,         -- NOVO: Ativar reach no tackle
+    tackleReach = 15,
+    tackleEnabled = true,
     ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ" },
     
-    mode = "central", -- "central" ou "bodyparts"
+    mode = "central",
     
     centralSphere = {
         enabled = true,
@@ -39,9 +39,9 @@ local balls = {}
 local lastRefresh = 0
 local reachSpheres = {}
 local centralSphere = nil
-local gui, mainFrame, modeLabel, spheresVisible = true
+local gui, mainFrame, modeLabel
+local spheresVisible = true
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-local currentTool = nil
 
 -- BALL SET
 local BALL_NAME_SET = {}
@@ -85,7 +85,7 @@ local function clearAllSpheres()
     table.clear(reachSpheres)
 end
 
--- TOGGLE VISIBILIDADE DAS ESFERAS (NOVO)
+-- TOGGLE VISIBILIDADE DAS ESFERAS
 local function toggleSpheresVisibility()
     spheresVisible = not spheresVisible
     CONFIG.showReachSpheres = spheresVisible
@@ -149,7 +149,7 @@ local function getValidParts(char)
 end
 
 -- ATUALIZAR ESFERAS VISUAIS
-local function updateReachSpheres()
+function updateReachSpheres()
     if not spheresVisible then return end
     clearAllSpheres()
     
@@ -189,7 +189,7 @@ local function updateReachSpheres()
 end
 
 -- ATUALIZAR POSIÇÕES DAS ESFERAS
-local function updateSpheresPosition()
+function updateSpheresPosition()
     if not spheresVisible then return end
     
     local char = player.Character
@@ -241,7 +241,7 @@ local function updateSpheresPosition()
 end
 
 -- TOGGLE MODO (CENTRAL <-> 4 PARTES)
-local function toggleMode()
+function toggleMode()
     CONFIG.mode = (CONFIG.mode == "central") and "bodyparts" or "central"
     updateReachSpheres()
     
@@ -253,7 +253,7 @@ local function toggleMode()
 end
 
 -- TOGGLE PARTE ESPECÍFICA
-local function toggleBodyPart(partType)
+function toggleBodyPart(partType)
     if CONFIG.mode ~= "bodyparts" then return end
     
     CONFIG.bodyParts[partType].enabled = not CONFIG.bodyParts[partType].enabled
@@ -264,7 +264,7 @@ local function toggleBodyPart(partType)
     return CONFIG.bodyParts[partType].enabled
 end
 
--- VERIFICAR SE TEM TACKLE EQUIPADO (NOVO)
+-- VERIFICAR SE TEM TACKLE EQUIPADO
 local function hasTackleEquipped()
     local char = player.Character
     if not char then return false end
@@ -279,8 +279,9 @@ end
 
 -- GUI PRINCIPAL
 local bodyPartButtons = {}
+local spheresBtnRef = nil
 
-local function buildMainGUI()
+function buildMainGUI()
     if gui then return end
 
     gui = Instance.new("ScreenGui")
@@ -290,7 +291,7 @@ local function buildMainGUI()
 
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.fromScale(0.24, 0.42) -- Aumentado para caber botão de esferas
+    mainFrame.Size = UDim2.fromScale(0.24, 0.42)
     mainFrame.Position = UDim2.fromScale(0.02, 0.05)
     mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
     mainFrame.BackgroundTransparency = 0.1
@@ -330,7 +331,7 @@ local function buildMainGUI()
     line.BorderSizePixel = 0
     line.Parent = mainFrame
 
-    -- BOTÃO TOGGLE ESFERAS (NOVO)
+    -- BOTÃO TOGGLE ESFERAS
     local spheresBtn = Instance.new("TextButton")
     spheresBtn.Name = "SpheresButton"
     spheresBtn.Size = UDim2.new(0.9, 0, 0.07, 0)
@@ -350,6 +351,8 @@ local function buildMainGUI()
         spheresBtn.Text = visible and "🔵 ESFERAS: ON" or "⚫ ESFERAS: OFF"
         spheresBtn.BackgroundColor3 = visible and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(80, 80, 80)
     end)
+    
+    spheresBtnRef = spheresBtn
 
     -- BOTÃO MODO
     local modeBtn = Instance.new("TextButton")
