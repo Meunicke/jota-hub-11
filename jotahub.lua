@@ -223,6 +223,467 @@ local function playIntro()
         {3.4, nameLabel, "TextTransparency", 1, 0.3},
         {3.5, bg, "BackgroundTransparency", 1, 0.5},
     }
+
+-- OTIMIZADOR DE PERFORMANCE (Anti-Lag perto da bola)
+local OPTIMIZER = {
+    enabled = true,
+    normalFPS = 60,
+    lowFPS = 30,
+    currentMode = "normal", -- normal, medium, low, critical
+    
+    -- Limites
+    ballDistanceThreshold = 15, -- Distância para ativar otimização
+    playerNearbyThreshold = 6, -- Jogadores próximos para modo crítico
+    
+    -- Features a desativar
+    disableFlashNearBall = true,
+    reduceAuraQuality = true,
+    limitTouchRate = true,
+    disableHitboxVisuals = true,
+    
+    -- Stats
+    lastFPS = 60,
+    frameCount = 0,
+    lastCheck = tick()
+}
+
+-- DETECTOR DE FPS
+task.spawn(function()
+    while true do
+        task.wait(1)
+        local now = tick()
+        local fps = OPTIMIZER.frameCount / (now - OPTIMIZER.lastCheck)
+        OPTIMIZER.lastFPS = math.floor(fps)
+        OPTIMIZER.frameCount = 0
+        OPTIMIZER.lastCheck = now
+        
+        -- Auto-detect modo baseado em FPS
+        if OPTIMIZER.enabled then
+            if fps < 20 then
+                setOptimizationMode("critical")
+            elseif fps < 30 then
+                setOptimizationMode("low")
+            elseif fps < 45 then
+                setOptimizationMode("medium")
+            else
+                setOptimizationMode("normal")
+            end
+        end
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    OPTIMIZER.frameCount = OPTIMIZER.frameCount + 1
+end)
+
+-- VERIFICAR CONDIÇÕES DE LAG
+local function checkLagConditions()
+    if not HRP then return "normal" end
+    
+    local ballsList = getBalls()
+    local nearbyBalls = 0
+    local veryCloseBalls = 0
+    
+    for _, ball in ipairs(ballsList) do
+        if ball and ball.Parent then
+            local dist = (ball.Position - HRP.Position).Magnitude
+            if dist < OPTIMIZER.ballDistanceThreshold then
+                nearbyBalls = nearbyBalls + 1
+                if dist < 8 then
+                    veryCloseBalls = veryCloseBalls + 1
+                end
+            end
+        end
+    end
+    
+    -- Conta jogadores próximos
+    local nearbyPlayers = 0
+    for _, otherPlayer in ipairs(Players:GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character then
+            local otherHRP = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if otherHRP then
+                local dist = (otherHRP.Position - HRP.Position).Magnitude
+                if dist < 20 then
+                    nearbyPlayers = nearbyPlayers + 1
+                end
+            end
+        end
+    end
+    
+    -- Determina modo
+    if veryCloseBalls >= 1 and nearbyPlayers >= OPTIMIZER.playerNearbyThreshold then
+        return "critical" -- Muitos jogadores + bola perto
+    elseif veryCloseBalls >= 1 then
+        return "low" -- Bola muito perto
+    elseif nearbyBalls >= 2 then
+        return "medium" -- Várias bolas próximas
+    else
+        return "normal"
+    end
+end
+
+-- APLICAR MODO DE OTIMIZAÇÃO
+local currentOptMode = "normal"
+
+local function setOptimizationMode(mode)
+    if currentOptMode == mode then return end
+    currentOptMode = mode
+    
+    if mode == "critical" then
+        -- Máxima otimização
+        CONFIG.flashEnabled = false
+        CONFIG.showVisuals = false
+        CONFIG.expandBallHitbox = false
+        clearAllAuras()
+        
+        -- Reduz reach temporariamente para processar menos
+        CONFIG.reach = math.max(8, CONFIG.reach - 5)
+        
+        notify("🔴 MODO CRÍTICO - Lag extremo detectado!", 2)
+        
+    elseif mode == "low" then
+        -- Alta otimização
+        CONFIG.flashEnabled = false
+        if playerSphere then playerSphere.Transparency = 0.95 end
+        
+        -- Desativa auras de bola (mais pesado)
+        for ball, data in pairs(ballAuras) do
+            if data.aura then
+                data.aura.Transparency = 1
+            end
+            if data.highlight then
+                data.highlight.Enabled = false
+            end
+        end
+        
+        notify("🟠 MODO LOW - Otimizando...", 2)
+        
+    elseif mode == "medium" then
+        -- Otimização moderada
+        CONFIG.flashEnabled = false
+        
+        notify("🟡 Modo Médio - Ajustando...", 1)
+        
+    else -- normal
+        -- Restaura tudo
+        CONFIG.flashEnabled = true
+        CONFIG.showVisuals = true
+        CONFIG.expandBallHitbox = true
+        
+        -- Restaura auras
+        for ball, data in pairs(ballAuras) do
+            if data.aura then
+                data.aura.Transparency = 0.85
+            end
+            if data.highlight then
+                data.highlight.Enabled = true
+            end
+        end
+        
+        if currentOptMode ~= "normal" then
+            notify("🟢 Modo Normal - Tudo OK", 1)
+        end
+    end
+end
+
+-- LOOP DE OTIMIZAÇÃO
+task.spawn(function()
+    while true do
+        task.wait(0.5) -- Verifica a cada meio segundo
+        
+        if not OPTIMIZER.enabled then continue end
+        
+        local detectedMode = checkLagConditions()
+        
+        -- Prioriza o pior modo entre FPS e condições
+        local fpsMode = currentOptMode
+        local finalMode = detectedMode
+        
+        -- Se FPS está baixo, mantém ou piora
+        if OPTIMIZER.lastFPS < 20 then
+            finalMode = "critical"
+        elseif OPTIMIZER.lastFPS < 30 and detectedMode ~= "critical" then
+            finalMode = "low"
+        end
+        
+        setOptimizationMode(finalMode)
+    end
+end)
+
+-- FUNÇÃO DE TOQUE OTIMIZADA (menos intensa perto da bola)
+local function optimizedUltraTouch(ball, part)
+    if not ball or not part then return end
+    
+    local dist = (ball.Position - part.Position).Magnitude
+    
+    -- Se está muito perto e em modo crítico, simplifica toque
+    if dist < 5 and currentOptMode == "critical" then
+        -- Toque básico só
+        pcall(function()
+            firetouchinterest(ball, part, 0)
+            firetouchinterest(ball, part, 1)
+        end)
+        return
+    end
+    
+    -- Toque normal (código original)
+    pcall(function()
+        firetouchinterest(ball, part, 0)
+        firetouchinterest(ball, part, 1)
+    end)
+    
+    if ballHitboxes[ball] and ballHitboxes[ball].hitbox then
+        pcall(function()
+            firetouchinterest(ballHitboxes[ball].hitbox, part, 0)
+            firetouchinterest(ballHitboxes[ball].hitbox, part, 1)
+        end)
+    end
+    
+    -- Em modos otimizados, reduz pontos de toque
+    local pointCount = currentOptMode == "low" and 2 or 
+                       currentOptMode == "critical" and 1 or 5
+    
+    local offsets = {
+        Vector3.new(0, 0, 0),
+        Vector3.new(0, 1, 0),
+        Vector3.new(0, -1, 0),
+        Vector3.new(1, 0, 0),
+        Vector3.new(-1, 0, 0),
+    }
+    
+    for i = 1, math.min(pointCount, #offsets) do
+        local touchPoint = ball.CFrame:PointToWorldSpace(offsets[i])
+        local tempPart = Instance.new("Part")
+        tempPart.Size = Vector3.new(0.5, 0.5, 0.5)
+        tempPart.CFrame = CFrame.new(touchPoint)
+        tempPart.Anchored = true
+        tempPart.CanCollide = false
+        tempPart.Transparency = 1
+        tempPart.Parent = Workspace
+        
+        pcall(function()
+            firetouchinterest(tempPart, part, 0)
+            firetouchinterest(tempPart, part, 1)
+        end)
+        
+        Debris:AddItem(tempPart, 0.05)
+    end
+end
+
+-- SUBSTITUI A FUNÇÃO ORIGINAL
+ultraTouch = optimizedUltraTouch
+
+-- CONTROLE MANUAL NA UI (adicione na aba Settings)
+createToggle(settingsTab, "🚀 AUTO OTIMIZADOR", OPTIMIZER.enabled, function(val)
+    OPTIMIZER.enabled = val
+    if not val then
+        setOptimizationMode("normal")
+    end
+end, 200)
+
+createSlider(settingsTab, "📊 DISTÂNCIA LAG", OPTIMIZER.ballDistanceThreshold, 5, 30, CONFIG.colors.warning, function(val)
+    OPTIMIZER.ballDistanceThreshold = val
+end, 280)
+
+-- HOTKEY MANUAL: P para forçar modo
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.P then
+        -- Força modo manual
+        if currentOptMode == "normal" then
+            setOptimizationMode("critical")
+            notify("🔴 MODO CRÍTICO FORÇADO (P)", 2)
+        else
+            setOptimizationMode("normal")
+            notify("🟢 MODO NORMAL RESTAURADO (P)", 2)
+        end
+    end
+end)
+
+print("🚀 Otimizador de performance carregado!")
+print("   Auto-detect: ON | Hotkey: P")
+    
+-- FIX PARA SERVERS PRIVADOS (Reach Pequena)
+local PRIVATE_SERVER_FIX = {
+    enabled = true,
+    normalRate = 0, -- Sem delay em público
+    privateRate = 0.03, -- 30ms em privado (mais lento = mais estável)
+    burstMode = true, -- Vários toques de uma vez
+    burstCount = 3, -- Quantidade de toques por burst
+    extraRange = 5, -- Alcance extra compensatório
+    isPrivate = false -- Detectado automaticamente
+}
+
+-- DETECTAR SE É SERVER PRIVADO
+local function detectPrivateServer()
+    -- Método 1: Verifica se tem PrivateServerId
+    if game.PrivateServerId and game.PrivateServerId ~= "" then
+        return true
+    end
+    
+    -- Método 2: Verifica se é ReservedServer
+    if game:IsReservedServer() then
+        return true
+    end
+    
+    -- Método 3: Verifica ping alto (indica server privado em outra região)
+    local stats = game:GetService("Stats")
+    if stats and stats.Network then
+        local ping = stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+        if ping > 150 then -- Ping alto = provavelmente privado
+            return true
+        end
+    end
+    
+    -- Método 4: Verifica se o lugar tem poucos jogadores por muito tempo
+    if #Players:GetPlayers() <= 2 and game.PlaceId ~= 0 then
+        return true
+    end
+    
+    return false
+end
+
+-- INICIALIZAR DETECÇÃO
+task.spawn(function()
+    task.wait(3) -- Espera carregar
+    PRIVATE_SERVER_FIX.isPrivate = detectPrivateServer()
+    
+    if PRIVATE_SERVER_FIX.isPrivate then
+        notify("🔒 Server Privado detectado! Aplicando fix...", 3)
+        
+        -- Aumenta alcance compensatório
+        CONFIG.reach = CONFIG.reach + PRIVATE_SERVER_FIX.extraRange
+        CONFIG.ballReach = CONFIG.ballReach + PRIVATE_SERVER_FIX.extraRange
+        
+        -- Ativa burst mode
+        PRIVATE_SERVER_FIX.burstMode = true
+        
+        notify("✅ Fix aplicado! Reach: " .. CONFIG.reach, 2)
+    else
+        notify("🌐 Server Público - Modo normal", 2)
+    end
+end)
+
+-- FUNÇÃO DE TOQUE OTIMIZADA PARA PRIVADO
+local function optimizedTouch(ball, part)
+    if not ball or not part then return end
+    
+    local burst = PRIVATE_SERVER_FIX.isPrivate and PRIVATE_SERVER_FIX.burstMode
+    local count = burst and PRIVATE_SERVER_FIX.burstCount or 1
+    local delay = burst and PRIVATE_SERVER_FIX.privateRate or 0
+    
+    for i = 1, count do
+        if i > 1 then task.wait(delay) end
+        
+        -- Método 1: Toque normal
+        pcall(function()
+            firetouchinterest(ball, part, 0)
+            firetouchinterest(ball, part, 1)
+        end)
+        
+        -- Método 2: Hitbox expandida
+        if ballHitboxes[ball] and ballHitboxes[ball].hitbox then
+            pcall(function()
+                firetouchinterest(ballHitboxes[ball].hitbox, part, 0)
+                firetouchinterest(ballHitboxes[ball].hitbox, part, 1)
+            end)
+        end
+        
+        -- Método 3: Toque em múltiplos pontos (sempre)
+        local offsets = {
+            Vector3.new(0, 0, 0),
+            Vector3.new(0, 1.5, 0),
+            Vector3.new(0, -1.5, 0),
+            Vector3.new(1.5, 0, 0),
+            Vector3.new(-1.5, 0, 0),
+        }
+        
+        for _, offset in ipairs(offsets) do
+            local touchPoint = ball.CFrame:PointToWorldSpace(offset)
+            local tempPart = Instance.new("Part")
+            tempPart.Size = Vector3.new(1, 1, 1)
+            tempPart.CFrame = CFrame.new(touchPoint)
+            tempPart.Anchored = true
+            tempPart.CanCollide = false
+            tempPart.Transparency = 1
+            tempPart.Parent = Workspace
+            
+            pcall(function()
+                firetouchinterest(tempPart, part, 0)
+                firetouchinterest(tempPart, part, 1)
+            end)
+            
+            Debris:AddItem(tempPart, 0.1)
+        end
+    end
+end
+
+-- DO REACH OTIMIZADO (substitua a função original por esta)
+local function doReach()
+    if not CONFIG.autoTouch or not player.Character or not HRP then return end
+    
+    local char = player.Character
+    local parts = CONFIG.fullBodyTouch and getCharacterParts(char) or {HRP}
+    
+    if #parts == 0 then return end
+
+    local ballsList = getBalls()
+    local effectiveReach = CONFIG.reach + CONFIG.ballReach
+    
+    -- Em privado, verifica mais bolas por frame
+    local checkAll = PRIVATE_SERVER_FIX.isPrivate
+    
+    for _, ball in ipairs(ballsList) do
+        if not ball or not ball.Parent then continue end
+        
+        for _, part in ipairs(parts) do
+            local dist = (ball.Position - part.Position).Magnitude
+            
+            -- Em privado, usa distância maior
+            local checkDist = PRIVATE_SERVER_FIX.isPrivate and effectiveReach + 3 or effectiveReach
+            
+            if dist < checkDist then
+                optimizedTouch(ball, part)
+                
+                if CONFIG.flashEnabled and CONFIG.showVisuals then
+                    local flash = Instance.new("Part")
+                    flash.Size = Vector3.new(0.5, 0.5, 0.5)
+                    flash.Position = ball.Position
+                    flash.Anchored = true
+                    flash.CanCollide = false
+                    flash.Material = Enum.Material.Neon
+                    flash.Color = PRIVATE_SERVER_FIX.isPrivate and Color3.fromRGB(255, 100, 0) or CONFIG.colors.flash
+                    flash.Parent = Workspace
+                    
+                    TweenService:Create(flash, TweenInfo.new(0.1), {
+                        Size = Vector3.new(3, 3, 3),
+                        Transparency = 1
+                    }):Play()
+                    
+                    Debris:AddItem(flash, 0.1)
+                end
+                
+                -- Em privado, não processa todas as bolas (evita lag)
+                if not checkAll then break end
+            end
+        end
+    end
+end
+
+-- LOOP ADICIONAL PARA PRIVADO (mais frequente, menos intenso)
+task.spawn(function()
+    while true do
+        local waitTime = PRIVATE_SERVER_FIX.isPrivate and 0.05 or 0.1
+        task.wait(waitTime)
+        
+        if PRIVATE_SERVER_FIX.isPrivate and introCompleted and CONFIG.autoTouch then
+            -- Loop extra só para privado (backup)
+            doReach()
+        end
+    end
+end)
+    
     
     -- Executa animações
     for _, anim in ipairs(introSequence) do
