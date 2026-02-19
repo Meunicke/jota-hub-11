@@ -48,6 +48,7 @@ function buildMainUI()
     
     notify("✅ Menu carregado com sucesso!", "success", 3)
 end
+Ainda tá dando erro, corrige essa parte
 
 -- =================================
 
