@@ -1,85 +1,5 @@
--- ⚡ CADUXX137 HUB | SUPREME EDITION v3.0
--- Site-Style UI | Reach Ultra | Otimizador Pro | Intro Cinematográfica
-
--- SERVICES
-local Players = game:GetService("Players")
-local StarterGui = game:GetService("StarterGui")
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
-local TweenService = game:GetService("TweenService")
-local Debris = game:GetService("Debris")
-local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
-local Stats = game:GetService("Stats")
-
-local player = Players.LocalPlayer
-
 -- ============================================
--- CONFIGURAÇÃO ULTRA OTIMIZADA (PC Gamer Style)
--- ============================================
-local CONFIG = {
-    -- Reach Ultra (simula ping baixo)
-    reach = 18,              -- Alcance base maior
-    ballReach = 22,          -- Hitbox expandida
-    quantumReach = 35,       -- Quantum extra
-    reactionTime = 0,        -- Sem delay (simula 0ms ping)
-    
-    -- Otimizador Inteligente
-    optimizerEnabled = true,
-    maxFPS = 144,            -- Cap de FPS
-    dynamicQuality = true,   -- Ajusta qualidade automaticamente
-    
-    -- Visual Site-Style
-    theme = "dark",          -- dark/light
-    accentColor = Color3.fromRGB(0, 150, 255), -- Azul neon
-    secondaryColor = Color3.fromRGB(255, 0, 100), -- Rosa neon
-    
-    -- Performance
-    scanRate = 0.03,         -- 30Hz (suave)
-    touchRate = 0,           -- Instantâneo
-    
-    -- Lista de bolas
-    ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ", "SoccerBall", "Football", "Ball" }
-}
-
--- ============================================
--- VARIÁVEIS GLOBAIS
--- ============================================
-local balls = {}
-local ballHitboxes = {}
-local HRP = nil
-local mainGui, loadingGui, introGui = nil, nil, nil
-local isLoaded = false
-local currentTab = "home"
-local lastScan = 0
-local touchCache = {}
-
--- ============================================
--- SISTEMA DE NOTIFICAÇÃO MODERNO
--- ============================================
-local function notify(text, type, duration)
-    type = type or "info"
-    duration = duration or 3
-    
-    local colors = {
-        info = CONFIG.accentColor,
-        success = Color3.fromRGB(0, 255, 100),
-        warning = Color3.fromRGB(255, 200, 0),
-        error = Color3.fromRGB(255, 50, 50)
-    }
-    
-    pcall(function()
-        StarterGui:SetCore("SendNotification", {
-            Title = "CADUXX137 HUB",
-            Text = text,
-            Duration = duration,
-            Icon = "rbxassetid://7733964640"
-        })
-    end)
-end
-
--- ============================================
--- TELA DE LOADING (Estilo Site Profissional)
+-- TELA DE LOADING CORRIGIDA
 -- ============================================
 local function showLoadingScreen()
     loadingGui = Instance.new("ScreenGui")
@@ -105,7 +25,6 @@ local function showLoadingScreen()
         particle.BorderSizePixel = 0
         particle.Parent = bg
         
-        -- Animação flutuante
         TweenService:Create(particle, TweenInfo.new(math.random(3, 8), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1), {
             Position = UDim2.new(particle.Position.X.Scale, math.random(-50, 50), particle.Position.Y.Scale + 0.2, 0)
         }):Play()
@@ -224,19 +143,23 @@ local function showLoadingScreen()
         end)
     end
     
-    -- Remove loading após 3.5 segundos
+    -- Remove loading após 3.5 segundos E CHAMA A INTRO
     task.delay(3.5, function()
         TweenService:Create(bg, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
         TweenService:Create(logoContainer, TweenInfo.new(0.5), {Position = UDim2.new(0.5, -100, 0.3, -100)}):Play()
         
         task.wait(0.5)
         loadingGui:Destroy()
-        showIntro()
+        
+        -- CHAMA A INTRO CORRETAMENTE
+        task.spawn(function()
+            showIntro()
+        end)
     end)
 end
 
 -- ============================================
--- INTRO CINEMATOGRÁFICA (Estilo Trailer)
+-- INTRO CINEMATOGRÁFICA CORRIGIDA COM FOTO DO CRIADOR
 -- ============================================
 local function showIntro()
     introGui = Instance.new("ScreenGui")
@@ -268,7 +191,7 @@ local function showIntro()
     slideContainer.BackgroundTransparency = 1
     slideContainer.Parent = introGui
     
-    -- SLIDE 1: Criador
+    -- SLIDE 1: Criador com FOTO REAL (3774045695)
     local slide1 = Instance.new("Frame")
     slide1.Size = UDim2.new(1, 0, 1, 0)
     slide1.BackgroundTransparency = 1
@@ -276,15 +199,319 @@ local function showIntro()
     
     local creatorTitle = Instance.new("TextLabel")
     creatorTitle.Size = UDim2.new(1, 0, 0, 60)
-    creatorTitle.Position = UDim2.new(0, 0, 0.3, 0)
+    creatorTitle.Position = UDim2.new(0, 0, 0.15, 0)
     creatorTitle.BackgroundTransparency = 1
-    creatorTitle.Text = "CRIADOR"
+    creatorTitle.Text = "DESENVOLVEDOR"
     creatorTitle.TextColor3 = CONFIG.secondaryColor
     creatorTitle.Font = Enum.Font.GothamBlack
-    creatorTitle.TextSize = 20
+    creatorTitle.TextSize = 24
     creatorTitle.TextTransparency = 1
     creatorTitle.Parent = slide1
     
+    -- FOTO REAL DO CRIADOR (3774045695)
+    local avatarFrame = Instance.new("Frame")
+    avatarFrame.Size = UDim2.new(0, 180, 0, 180)
+    avatarFrame.Position = UDim2.new(0.5, -90, 0.35, -90)
+    avatarFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    avatarFrame.BorderSizePixel = 0
+    avatarFrame.BackgroundTransparency = 1
+    avatarFrame.Parent = slide1
+    
+    local avatarCorner = Instance.new("UICorner")
+    avatarCorner.CornerRadius = UDim.new(1, 0)
+    avatarCorner.Parent = avatarFrame
+    
+    local avatarStroke = Instance.new("UIStroke")
+    avatarStroke.Color = CONFIG.accentColor
+    avatarStroke.Thickness = 4
+    avatarStroke.Parent = avatarFrame
+    
+    -- IMAGEM REAL DO CRIADOR
+    local avatarImage = Instance.new("ImageLabel")
+    avatarImage.Size = UDim2.new(1, 0, 1, 0)
+    avatarImage.BackgroundTransparency = 1
+    avatarImage.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=3774045695&width=420&height=420&format=png"
+    avatarImage.Parent = avatarFrame
+    
+    -- Fallback se a imagem não carregar
+    local avatarFallback = Instance.new("TextLabel")
+    avatarFallback.Size = UDim2.new(1, 0, 1, 0)
+    avatarFallback.BackgroundColor3 = CONFIG.accentColor
+    avatarFallback.Text = "C"
+    avatarFallback.TextColor3 = Color3.new(1, 1, 1)
+    avatarFallback.Font = Enum.Font.GothamBlack
+    avatarFallback.TextSize = 80
+    avatarFallback.Visible = false
+    avatarFallback.Parent = avatarFrame
+    
+    -- Verifica se imagem carregou
+    task.delay(2, function()
+        if avatarImage.ImageRectSize == Vector2.new(0, 0) then
+            avatarFallback.Visible = true
+        end
+    end)
+    
+    local creatorName = Instance.new("TextLabel")
+    creatorName.Size = UDim2.new(1, 0, 0, 80)
+    creatorName.Position = UDim2.new(0, 0, 0.6, 0)
+    creatorName.BackgroundTransparency = 1
+    creatorName.Text = "CADUXX137"
+    creatorName.TextColor3 = CONFIG.accentColor
+    creatorName.Font = Enum.Font.GothamBlack
+    creatorName.TextSize = 64
+    creatorName.TextTransparency = 1
+    creatorName.Parent = slide1
+    
+    local creatorRole = Instance.new("TextLabel")
+    creatorRole.Size = UDim2.new(1, 0, 0, 40)
+    creatorRole.Position = UDim2.new(0, 0, 0.72, 0)
+    creatorRole.BackgroundTransparency = 1
+    creatorRole.Text = "Criador & Desenvolvedor"
+    creatorRole.TextColor3 = Color3.fromRGB(150, 150, 150)
+    creatorRole.Font = Enum.Font.GothamBold
+    creatorRole.TextSize = 20
+    creatorRole.TextTransparency = 1
+    creatorRole.Parent = slide1
+    
+    -- SLIDE 2: Atualizações
+    local slide2 = Instance.new("Frame")
+    slide2.Size = UDim2.new(1, 0, 1, 0)
+    slide2.BackgroundTransparency = 1
+    slide2.Visible = false
+    slide2.Parent = slideContainer
+    
+    local updateTitle = Instance.new("TextLabel")
+    updateTitle.Size = UDim2.new(1, 0, 0, 80)
+    updateTitle.Position = UDim2.new(0, 0, 0.15, 0)
+    updateTitle.BackgroundTransparency = 1
+    updateTitle.Text = "NOVIDADES v3.0"
+    updateTitle.TextColor3 = CONFIG.accentColor
+    updateTitle.Font = Enum.Font.GothamBlack
+    updateTitle.TextSize = 48
+    updateTitle.TextTransparency = 1
+    updateTitle.Parent = slide2
+    
+    local updatesList = {
+        "🚀 Reach Ultra Otimizada (0ms ping)",
+        "⚡ Otimizador Inteligente Pro",
+        "🎨 Interface Site-Style Moderna",
+        "🎯 Detecção Automática de Bola",
+        "🔥 Modo CB (Carrinho) Integrado"
+    }
+    
+    for i, update in ipairs(updatesList) do
+        local updateText = Instance.new("TextLabel")
+        updateText.Size = UDim2.new(1, 0, 0, 45)
+        updateText.Position = UDim2.new(0, 0, 0.3 + (i * 0.09), 0)
+        updateText.BackgroundTransparency = 1
+        updateText.Text = update
+        updateText.TextColor3 = Color3.fromRGB(200, 200, 200)
+        updateText.Font = Enum.Font.GothamBold
+        updateText.TextSize = 20
+        updateText.TextTransparency = 1
+        updateText.Parent = slide2
+    end
+    
+    -- SLIDE 3: Créditos
+    local slide3 = Instance.new("Frame")
+    slide3.Size = UDim2.new(1, 0, 1, 0)
+    slide3.BackgroundTransparency = 1
+    slide3.Visible = false
+    slide3.Parent = slideContainer
+    
+    local creditsTitle = Instance.new("TextLabel")
+    creditsTitle.Size = UDim2.new(1, 0, 0, 80)
+    creditsTitle.Position = UDim2.new(0, 0, 0.15, 0)
+    creditsTitle.BackgroundTransparency = 1
+    creditsTitle.Text = "CRÉDITOS"
+    creditsTitle.TextColor3 = CONFIG.secondaryColor
+    creditsTitle.Font = Enum.Font.GothamBlack
+    creditsTitle.TextSize = 48
+    creditsTitle.TextTransparency = 1
+    creditsTitle.Parent = slide3
+    
+    local credits = {
+        {name = "pedrinjr hub", role = "Base & Full Body Touch"},
+        {name = "CADU Hub", role = "UI Premium & Visuals"},
+        {name = "SNOW hub", role = "Otimizações & Anti-Lag"},
+        {name = "CADUXX137", role = "Desenvolvimento & Integração"}
+    }
+    
+    for i, credit in ipairs(credits) do
+        local nameText = Instance.new("TextLabel")
+        nameText.Size = UDim2.new(1, 0, 0, 40)
+        nameText.Position = UDim2.new(0, 0, 0.35 + (i * 0.1), 0)
+        nameText.BackgroundTransparency = 1
+        nameText.Text = credit.name
+        nameText.TextColor3 = CONFIG.accentColor
+        nameText.Font = Enum.Font.GothamBold
+        nameText.TextSize = 28
+        nameText.TextTransparency = 1
+        nameText.Parent = slide3
+        
+        local roleText = Instance.new("TextLabel")
+        roleText.Size = UDim2.new(1, 0, 0, 25)
+        roleText.Position = UDim2.new(0, 0, 0.35 + (i * 0.1) + 0.05, 0)
+        roleText.BackgroundTransparency = 1
+        roleText.Text = credit.role
+        roleText.TextColor3 = Color3.fromRGB(150, 150, 150)
+        roleText.Font = Enum.Font.Gotham
+        roleText.TextSize = 16
+        roleText.TextTransparency = 1
+        roleText.Parent = slide3
+    end
+    
+    -- SLIDE 4: Bem-vindo
+    local slide4 = Instance.new("Frame")
+    slide4.Size = UDim2.new(1, 0, 1, 0)
+    slide4.BackgroundTransparency = 1
+    slide4.Visible = false
+    slide4.Parent = slideContainer
+    
+    local welcomeText = Instance.new("TextLabel")
+    welcomeText.Size = UDim2.new(1, 0, 0, 100)
+    welcomeText.Position = UDim2.new(0, 0, 0.3, 0)
+    welcomeText.BackgroundTransparency = 1
+    welcomeText.Text = "BEM-VINDO"
+    welcomeText.TextColor3 = CONFIG.accentColor
+    welcomeText.Font = Enum.Font.GothamBlack
+    welcomeText.TextSize = 72
+    welcomeText.TextTransparency = 1
+    welcomeText.Parent = slide4
+    
+    local playerName = Instance.new("TextLabel")
+    playerName.Size = UDim2.new(1, 0, 0, 60)
+    playerName.Position = UDim2.new(0, 0, 0.48, 0)
+    playerName.BackgroundTransparency = 1
+    playerName.Text = player.Name
+    playerName.TextColor3 = CONFIG.secondaryColor
+    playerName.Font = Enum.Font.GothamBold
+    playerName.TextSize = 42
+    playerName.TextTransparency = 1
+    playerName.Parent = slide4
+    
+    local pressKey = Instance.new("TextLabel")
+    pressKey.Size = UDim2.new(1, 0, 0, 30)
+    pressKey.Position = UDim2.new(0, 0, 0.7, 0)
+    pressKey.BackgroundTransparency = 1
+    pressKey.Text = "Pressione [ESPACO] para continuar"
+    pressKey.TextColor3 = Color3.fromRGB(100, 100, 100)
+    pressKey.Font = Enum.Font.Gotham
+    pressKey.TextSize = 18
+    pressKey.TextTransparency = 1
+    pressKey.Parent = slide4
+    
+    -- Animação de pulso no "pressione espaço"
+    task.spawn(function()
+        while pressKey and pressKey.Parent do
+            TweenService:Create(pressKey, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                TextTransparency = 0.3
+            }):Play()
+            task.wait(1)
+            TweenService:Create(pressKey, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                TextTransparency = 0.7
+            }):Play()
+            task.wait(1)
+        end
+    end)
+    
+    -- FUNÇÃO PARA ANIMAR ELEMENTOS
+    local function animateIn(element, delay)
+        task.delay(delay or 0, function()
+            TweenService:Create(element, TweenInfo.new(0.8, Enum.EasingStyle.Quart), {
+                TextTransparency = 0,
+                BackgroundTransparency = element:IsA("Frame") and 0 or 1
+            }):Play()
+        end)
+    end
+    
+    -- SEQUÊNCIA DE ANIMAÇÃO DOS SLIDES
+    task.spawn(function()
+        -- SLIDE 1: Criador (com foto)
+        animateIn(creatorTitle, 0.2)
+        animateIn(avatarFrame, 0.5)
+        animateIn(creatorName, 0.8)
+        animateIn(creatorRole, 1.0)
+        
+        task.wait(4)
+        
+        -- Transição para slide 2
+        TweenService:Create(slide1, TweenInfo.new(0.5), {Position = UDim2.new(-1, 0, 0, 0)}):Play()
+        slide2.Visible = true
+        slide2.Position = UDim2.new(1, 0, 0, 0)
+        TweenService:Create(slide2, TweenInfo.new(0.5), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+        
+        animateIn(updateTitle, 0.2)
+        for _, child in ipairs(slide2:GetChildren()) do
+            if child:IsA("TextLabel") and child ~= updateTitle then
+                animateIn(child, 0.3 + (math.random() * 0.5))
+            end
+        end
+        
+        task.wait(4)
+        
+        -- Transição para slide 3
+        TweenService:Create(slide2, TweenInfo.new(0.5), {Position = UDim2.new(-1, 0, 0, 0)}):Play()
+        slide3.Visible = true
+        slide3.Position = UDim2.new(1, 0, 0, 0)
+        TweenService:Create(slide3, TweenInfo.new(0.5), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+        
+        animateIn(creditsTitle, 0.2)
+        for _, child in ipairs(slide3:GetChildren()) do
+            if child:IsA("TextLabel") and child ~= creditsTitle then
+                animateIn(child, 0.3 + (math.random() * 0.5))
+            end
+        end
+        
+        task.wait(4)
+        
+        -- Transição para slide 4 (final)
+        TweenService:Create(slide3, TweenInfo.new(0.5), {Position = UDim2.new(-1, 0, 0, 0)}):Play()
+        slide4.Visible = true
+        slide4.Position = UDim2.new(1, 0, 0, 0)
+        TweenService:Create(slide4, TweenInfo.new(0.5), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+        
+        animateIn(welcomeText, 0.3)
+        animateIn(playerName, 0.6)
+        animateIn(pressKey, 1.0)
+    end)
+    
+    -- ESPERA ESPAÇO PARA CONTINUAR
+    local spacePressed = false
+    local connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.Space and not spacePressed and slide4.Visible then
+            spacePressed = true
+            connection:Disconnect()
+            
+            -- Fade out total
+            TweenService:Create(bg, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+            for _, slide in ipairs({slide1, slide2, slide3, slide4}) do
+                for _, child in ipairs(slide:GetChildren()) do
+                    if child:IsA("TextLabel") or child:IsA("Frame") then
+                        TweenService:Create(child, TweenInfo.new(0.5), {
+                            TextTransparency = 1,
+                            BackgroundTransparency = 1,
+                            ImageTransparency = 1
+                        }):Play()
+                    end
+                end
+            end
+            
+            task.wait(0.6)
+            introGui:Destroy()
+            isLoaded = true
+            
+            -- CHAMA A UI PRINCIPAL
+            task.spawn(function()
+                buildMainUI()
+            end)
+        end
+    end)
+end
+
+--UI PRINCIPAL CHAMA
+
     local creatorName = Instance.new("TextLabel")
     creatorName.Size = UDim2.new(1, 0, 0, 100)
     creatorName.Position = UDim2.new(0, 0, 0.4, 0)
