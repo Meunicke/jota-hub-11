@@ -1,5 +1,5 @@
--- ⚽ CADUXX137 HUB | The Classic Soccer | Supreme Edition
--- Base: pedrinjr hub + CADU Hub UI + Intro Animada
+-- ⚡ CADUXX137 HUB | SUPREME EDITION v3.0
+-- Site-Style UI | Reach Ultra | Otimizador Pro | Intro Cinematográfica
 
 -- SERVICES
 local Players = game:GetService("Players")
@@ -10,1892 +10,1027 @@ local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
+local Stats = game:GetService("Stats")
 
 local player = Players.LocalPlayer
 
--- CONFIG
+-- ============================================
+-- CONFIGURAÇÃO ULTRA OTIMIZADA (PC Gamer Style)
+-- ============================================
 local CONFIG = {
-    -- Reach
-    reach = 12,
-    ballReach = 15,
-    quantumReach = 25,
+    -- Reach Ultra (simula ping baixo)
+    reach = 18,              -- Alcance base maior
+    ballReach = 22,          -- Hitbox expandida
+    quantumReach = 35,       -- Quantum extra
+    reactionTime = 0,        -- Sem delay (simula 0ms ping)
     
-    -- Features
-    autoTouch = true,
-    showReachSphere = true,
-    showVisuals = true,
-    flashEnabled = true,
-    antiAFK = true,
-    quantumReachEnabled = false,
-    expandBallHitbox = true,
-    ballMagnet = false,
-    magnetStrength = 50,
-    autoSecondTouch = true,
-    fullBodyTouch = true, -- pedrinjr style: toca com todas as partes do corpo
+    -- Otimizador Inteligente
+    optimizerEnabled = true,
+    maxFPS = 144,            -- Cap de FPS
+    dynamicQuality = true,   -- Ajusta qualidade automaticamente
+    
+    -- Visual Site-Style
+    theme = "dark",          -- dark/light
+    accentColor = Color3.fromRGB(0, 150, 255), -- Azul neon
+    secondaryColor = Color3.fromRGB(255, 0, 100), -- Rosa neon
     
     -- Performance
-    scanCooldown = 1,
+    scanRate = 0.03,         -- 30Hz (suave)
+    touchRate = 0,           -- Instantâneo
     
-    -- Visual
-    sphereColor = Color3.fromRGB(0, 85, 255), -- Azul pedrinjr
-    auraColor = Color3.fromRGB(0, 255, 255), -- Ciano
-    
-    -- Lista completa de bolas
-    ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ", "SoccerBall", "Football", "Ball" },
-    
-    -- Cores CADU
-    colors = {
-        bg = Color3.fromRGB(18, 18, 23),
-        tabBg = Color3.fromRGB(30, 30, 38),
-        cardBg = Color3.fromRGB(35, 35, 47),
-        accent = Color3.fromRGB(0, 85, 255), -- Azul pedrinjr
-        accent2 = Color3.fromRGB(235, 69, 158),
-        accent3 = Color3.fromRGB(0, 255, 255),
-        success = Color3.fromRGB(59, 165, 93),
-        warning = Color3.fromRGB(250, 168, 26),
-        danger = Color3.fromRGB(237, 66, 69),
-        text = Color3.fromRGB(255, 255, 255),
-        textDim = Color3.fromRGB(148, 155, 164),
-        textDark = Color3.fromRGB(78, 86, 96),
-        flash = Color3.fromRGB(255, 255, 100),
-        toggleOn = Color3.fromRGB(59, 165, 93),
-        toggleOff = Color3.fromRGB(78, 86, 96),
-        gradient1 = Color3.fromRGB(0, 85, 255), -- Azul pedrinjr
-        gradient2 = Color3.fromRGB(235, 69, 158)
-    }
+    -- Lista de bolas
+    ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ", "SoccerBall", "Football", "Ball" }
 }
 
--- VARIÁVEIS
+-- ============================================
+-- VARIÁVEIS GLOBAIS
+-- ============================================
 local balls = {}
-local ballAuras = {}
 local ballHitboxes = {}
-local playerSphere = nil
-local quantumCircle = nil
 local HRP = nil
-local mainGui, introGui, mainWindow, currentTab = nil, nil, nil, "Reach"
-local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-local connections = {}
-local isUIOpen = true
-local introCompleted = false
+local mainGui, loadingGui, introGui = nil, nil, nil
+local isLoaded = false
+local currentTab = "home"
+local lastScan = 0
+local touchCache = {}
 
--- BALL SET
-local BALL_NAME_SET = {}
-for _, n in ipairs(CONFIG.ballNames) do
-    BALL_NAME_SET[n] = true
-end
-
--- NOTIFICAÇÃO
-local function notify(text, duration)
+-- ============================================
+-- SISTEMA DE NOTIFICAÇÃO MODERNO
+-- ============================================
+local function notify(text, type, duration)
+    type = type or "info"
+    duration = duration or 3
+    
+    local colors = {
+        info = CONFIG.accentColor,
+        success = Color3.fromRGB(0, 255, 100),
+        warning = Color3.fromRGB(255, 200, 0),
+        error = Color3.fromRGB(255, 50, 50)
+    }
+    
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "⚽ CADUXX137 HUB",
+            Title = "CADUXX137 HUB",
             Text = text,
-            Duration = duration or 3
+            Duration = duration,
+            Icon = "rbxassetid://7733964640"
         })
     end)
 end
 
--- INTRO ANIMADA CADUXX137
-local function playIntro()
-    if introGui then introGui:Destroy() end
+-- ============================================
+-- TELA DE LOADING (Estilo Site Profissional)
+-- ============================================
+local function showLoadingScreen()
+    loadingGui = Instance.new("ScreenGui")
+    loadingGui.Name = "CADULoading"
+    loadingGui.ResetOnSpawn = false
+    loadingGui.DisplayOrder = 1000000
+    loadingGui.Parent = player:WaitForChild("PlayerGui")
     
+    -- Background gradiente animado
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+    bg.BorderSizePixel = 0
+    bg.Parent = loadingGui
+    
+    -- Partículas de fundo
+    for i = 1, 20 do
+        local particle = Instance.new("Frame")
+        particle.Size = UDim2.new(0, math.random(2, 6), 0, math.random(2, 6))
+        particle.Position = UDim2.new(math.random(), 0, math.random(), 0)
+        particle.BackgroundColor3 = CONFIG.accentColor
+        particle.BackgroundTransparency = 0.8
+        particle.BorderSizePixel = 0
+        particle.Parent = bg
+        
+        -- Animação flutuante
+        TweenService:Create(particle, TweenInfo.new(math.random(3, 8), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1), {
+            Position = UDim2.new(particle.Position.X.Scale, math.random(-50, 50), particle.Position.Y.Scale + 0.2, 0)
+        }):Play()
+    end
+    
+    -- Logo central
+    local logoContainer = Instance.new("Frame")
+    logoContainer.Size = UDim2.new(0, 200, 0, 200)
+    logoContainer.Position = UDim2.new(0.5, -100, 0.4, -100)
+    logoContainer.BackgroundTransparency = 1
+    logoContainer.Parent = bg
+    
+    -- Círculo neon
+    local circle = Instance.new("Frame")
+    circle.Size = UDim2.new(1, 0, 1, 0)
+    circle.BackgroundTransparency = 1
+    circle.Parent = logoContainer
+    
+    local circleStroke = Instance.new("UIStroke")
+    circleStroke.Color = CONFIG.accentColor
+    circleStroke.Thickness = 3
+    circleStroke.Parent = circle
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = circle
+    
+    -- Rotação do círculo
+    TweenService:Create(circle, TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {
+        Rotation = 360
+    }):Play()
+    
+    -- Texto CADUXX137
+    local logoText = Instance.new("TextLabel")
+    logoText.Size = UDim2.new(1, 0, 0, 50)
+    logoText.Position = UDim2.new(0, 0, 0.5, -25)
+    logoText.BackgroundTransparency = 1
+    logoText.Text = "CADUXX137"
+    logoText.TextColor3 = CONFIG.accentColor
+    logoText.Font = Enum.Font.GothamBlack
+    logoText.TextSize = 42
+    logoText.Parent = logoContainer
+    
+    -- Glow effect
+    local glow = Instance.new("ImageLabel")
+    glow.Size = UDim2.new(1.5, 0, 1.5, 0)
+    glow.Position = UDim2.new(-0.25, 0, -0.25, 0)
+    glow.BackgroundTransparency = 1
+    glow.Image = "rbxassetid://5028857084"
+    glow.ImageColor3 = CONFIG.accentColor
+    glow.ImageTransparency = 0.7
+    glow.Parent = logoContainer
+    
+    -- Loading bar container
+    local barContainer = Instance.new("Frame")
+    barContainer.Size = UDim2.new(0, 400, 0, 4)
+    barContainer.Position = UDim2.new(0.5, -200, 0.7, 0)
+    barContainer.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    barContainer.BorderSizePixel = 0
+    barContainer.Parent = bg
+    
+    local barCorner = Instance.new("UICorner")
+    barCorner.CornerRadius = UDim.new(0, 2)
+    barCorner.Parent = barContainer
+    
+    -- Loading bar fill
+    local barFill = Instance.new("Frame")
+    barFill.Size = UDim2.new(0, 0, 1, 0)
+    barFill.BackgroundColor3 = CONFIG.accentColor
+    barFill.BorderSizePixel = 0
+    barFill.Parent = barContainer
+    
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 2)
+    fillCorner.Parent = barFill
+    
+    -- Texto de status
+    local statusText = Instance.new("TextLabel")
+    statusText.Size = UDim2.new(1, 0, 0, 30)
+    statusText.Position = UDim2.new(0, 0, 0.75, 0)
+    statusText.BackgroundTransparency = 1
+    statusText.Text = "Inicializando sistema..."
+    statusText.TextColor3 = Color3.fromRGB(200, 200, 200)
+    statusText.Font = Enum.Font.Gotham
+    statusText.TextSize = 14
+    statusText.Parent = bg
+    
+    -- Porcentagem
+    local percentText = Instance.new("TextLabel")
+    percentText.Size = UDim2.new(0, 100, 0, 30)
+    percentText.Position = UDim2.new(0.5, -50, 0.72, 0)
+    percentText.BackgroundTransparency = 1
+    percentText.Text = "0%"
+    percentText.TextColor3 = CONFIG.accentColor
+    percentText.Font = Enum.Font.GothamBold
+    percentText.TextSize = 16
+    percentText.Parent = bg
+    
+    -- Animação de loading
+    local loadingSteps = {
+        {0.0, "Inicializando sistema...", 0.1},
+        {0.3, "Carregando módulos de reach...", 0.3},
+        {0.5, "Otimizando para baixa latência...", 0.5},
+        {0.7, "Conectando ao servidor...", 0.7},
+        {0.9, "Finalizando...", 0.95},
+        {1.0, "Pronto!", 1.0}
+    }
+    
+    for _, step in ipairs(loadingSteps) do
+        task.delay(step[1] * 3, function()
+            statusText.Text = step[2]
+            TweenService:Create(barFill, TweenInfo.new(0.5), {
+                Size = UDim2.new(step[3], 0, 1, 0)
+            }):Play()
+            percentText.Text = math.floor(step[3] * 100) .. "%"
+        end)
+    end
+    
+    -- Remove loading após 3.5 segundos
+    task.delay(3.5, function()
+        TweenService:Create(bg, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(logoContainer, TweenInfo.new(0.5), {Position = UDim2.new(0.5, -100, 0.3, -100)}):Play()
+        
+        task.wait(0.5)
+        loadingGui:Destroy()
+        showIntro()
+    end)
+end
+
+-- ============================================
+-- INTRO CINEMATOGRÁFICA (Estilo Trailer)
+-- ============================================
+local function showIntro()
     introGui = Instance.new("ScreenGui")
-    introGui.Name = "CADUXX137Intro"
+    introGui.Name = "CADUIntro"
     introGui.ResetOnSpawn = false
     introGui.DisplayOrder = 999999
     introGui.Parent = player:WaitForChild("PlayerGui")
     
-    -- Background escuro
     local bg = Instance.new("Frame")
     bg.Size = UDim2.new(1, 0, 1, 0)
-    bg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(5, 5, 10)
     bg.BorderSizePixel = 0
     bg.Parent = introGui
     
-    -- Logo/Nome CADUXX137
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 0, 80)
-    nameLabel.Position = UDim2.new(0, 0, 0.3, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = "CADUXX137"
-    nameLabel.TextColor3 = CONFIG.colors.accent
-    nameLabel.Font = Enum.Font.GothamBlack
-    nameLabel.TextSize = 60
-    nameLabel.TextTransparency = 1
-    nameLabel.Parent = introGui
+    -- Efeito de scanline
+    for i = 0, 10 do
+        local line = Instance.new("Frame")
+        line.Size = UDim2.new(1, 0, 0, 1)
+        line.Position = UDim2.new(0, 0, i/10, 0)
+        line.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+        line.BackgroundTransparency = 0.95
+        line.BorderSizePixel = 0
+        line.Parent = bg
+    end
     
-    local subtitle = Instance.new("TextLabel")
-    subtitle.Size = UDim2.new(1, 0, 0, 40)
-    subtitle.Position = UDim2.new(0, 0, 0.42, 0)
-    subtitle.BackgroundTransparency = 1
-    subtitle.Text = "HUB SUPREME"
-    subtitle.TextColor3 = CONFIG.colors.accent2
-    subtitle.Font = Enum.Font.GothamBold
-    subtitle.TextSize = 30
-    subtitle.TextTransparency = 1
-    subtitle.Parent = introGui
+    -- Container de slides
+    local slideContainer = Instance.new("Frame")
+    slideContainer.Size = UDim2.new(1, 0, 1, 0)
+    slideContainer.BackgroundTransparency = 1
+    slideContainer.Parent = introGui
     
-    -- Avatar do jogador
-    local avatarFrame = Instance.new("Frame")
-    avatarFrame.Size = UDim2.new(0, 120, 0, 120)
-    avatarFrame.Position = UDim2.new(0.5, -60, 0.55, -60)
-    avatarFrame.BackgroundColor3 = CONFIG.colors.accent
-    avatarFrame.BorderSizePixel = 0
-    avatarFrame.BackgroundTransparency = 1
-    avatarFrame.Parent = introGui
+    -- SLIDE 1: Criador
+    local slide1 = Instance.new("Frame")
+    slide1.Size = UDim2.new(1, 0, 1, 0)
+    slide1.BackgroundTransparency = 1
+    slide1.Parent = slideContainer
     
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
-    corner.Parent = avatarFrame
+    local creatorTitle = Instance.new("TextLabel")
+    creatorTitle.Size = UDim2.new(1, 0, 0, 60)
+    creatorTitle.Position = UDim2.new(0, 0, 0.3, 0)
+    creatorTitle.BackgroundTransparency = 1
+    creatorTitle.Text = "CRIADOR"
+    creatorTitle.TextColor3 = CONFIG.secondaryColor
+    creatorTitle.Font = Enum.Font.GothamBlack
+    creatorTitle.TextSize = 20
+    creatorTitle.TextTransparency = 1
+    creatorTitle.Parent = slide1
+    
+    local creatorName = Instance.new("TextLabel")
+    creatorName.Size = UDim2.new(1, 0, 0, 100)
+    creatorName.Position = UDim2.new(0, 0, 0.4, 0)
+    creatorName.BackgroundTransparency = 1
+    creatorName.Text = "CADUXX137"
+    creatorName.TextColor3 = CONFIG.accentColor
+    creatorName.Font = Enum.Font.GothamBlack
+    creatorName.TextSize = 72
+    creatorName.TextTransparency = 1
+    creatorName.Parent = slide1
+    
+    -- Avatar do criador (simulado com círculo estilizado)
+    local avatarCircle = Instance.new("Frame")
+    avatarCircle.Size = UDim2.new(0, 150, 0, 150)
+    avatarCircle.Position = UDim2.new(0.5, -75, 0.55, 0)
+    avatarCircle.BackgroundColor3 = CONFIG.accentColor
+    avatarCircle.BackgroundTransparency = 1
+    avatarCircle.Parent = slide1
+    
+    local avatarCorner = Instance.new("UICorner")
+    avatarCorner.CornerRadius = UDim.new(1, 0)
+    avatarCorner.Parent = avatarCircle
     
     local avatarStroke = Instance.new("UIStroke")
-    avatarStroke.Color = CONFIG.colors.accent3
+    avatarStroke.Color = CONFIG.secondaryColor
     avatarStroke.Thickness = 4
-    avatarStroke.Parent = avatarFrame
-    
-    -- Tenta pegar imagem do avatar
-    local avatarImage = Instance.new("ImageLabel")
-    avatarImage.Size = UDim2.new(1, 0, 1, 0)
-    avatarImage.BackgroundTransparency = 1
-    avatarImage.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"
-    avatarImage.Parent = avatarFrame
+    avatarStroke.Parent = avatarCircle
     
     local avatarText = Instance.new("TextLabel")
     avatarText.Size = UDim2.new(1, 0, 1, 0)
     avatarText.BackgroundTransparency = 1
-    avatarText.Text = string.sub(player.Name, 1, 1)
+    avatarText.Text = "C"
     avatarText.TextColor3 = Color3.new(1, 1, 1)
     avatarText.Font = Enum.Font.GothamBlack
-    avatarText.TextSize = 50
-    avatarText.Visible = false
-    avatarText.Parent = avatarFrame
+    avatarText.TextSize = 80
+    avatarText.Parent = avatarCircle
     
-    -- Texto "Olá Player"
-    local helloText = Instance.new("TextLabel")
-    helloText.Size = UDim2.new(1, 0, 0, 50)
-    helloText.Position = UDim2.new(0, 0, 0.7, 0)
-    helloText.BackgroundTransparency = 1
-    helloText.Text = "Olá, " .. player.Name .. "!"
-    helloText.TextColor3 = CONFIG.colors.text
-    helloText.Font = Enum.Font.GothamBold
-    helloText.TextSize = 28
-    helloText.TextTransparency = 1
-    helloText.Parent = introGui
+    -- SLIDE 2: Atualizações
+    local slide2 = Instance.new("Frame")
+    slide2.Size = UDim2.new(1, 0, 1, 0)
+    slide2.BackgroundTransparency = 1
+    slide2.Visible = false
+    slide2.Parent = slideContainer
     
-    -- Loading bar
-    local loadingBg = Instance.new("Frame")
-    loadingBg.Size = UDim2.new(0, 400, 0, 6)
-    loadingBg.Position = UDim2.new(0.5, -200, 0.8, 0)
-    loadingBg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    loadingBg.BorderSizePixel = 0
-    loadingBg.BackgroundTransparency = 1
-    loadingBg.Parent = introGui
+    local updateTitle = Instance.new("TextLabel")
+    updateTitle.Size = UDim2.new(1, 0, 0, 60)
+    updateTitle.Position = UDim2.new(0, 0, 0.2, 0)
+    updateTitle.BackgroundTransparency = 1
+    updateTitle.Text = "NOVIDADES v3.0"
+    updateTitle.TextColor3 = CONFIG.accentColor
+    updateTitle.Font = Enum.Font.GothamBlack
+    updateTitle.TextSize = 48
+    updateTitle.TextTransparency = 1
+    updateTitle.Parent = slide2
     
-    local loadingCorner = Instance.new("UICorner")
-    loadingCorner.CornerRadius = UDim.new(0, 3)
-    loadingCorner.Parent = loadingBg
-    
-    local loadingFill = Instance.new("Frame")
-    loadingFill.Size = UDim2.new(0, 0, 1, 0)
-    loadingFill.BackgroundColor3 = CONFIG.colors.accent
-    loadingFill.BorderSizePixel = 0
-    loadingFill.Parent = loadingBg
-    
-    local loadingFillCorner = Instance.new("UICorner")
-    loadingFillCorner.CornerRadius = UDim.new(0, 3)
-    loadingFillCorner.Parent = loadingFill
-    
-    -- ANIMAÇÃO DA INTRO
-    local introSequence = {
-        -- [tempo] = {objeto, propriedade, valor final, duração}
-        {0, bg, "BackgroundTransparency", 0.3, 0.5},
-        {0.3, nameLabel, "TextTransparency", 0, 0.6},
-        {0.5, subtitle, "TextTransparency", 0, 0.5},
-        {0.8, avatarFrame, "BackgroundTransparency", 0, 0.5},
-        {1.0, loadingBg, "BackgroundTransparency", 0, 0.3},
-        {1.2, loadingFill, "Size", UDim2.new(0.3, 0, 1, 0), 0.4},
-        {1.6, loadingFill, "Size", UDim2.new(0.7, 0, 1, 0), 0.4},
-        {2.0, loadingFill, "Size", UDim2.new(1, 0, 1, 0), 0.4},
-        {2.4, helloText, "TextTransparency", 0, 0.5},
-        {3.0, helloText, "TextTransparency", 1, 0.3},
-        {3.2, avatarFrame, "BackgroundTransparency", 1, 0.3},
-        {3.3, subtitle, "TextTransparency", 1, 0.3},
-        {3.4, nameLabel, "TextTransparency", 1, 0.3},
-        {3.5, bg, "BackgroundTransparency", 1, 0.5},
+    local updatesList = {
+        "🚀 Reach Ultra Otimizada (0ms ping)",
+        "⚡ Otimizador Inteligente Pro",
+        "🎨 Interface Site-Style Moderna",
+        "🎯 Detecção Automática de Bola",
+        "🔥 Modo CB (Carrinho) Integrado"
     }
-
--- OTIMIZADOR DE PERFORMANCE (Anti-Lag perto da bola)
-local OPTIMIZER = {
-    enabled = true,
-    normalFPS = 60,
-    lowFPS = 30,
-    currentMode = "normal", -- normal, medium, low, critical
     
-    -- Limites
-    ballDistanceThreshold = 15, -- Distância para ativar otimização
-    playerNearbyThreshold = 6, -- Jogadores próximos para modo crítico
-    
-    -- Features a desativar
-    disableFlashNearBall = true,
-    reduceAuraQuality = true,
-    limitTouchRate = true,
-    disableHitboxVisuals = true,
-    
-    -- Stats
-    lastFPS = 60,
-    frameCount = 0,
-    lastCheck = tick()
-}
-
--- DETECTOR DE FPS
-task.spawn(function()
-    while true do
-        task.wait(1)
-        local now = tick()
-        local fps = OPTIMIZER.frameCount / (now - OPTIMIZER.lastCheck)
-        OPTIMIZER.lastFPS = math.floor(fps)
-        OPTIMIZER.frameCount = 0
-        OPTIMIZER.lastCheck = now
-        
-        -- Auto-detect modo baseado em FPS
-        if OPTIMIZER.enabled then
-            if fps < 20 then
-                setOptimizationMode("critical")
-            elseif fps < 30 then
-                setOptimizationMode("low")
-            elseif fps < 45 then
-                setOptimizationMode("medium")
-            else
-                setOptimizationMode("normal")
-            end
-        end
-    end
-end)
-
-RunService.RenderStepped:Connect(function()
-    OPTIMIZER.frameCount = OPTIMIZER.frameCount + 1
-end)
-
--- VERIFICAR CONDIÇÕES DE LAG
-local function checkLagConditions()
-    if not HRP then return "normal" end
-    
-    local ballsList = getBalls()
-    local nearbyBalls = 0
-    local veryCloseBalls = 0
-    
-    for _, ball in ipairs(ballsList) do
-        if ball and ball.Parent then
-            local dist = (ball.Position - HRP.Position).Magnitude
-            if dist < OPTIMIZER.ballDistanceThreshold then
-                nearbyBalls = nearbyBalls + 1
-                if dist < 8 then
-                    veryCloseBalls = veryCloseBalls + 1
-                end
-            end
-        end
+    for i, update in ipairs(updatesList) do
+        local updateText = Instance.new("TextLabel")
+        updateText.Size = UDim2.new(1, 0, 0, 40)
+        updateText.Position = UDim2.new(0, 0, 0.35 + (i * 0.08), 0)
+        updateText.BackgroundTransparency = 1
+        updateText.Text = update
+        updateText.TextColor3 = Color3.fromRGB(200, 200, 200)
+        updateText.Font = Enum.Font.GothamBold
+        updateText.TextSize = 18
+        updateText.TextTransparency = 1
+        updateText.Parent = slide2
     end
     
-    -- Conta jogadores próximos
-    local nearbyPlayers = 0
-    for _, otherPlayer in ipairs(Players:GetPlayers()) do
-        if otherPlayer ~= player and otherPlayer.Character then
-            local otherHRP = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if otherHRP then
-                local dist = (otherHRP.Position - HRP.Position).Magnitude
-                if dist < 20 then
-                    nearbyPlayers = nearbyPlayers + 1
-                end
-            end
-        end
+    -- SLIDE 3: Créditos
+    local slide3 = Instance.new("Frame")
+    slide3.Size = UDim2.new(1, 0, 1, 0)
+    slide3.BackgroundTransparency = 1
+    slide3.Visible = false
+    slide3.Parent = slideContainer
+    
+    local creditsTitle = Instance.new("TextLabel")
+    creditsTitle.Size = UDim2.new(1, 0, 0, 60)
+    creditsTitle.Position = UDim2.new(0, 0, 0.25, 0)
+    creditsTitle.BackgroundTransparency = 1
+    creditsTitle.Text = "CRÉDITOS"
+    creditsTitle.TextColor3 = CONFIG.secondaryColor
+    creditsTitle.Font = Enum.Font.GothamBlack
+    creditsTitle.TextSize = 36
+    creditsTitle.TextTransparency = 1
+    creditsTitle.Parent = slide3
+    
+    local credits = {
+        {name = "pedrinjr hub", role = "Base & Full Body Touch"},
+        {name = "CADU Hub", role = "UI Premium & Visuals"},
+        {name = "SNOW hub", role = "Otimizações & Anti-Lag"},
+        {name = "CADUXX137", role = "Desenvolvimento & Integração"}
+    }
+    
+    for i, credit in ipairs(credits) do
+        local nameText = Instance.new("TextLabel")
+        nameText.Size = UDim2.new(1, 0, 0, 35)
+        nameText.Position = UDim2.new(0, 0, 0.4 + (i * 0.1), 0)
+        nameText.BackgroundTransparency = 1
+        nameText.Text = credit.name
+        nameText.TextColor3 = CONFIG.accentColor
+        nameText.Font = Enum.Font.GothamBold
+        nameText.TextSize = 24
+        nameText.TextTransparency = 1
+        nameText.Parent = slide3
+        
+        local roleText = Instance.new("TextLabel")
+        roleText.Size = UDim2.new(1, 0, 0, 20)
+        roleText.Position = UDim2.new(0, 0, 0.4 + (i * 0.1) + 0.04, 0)
+        roleText.BackgroundTransparency = 1
+        roleText.Text = credit.role
+        roleText.TextColor3 = Color3.fromRGB(150, 150, 150)
+        roleText.Font = Enum.Font.Gotham
+        roleText.TextSize = 14
+        roleText.TextTransparency = 1
+        roleText.Parent = slide3
     end
     
-    -- Determina modo
-    if veryCloseBalls >= 1 and nearbyPlayers >= OPTIMIZER.playerNearbyThreshold then
-        return "critical" -- Muitos jogadores + bola perto
-    elseif veryCloseBalls >= 1 then
-        return "low" -- Bola muito perto
-    elseif nearbyBalls >= 2 then
-        return "medium" -- Várias bolas próximas
-    else
-        return "normal"
-    end
-end
-
--- APLICAR MODO DE OTIMIZAÇÃO
-local currentOptMode = "normal"
-
-local function setOptimizationMode(mode)
-    if currentOptMode == mode then return end
-    currentOptMode = mode
+    -- SLIDE 4: Bem-vindo
+    local slide4 = Instance.new("Frame")
+    slide4.Size = UDim2.new(1, 0, 1, 0)
+    slide4.BackgroundTransparency = 1
+    slide4.Visible = false
+    slide4.Parent = slideContainer
     
-    if mode == "critical" then
-        -- Máxima otimização
-        CONFIG.flashEnabled = false
-        CONFIG.showVisuals = false
-        CONFIG.expandBallHitbox = false
-        clearAllAuras()
-        
-        -- Reduz reach temporariamente para processar menos
-        CONFIG.reach = math.max(8, CONFIG.reach - 5)
-        
-        notify("🔴 MODO CRÍTICO - Lag extremo detectado!", 2)
-        
-    elseif mode == "low" then
-        -- Alta otimização
-        CONFIG.flashEnabled = false
-        if playerSphere then playerSphere.Transparency = 0.95 end
-        
-        -- Desativa auras de bola (mais pesado)
-        for ball, data in pairs(ballAuras) do
-            if data.aura then
-                data.aura.Transparency = 1
-            end
-            if data.highlight then
-                data.highlight.Enabled = false
-            end
-        end
-        
-        notify("🟠 MODO LOW - Otimizando...", 2)
-        
-    elseif mode == "medium" then
-        -- Otimização moderada
-        CONFIG.flashEnabled = false
-        
-        notify("🟡 Modo Médio - Ajustando...", 1)
-        
-    else -- normal
-        -- Restaura tudo
-        CONFIG.flashEnabled = true
-        CONFIG.showVisuals = true
-        CONFIG.expandBallHitbox = true
-        
-        -- Restaura auras
-        for ball, data in pairs(ballAuras) do
-            if data.aura then
-                data.aura.Transparency = 0.85
-            end
-            if data.highlight then
-                data.highlight.Enabled = true
-            end
-        end
-        
-        if currentOptMode ~= "normal" then
-            notify("🟢 Modo Normal - Tudo OK", 1)
-        end
-    end
-end
-
--- LOOP DE OTIMIZAÇÃO
-task.spawn(function()
-    while true do
-        task.wait(0.5) -- Verifica a cada meio segundo
-        
-        if not OPTIMIZER.enabled then continue end
-        
-        local detectedMode = checkLagConditions()
-        
-        -- Prioriza o pior modo entre FPS e condições
-        local fpsMode = currentOptMode
-        local finalMode = detectedMode
-        
-        -- Se FPS está baixo, mantém ou piora
-        if OPTIMIZER.lastFPS < 20 then
-            finalMode = "critical"
-        elseif OPTIMIZER.lastFPS < 30 and detectedMode ~= "critical" then
-            finalMode = "low"
-        end
-        
-        setOptimizationMode(finalMode)
-    end
-end)
-
--- FUNÇÃO DE TOQUE OTIMIZADA (menos intensa perto da bola)
-local function optimizedUltraTouch(ball, part)
-    if not ball or not part then return end
+    local welcomeText = Instance.new("TextLabel")
+    welcomeText.Size = UDim2.new(1, 0, 0, 80)
+    welcomeText.Position = UDim2.new(0, 0, 0.4, 0)
+    welcomeText.BackgroundTransparency = 1
+    welcomeText.Text = "BEM-VINDO"
+    welcomeText.TextColor3 = CONFIG.accentColor
+    welcomeText.Font = Enum.Font.GothamBlack
+    welcomeText.TextSize = 64
+    welcomeText.TextTransparency = 1
+    welcomeText.Parent = slide4
     
-    local dist = (ball.Position - part.Position).Magnitude
+    local playerName = Instance.new("TextLabel")
+    playerName.Size = UDim2.new(1, 0, 0, 50)
+    playerName.Position = UDim2.new(0, 0, 0.55, 0)
+    playerName.BackgroundTransparency = 1
+    playerName.Text = player.Name
+    playerName.TextColor3 = CONFIG.secondaryColor
+    playerName.Font = Enum.Font.GothamBold
+    playerName.TextSize = 36
+    playerName.TextTransparency = 1
+    playerName.Parent = slide4
     
-    -- Se está muito perto e em modo crítico, simplifica toque
-    if dist < 5 and currentOptMode == "critical" then
-        -- Toque básico só
-        pcall(function()
-            firetouchinterest(ball, part, 0)
-            firetouchinterest(ball, part, 1)
-        end)
-        return
-    end
+    local pressKey = Instance.new("TextLabel")
+    pressKey.Size = UDim2.new(1, 0, 0, 30)
+    pressKey.Position = UDim2.new(0, 0, 0.75, 0)
+    pressKey.BackgroundTransparency = 1
+    pressKey.Text = "Pressione [ESPACO] para continuar"
+    pressKey.TextColor3 = Color3.fromRGB(100, 100, 100)
+    pressKey.Font = Enum.Font.Gotham
+    pressKey.TextSize = 16
+    pressKey.TextTransparency = 1
+    pressKey.Parent = slide4
     
-    -- Toque normal (código original)
-    pcall(function()
-        firetouchinterest(ball, part, 0)
-        firetouchinterest(ball, part, 1)
+    -- Animação de pulso no "pressione espaço"
+    task.spawn(function()
+        while pressKey and pressKey.Parent do
+            TweenService:Create(pressKey, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                TextTransparency = 0.3
+            }):Play()
+            task.wait(1)
+            TweenService:Create(pressKey, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                TextTransparency = 0.7
+            }):Play()
+            task.wait(1)
+        end
     end)
     
-    if ballHitboxes[ball] and ballHitboxes[ball].hitbox then
-        pcall(function()
-            firetouchinterest(ballHitboxes[ball].hitbox, part, 0)
-            firetouchinterest(ballHitboxes[ball].hitbox, part, 1)
-        end)
-    end
-    
-    -- Em modos otimizados, reduz pontos de toque
-    local pointCount = currentOptMode == "low" and 2 or 
-                       currentOptMode == "critical" and 1 or 5
-    
-    local offsets = {
-        Vector3.new(0, 0, 0),
-        Vector3.new(0, 1, 0),
-        Vector3.new(0, -1, 0),
-        Vector3.new(1, 0, 0),
-        Vector3.new(-1, 0, 0),
-    }
-    
-    for i = 1, math.min(pointCount, #offsets) do
-        local touchPoint = ball.CFrame:PointToWorldSpace(offsets[i])
-        local tempPart = Instance.new("Part")
-        tempPart.Size = Vector3.new(0.5, 0.5, 0.5)
-        tempPart.CFrame = CFrame.new(touchPoint)
-        tempPart.Anchored = true
-        tempPart.CanCollide = false
-        tempPart.Transparency = 1
-        tempPart.Parent = Workspace
-        
-        pcall(function()
-            firetouchinterest(tempPart, part, 0)
-            firetouchinterest(tempPart, part, 1)
-        end)
-        
-        Debris:AddItem(tempPart, 0.05)
-    end
-end
-
--- SUBSTITUI A FUNÇÃO ORIGINAL
-ultraTouch = optimizedUltraTouch
-
--- CONTROLE MANUAL NA UI (adicione na aba Settings)
-createToggle(settingsTab, "🚀 AUTO OTIMIZADOR", OPTIMIZER.enabled, function(val)
-    OPTIMIZER.enabled = val
-    if not val then
-        setOptimizationMode("normal")
-    end
-end, 200)
-
-createSlider(settingsTab, "📊 DISTÂNCIA LAG", OPTIMIZER.ballDistanceThreshold, 5, 30, CONFIG.colors.warning, function(val)
-    OPTIMIZER.ballDistanceThreshold = val
-end, 280)
-
--- HOTKEY MANUAL: P para forçar modo
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if input.KeyCode == Enum.KeyCode.P then
-        -- Força modo manual
-        if currentOptMode == "normal" then
-            setOptimizationMode("critical")
-            notify("🔴 MODO CRÍTICO FORÇADO (P)", 2)
-        else
-            setOptimizationMode("normal")
-            notify("🟢 MODO NORMAL RESTAURADO (P)", 2)
-        end
-    end
-end)
-
-print("🚀 Otimizador de performance carregado!")
-print("   Auto-detect: ON | Hotkey: P")
-    
--- FIX PARA SERVERS PRIVADOS (Reach Pequena)
-local PRIVATE_SERVER_FIX = {
-    enabled = true,
-    normalRate = 0, -- Sem delay em público
-    privateRate = 0.03, -- 30ms em privado (mais lento = mais estável)
-    burstMode = true, -- Vários toques de uma vez
-    burstCount = 3, -- Quantidade de toques por burst
-    extraRange = 5, -- Alcance extra compensatório
-    isPrivate = false -- Detectado automaticamente
-}
-
--- DETECTAR SE É SERVER PRIVADO
-local function detectPrivateServer()
-    -- Método 1: Verifica se tem PrivateServerId
-    if game.PrivateServerId and game.PrivateServerId ~= "" then
-        return true
-    end
-    
-    -- Método 2: Verifica se é ReservedServer
-    if game:IsReservedServer() then
-        return true
-    end
-    
-    -- Método 3: Verifica ping alto (indica server privado em outra região)
-    local stats = game:GetService("Stats")
-    if stats and stats.Network then
-        local ping = stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-        if ping > 150 then -- Ping alto = provavelmente privado
-            return true
+    -- FUNÇÃO DE ANIMAÇÃO DE SLIDE
+    local function animateSlide(slide, elements)
+        for _, element in ipairs(elements) do
+            TweenService:Create(element, TweenInfo.new(0.8, Enum.EasingStyle.Quart), {
+                TextTransparency = 0
+            }):Play()
+            if element.BackgroundTransparency < 1 then
+                TweenService:Create(element, TweenInfo.new(0.8, Enum.EasingStyle.Quart), {
+                    BackgroundTransparency = 0
+                }):Play()
+            end
+            task.wait(0.1)
         end
     end
     
-    -- Método 4: Verifica se o lugar tem poucos jogadores por muito tempo
-    if #Players:GetPlayers() <= 2 and game.PlaceId ~= 0 then
-        return true
-    end
-    
-    return false
-end
-
--- INICIALIZAR DETECÇÃO
-task.spawn(function()
-    task.wait(3) -- Espera carregar
-    PRIVATE_SERVER_FIX.isPrivate = detectPrivateServer()
-    
-    if PRIVATE_SERVER_FIX.isPrivate then
-        notify("🔒 Server Privado detectado! Aplicando fix...", 3)
+    -- SEQUÊNCIA DE SLIDES
+    task.delay(0.5, function()
+        -- Slide 1: Criador
+        animateSlide(slide1, {creatorTitle, creatorName, avatarCircle})
         
-        -- Aumenta alcance compensatório
-        CONFIG.reach = CONFIG.reach + PRIVATE_SERVER_FIX.extraRange
-        CONFIG.ballReach = CONFIG.ballReach + PRIVATE_SERVER_FIX.extraRange
+        task.wait(3)
         
-        -- Ativa burst mode
-        PRIVATE_SERVER_FIX.burstMode = true
+        -- Transição para slide 2
+        TweenService:Create(slide1, TweenInfo.new(0.5), {Position = UDim2.new(-1, 0, 0, 0)}):Play()
+        slide2.Visible = true
+        slide2.Position = UDim2.new(1, 0, 0, 0)
+        TweenService:Create(slide2, TweenInfo.new(0.5), {Position = UDim2.new(0, 0, 0, 0)}):Play()
         
-        notify("✅ Fix aplicado! Reach: " .. CONFIG.reach, 2)
-    else
-        notify("🌐 Server Público - Modo normal", 2)
-    end
-end)
-
--- FUNÇÃO DE TOQUE OTIMIZADA PARA PRIVADO
-local function optimizedTouch(ball, part)
-    if not ball or not part then return end
-    
-    local burst = PRIVATE_SERVER_FIX.isPrivate and PRIVATE_SERVER_FIX.burstMode
-    local count = burst and PRIVATE_SERVER_FIX.burstCount or 1
-    local delay = burst and PRIVATE_SERVER_FIX.privateRate or 0
-    
-    for i = 1, count do
-        if i > 1 then task.wait(delay) end
-        
-        -- Método 1: Toque normal
-        pcall(function()
-            firetouchinterest(ball, part, 0)
-            firetouchinterest(ball, part, 1)
-        end)
-        
-        -- Método 2: Hitbox expandida
-        if ballHitboxes[ball] and ballHitboxes[ball].hitbox then
-            pcall(function()
-                firetouchinterest(ballHitboxes[ball].hitbox, part, 0)
-                firetouchinterest(ballHitboxes[ball].hitbox, part, 1)
-            end)
-        end
-        
-        -- Método 3: Toque em múltiplos pontos (sempre)
-        local offsets = {
-            Vector3.new(0, 0, 0),
-            Vector3.new(0, 1.5, 0),
-            Vector3.new(0, -1.5, 0),
-            Vector3.new(1.5, 0, 0),
-            Vector3.new(-1.5, 0, 0),
-        }
-        
-        for _, offset in ipairs(offsets) do
-            local touchPoint = ball.CFrame:PointToWorldSpace(offset)
-            local tempPart = Instance.new("Part")
-            tempPart.Size = Vector3.new(1, 1, 1)
-            tempPart.CFrame = CFrame.new(touchPoint)
-            tempPart.Anchored = true
-            tempPart.CanCollide = false
-            tempPart.Transparency = 1
-            tempPart.Parent = Workspace
-            
-            pcall(function()
-                firetouchinterest(tempPart, part, 0)
-                firetouchinterest(tempPart, part, 1)
-            end)
-            
-            Debris:AddItem(tempPart, 0.1)
-        end
-    end
-end
-
--- DO REACH OTIMIZADO (substitua a função original por esta)
-local function doReach()
-    if not CONFIG.autoTouch or not player.Character or not HRP then return end
-    
-    local char = player.Character
-    local parts = CONFIG.fullBodyTouch and getCharacterParts(char) or {HRP}
-    
-    if #parts == 0 then return end
-
-    local ballsList = getBalls()
-    local effectiveReach = CONFIG.reach + CONFIG.ballReach
-    
-    -- Em privado, verifica mais bolas por frame
-    local checkAll = PRIVATE_SERVER_FIX.isPrivate
-    
-    for _, ball in ipairs(ballsList) do
-        if not ball or not ball.Parent then continue end
-        
-        for _, part in ipairs(parts) do
-            local dist = (ball.Position - part.Position).Magnitude
-            
-            -- Em privado, usa distância maior
-            local checkDist = PRIVATE_SERVER_FIX.isPrivate and effectiveReach + 3 or effectiveReach
-            
-            if dist < checkDist then
-                optimizedTouch(ball, part)
-                
-                if CONFIG.flashEnabled and CONFIG.showVisuals then
-                    local flash = Instance.new("Part")
-                    flash.Size = Vector3.new(0.5, 0.5, 0.5)
-                    flash.Position = ball.Position
-                    flash.Anchored = true
-                    flash.CanCollide = false
-                    flash.Material = Enum.Material.Neon
-                    flash.Color = PRIVATE_SERVER_FIX.isPrivate and Color3.fromRGB(255, 100, 0) or CONFIG.colors.flash
-                    flash.Parent = Workspace
-                    
-                    TweenService:Create(flash, TweenInfo.new(0.1), {
-                        Size = Vector3.new(3, 3, 3),
-                        Transparency = 1
-                    }):Play()
-                    
-                    Debris:AddItem(flash, 0.1)
-                end
-                
-                -- Em privado, não processa todas as bolas (evita lag)
-                if not checkAll then break end
+        animateSlide(slide2, {updateTitle})
+        for _, child in ipairs(slide2:GetChildren()) do
+            if child:IsA("TextLabel") and child ~= updateTitle then
+                animateSlide(slide2, {child})
             end
         end
-    end
-end
-
--- LOOP ADICIONAL PARA PRIVADO (mais frequente, menos intenso)
-task.spawn(function()
-    while true do
-        local waitTime = PRIVATE_SERVER_FIX.isPrivate and 0.05 or 0.1
-        task.wait(waitTime)
         
-        if PRIVATE_SERVER_FIX.isPrivate and introCompleted and CONFIG.autoTouch then
-            -- Loop extra só para privado (backup)
-            doReach()
+        task.wait(4)
+        
+        -- Transição para slide 3
+        TweenService:Create(slide2, TweenInfo.new(0.5), {Position = UDim2.new(-1, 0, 0, 0)}):Play()
+        slide3.Visible = true
+        slide3.Position = UDim2.new(1, 0, 0, 0)
+        TweenService:Create(slide3, TweenInfo.new(0.5), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+        
+        animateSlide(slide3, {creditsTitle})
+        for _, child in ipairs(slide3:GetChildren()) do
+            if child:IsA("TextLabel") and child ~= creditsTitle then
+                task.wait(0.15)
+                animateSlide(slide3, {child})
+            end
         end
-    end
-end)
+        
+        task.wait(3.5)
+        
+        -- Transição para slide 4
+        TweenService:Create(slide3, TweenInfo.new(0.5), {Position = UDim2.new(-1, 0, 0, 0)}):Play()
+        slide4.Visible = true
+        slide4.Position = UDim2.new(1, 0, 0, 0)
+        TweenService:Create(slide4, TweenInfo.new(0.5), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+        
+        animateSlide(slide4, {welcomeText, playerName, pressKey})
+    end)
     
-    
-    -- Executa animações
-    for _, anim in ipairs(introSequence) do
-        task.delay(anim[1], function()
-            TweenService:Create(anim[2], TweenInfo.new(anim[5], Enum.EasingStyle.Quart), {
-                [anim[3]] = anim[4]
-            }):Play()
-        end)
-    end
-    
-    -- Remove intro e mostra main GUI
-    task.delay(4.2, function()
-        introCompleted = true
-        if introGui then
-            TweenService:Create(introGui, TweenInfo.new(0.5), {Enabled = false}):Play()
+
+
+-- ESPERA ESPAÇO PARA CONTINUAR
+    local spacePressed = false
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.Space and not spacePressed and slide4.Visible then
+            spacePressed = true
+            
+            -- Fade out
+            TweenService:Create(bg, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+            for _, child in ipairs(slide4:GetChildren()) do
+                if child:IsA("TextLabel") then
+                    TweenService:Create(child, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+                end
+            end
+            
             task.wait(0.5)
             introGui:Destroy()
-        end
-        -- Mostra a UI principal
-        if mainWindow then
-            mainWindow.Visible = true
-            -- Animação de entrada da main window
-            mainWindow.Size = UDim2.new(0, 400, 0, 300)
-            mainWindow.Position = UDim2.new(0.5, -200, 0.5, -150)
-            TweenService:Create(mainWindow, TweenInfo.new(0.6, Enum.EasingStyle.Back), {
-                Size = UDim2.new(0, 500, 0, 400),
-                Position = UDim2.new(0.5, -250, 0.5, -200)
-            }):Play()
-        end
-        notify("Bem-vindo, " .. player.Name .. "! CADUXX137 HUB carregado.", 4)
-    end)
-end
-
--- UPDATE HRP
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            HRP = player.Character.HumanoidRootPart
-        end
-    end
-end)
-
--- ANTI-AFK
-if CONFIG.antiAFK then
-    local VirtualUser = game:GetService("VirtualUser")
-    player.Idled:Connect(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
-    end)
-end
-
--- GET BALLS (pedrinjr style otimizado)
-local lastBallUpdate = 0
-local function getBalls()
-    local now = tick()
-    if now - lastBallUpdate < 0.05 then return balls end
-    lastBallUpdate = now
-    
-    table.clear(balls)
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and BALL_NAME_SET[obj.Name] then
-            table.insert(balls, obj)
-        end
-    end
-    return balls
-end
-
--- GET CHARACTER PARTS (pedrinjr style - full body)
-local function getCharacterParts(char)
-    local parts = {}
-    for _, v in ipairs(char:GetChildren()) do
-        if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
-            table.insert(parts, v)
-        end
-    end
-    return parts
-end
-
--- HITBOX EXPANDIDA (CADU style)
-local function createBallHitbox(ball)
-    if ballHitboxes[ball] or not CONFIG.expandBallHitbox then return end
-    
-    local hitbox = Instance.new("Part")
-    hitbox.Name = "CADUHitbox_" .. ball.Name
-    hitbox.Shape = Enum.PartType.Ball
-    hitbox.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
-    hitbox.Transparency = 1
-    hitbox.Anchored = true
-    hitbox.CanCollide = false
-    hitbox.Material = Enum.Material.SmoothPlastic
-    hitbox.Parent = Workspace
-    
-    local conn = RunService.Heartbeat:Connect(function()
-        if ball and ball.Parent and hitbox and hitbox.Parent then
-            hitbox.CFrame = ball.CFrame
-        else
-            if hitbox then hitbox:Destroy() end
+            isLoaded = true
+            buildMainUI()
         end
     end)
-    
-    ballHitboxes[ball] = {hitbox = hitbox, conn = conn}
 end
 
-local function removeBallHitbox(ball)
-    if ballHitboxes[ball] then
-        if ballHitboxes[ball].conn then ballHitboxes[ball].conn:Disconnect() end
-        if ballHitboxes[ball].hitbox then ballHitboxes[ball].hitbox:Destroy() end
-        ballHitboxes[ball] = nil
-    end
-end
-
-local function updateBallHitboxes()
-    for ball, _ in pairs(ballHitboxes) do
-        if not ball or not ball.Parent then removeBallHitbox(ball) end
-    end
-    
-    if not CONFIG.expandBallHitbox then return end
-    
-    for _, ball in ipairs(balls) do
-        if ball and ball.Parent then
-            if ballHitboxes[ball] then
-                local targetSize = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
-                if ballHitboxes[ball].hitbox.Size ~= targetSize then
-                    ballHitboxes[ball].hitbox.Size = targetSize
-                end
-            else
-                createBallHitbox(ball)
-            end
-        end
-    end
-end
-
--- AURA VISUAL (CADU style)
-local function createBallAura(ball)
-    if ballAuras[ball] or not CONFIG.showVisuals then return end
-    
-    local aura = Instance.new("Part")
-    aura.Name = "CADUAura_" .. ball.Name
-    aura.Shape = Enum.PartType.Ball
-    aura.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
-    aura.Transparency = 0.85
-    aura.Anchored = true
-    aura.CanCollide = false
-    aura.Material = Enum.Material.ForceField
-    aura.Color = ball.Name == "TPS" and CONFIG.auraColor or CONFIG.colors.accent2
-    aura.Parent = Workspace
-    
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "CADUHighlight_" .. ball.Name
-    highlight.Adornee = ball
-    highlight.FillColor = ball.Name == "TPS" and CONFIG.auraColor or CONFIG.colors.accent2
-    highlight.OutlineColor = Color3.new(1, 1, 1)
-    highlight.FillTransparency = 0.7
-    highlight.OutlineTransparency = 0
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Parent = ball
-    
-    local conn = RunService.RenderStepped:Connect(function()
-        if ball and ball.Parent and aura and aura.Parent then
-            aura.CFrame = ball.CFrame
-            local targetSize = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
-            if aura.Size ~= targetSize then
-                aura.Size = targetSize
-            end
-        else
-            if aura then aura:Destroy() end
-        end
-    end)
-    
-    ballAuras[ball] = {aura = aura, highlight = highlight, conn = conn}
-end
-
-local function removeBallAura(ball)
-    if ballAuras[ball] then
-        if ballAuras[ball].conn then ballAuras[ball].conn:Disconnect() end
-        if ballAuras[ball].aura then ballAuras[ball].aura:Destroy() end
-        if ballAuras[ball].highlight then ballAuras[ball].highlight:Destroy() end
-        ballAuras[ball] = nil
-    end
-end
-
-local function updateBallAuras()
-    for ball, _ in pairs(ballAuras) do
-        if not ball or not ball.Parent then removeBallAura(ball) end
-    end
-    
-    if not CONFIG.showVisuals then return end
-    
-    for _, ball in ipairs(balls) do
-        if ball and ball.Parent then
-            if ballAuras[ball] then
-                local targetSize = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
-                if ballAuras[ball].aura and ballAuras[ball].aura.Size ~= targetSize then
-                    ballAuras[ball].aura.Size = targetSize
-                end
-            else
-                createBallAura(ball)
-            end
-        end
-    end
-end
-
--- CLEAR ALL
-local function clearAllAuras()
-    for ball, data in pairs(ballAuras) do
-        if data.conn then data.conn:Disconnect() end
-        if data.aura then data.aura:Destroy() end
-        if data.highlight then data.highlight:Destroy() end
-    end
-    ballAuras = {}
-    
-    for ball, data in pairs(ballHitboxes) do
-        if data.conn then data.conn:Disconnect() end
-        if data.hitbox then data.hitbox:Destroy() end
-    end
-    ballHitboxes = {}
-    
-    if playerSphere then
-        playerSphere:Destroy()
-        playerSphere = nil
-    end
-    if quantumCircle then
-        quantumCircle:Destroy()
-        quantumCircle = nil
-    end
-end
-
--- REACH SPHERE (pedrinjr style azul)
-local function updateReachSphere()
-    if not CONFIG.showReachSphere then
-        if playerSphere then playerSphere:Destroy() playerSphere = nil end
-        return
-    end
-    if not HRP then return end
-    
-    if not playerSphere then
-        playerSphere = Instance.new("Part")
-        playerSphere.Name = "CADUReachSphere"
-        playerSphere.Shape = Enum.PartType.Ball
-        playerSphere.Anchored = true
-        playerSphere.CanCollide = false
-        playerSphere.Transparency = 0.75
-        playerSphere.Material = Enum.Material.ForceField
-        playerSphere.Color = CONFIG.sphereColor -- Azul pedrinjr
-        playerSphere.Parent = Workspace
-    end
-    
-    playerSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
-    playerSphere.Position = HRP.Position
-end
-
--- QUANTUM CIRCLE
-local function updateQuantumCircle()
-    if not quantumCircle then
-        quantumCircle = Instance.new("Part")
-        quantumCircle.Name = "CADUQuantum"
-        quantumCircle.Shape = Enum.PartType.Ball
-        quantumCircle.Anchored = true
-        quantumCircle.CanCollide = false
-        quantumCircle.Material = Enum.Material.ForceField
-        quantumCircle.Color = CONFIG.auraColor
-        quantumCircle.Parent = Workspace
-    end
-    quantumCircle.Size = Vector3.new(CONFIG.quantumReach * 2, CONFIG.quantumReach * 2, CONFIG.quantumReach * 2)
-    quantumCircle.Transparency = (CONFIG.quantumReachEnabled and CONFIG.showVisuals) and 0.75 or 1
-end
-
--- ULTRA TOUCH (pedrinjr + CADU fusion)
-local function ultraTouch(ball, part)
-    if not ball or not part then return end
-    
-    -- Método 1: Toque direto (pedrinjr style)
-    pcall(function()
-        firetouchinterest(ball, part, 0)
-        firetouchinterest(ball, part, 1)
-    end)
-    
-    -- Método 2: Hitbox expandida (CADU)
-    if ballHitboxes[ball] and ballHitboxes[ball].hitbox then
-        pcall(function()
-            firetouchinterest(ballHitboxes[ball].hitbox, part, 0)
-            firetouchinterest(ballHitboxes[ball].hitbox, part, 1)
-        end)
-    end
-    
-    -- Método 3: Múltiplos pontos (CADU enhanced)
-    local offsets = {
-        Vector3.new(0, 0, 0),
-        Vector3.new(0, 1, 0),
-        Vector3.new(0, -1, 0),
-        Vector3.new(1, 0, 0),
-        Vector3.new(-1, 0, 0),
-    }
-    
-    for _, offset in ipairs(offsets) do
-        local touchPoint = ball.CFrame:PointToWorldSpace(offset)
-        local tempPart = Instance.new("Part")
-        tempPart.Size = Vector3.new(0.5, 0.5, 0.5)
-        tempPart.CFrame = CFrame.new(touchPoint)
-        tempPart.Anchored = true
-        tempPart.CanCollide = false
-        tempPart.Transparency = 1
-        tempPart.Parent = Workspace
-        
-        pcall(function()
-            firetouchinterest(tempPart, part, 0)
-            firetouchinterest(tempPart, part, 1)
-        end)
-        
-        Debris:AddItem(tempPart, 0.05)
-    end
-end
-
--- DO REACH PRINCIPAL (pedrinjr style full body + CADU hitbox)
-local function doReach()
-    if not CONFIG.autoTouch or not player.Character or not HRP then return end
-    
-    local char = player.Character
-    local parts = CONFIG.fullBodyTouch and getCharacterParts(char) or {HRP}
-    
-    if #parts == 0 then return end
-
-    local ballsList = getBalls()
-    local effectiveReach = CONFIG.reach + CONFIG.ballReach
-    
-    for _, ball in ipairs(ballsList) do
-        if not ball or not ball.Parent then continue end
-        
-        for _, part in ipairs(parts) do
-            local dist = (ball.Position - part.Position).Magnitude
-            
-            if dist < effectiveReach then
-                ultraTouch(ball, part)
-                
-                -- Flash effect
-                if CONFIG.flashEnabled and CONFIG.showVisuals then
-                    local flash = Instance.new("Part")
-                    flash.Size = Vector3.new(0.5, 0.5, 0.5)
-                    flash.Position = ball.Position
-                    flash.Anchored = true
-                    flash.CanCollide = false
-                    flash.Material = Enum.Material.Neon
-                    flash.Color = CONFIG.colors.flash
-                    flash.Parent = Workspace
-                    
-                    TweenService:Create(flash, TweenInfo.new(0.1), {
-                        Size = Vector3.new(3, 3, 3),
-                        Transparency = 1
-                    }):Play()
-                    
-                    Debris:AddItem(flash, 0.1)
-                end
-            end
-        end
-    end
-end
-
--- DO QUANTUM REACH
-local function doQuantumReach()
-    if not CONFIG.quantumReachEnabled or not HRP then return end
-    
-    local char = player.Character
-    local parts = getCharacterParts(char)
-    if #parts == 0 then return end
-
-    local ballsList = getBalls()
-    for _, ball in ipairs(ballsList) do
-        if ball and ball.Parent then
-            for _, part in ipairs(parts) do
-                if (ball.Position - part.Position).Magnitude < CONFIG.quantumReach then
-                    ultraTouch(ball, part)
-                end
-            end
-        end
-    end
-end
-
--- BALL MAGNET
-local function doBallMagnet()
-    if not CONFIG.ballMagnet or not HRP or CONFIG.magnetStrength == 0 then return end
-    
-    for _, ball in ipairs(balls) do
-        if ball and ball.Parent then
-            local dist = (ball.Position - HRP.Position).Magnitude
-            if dist <= CONFIG.reach and dist > 3 then
-                local dir = (HRP.Position - ball.Position).Unit
-                ball.Velocity = ball.Velocity + dir * CONFIG.magnetStrength
-            end
-        end
-    end
-end
-
--- UI FUNCTIONS (CADU style)
-local function createCorner(parent, radius)
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, radius or 8)
-    c.Parent = parent
-    return c
-end
-
-local function createStroke(parent, color, thickness)
-    local s = Instance.new("UIStroke")
-    s.Color = color or CONFIG.colors.accent
-    s.Thickness = thickness or 1
-    s.Parent = parent
-    return s
-end
-
-local function createShadow(parent)
-    local s = Instance.new("ImageLabel")
-    s.Name = "Shadow"
-    s.Size = UDim2.new(1, 40, 1, 40)
-    s.Position = UDim2.new(0, -20, 0, -20)
-    s.BackgroundTransparency = 1
-    s.Image = "rbxassetid://5554236805"
-    s.ImageColor3 = Color3.new(0, 0, 0)
-    s.ImageTransparency = 0.4
-    s.ScaleType = Enum.ScaleType.Slice
-    s.SliceCenter = Rect.new(23, 23, 277, 277)
-    s.Parent = parent
-    return s
-end
-
--- TOGGLE MODERNO
-local function createToggle(parent, text, defaultValue, callback, yPos)
-    local toggleFrame = Instance.new("Frame")
-    toggleFrame.Size = UDim2.new(1, 0, 0, 70)
-    toggleFrame.Position = UDim2.new(0, 0, 0, yPos or 0)
-    toggleFrame.BackgroundColor3 = CONFIG.colors.cardBg
-    toggleFrame.Parent = parent
-    createCorner(toggleFrame, 12)
-    
-    local indicator = Instance.new("Frame")
-    indicator.Size = UDim2.new(0, 4, 0, 40)
-    indicator.Position = UDim2.new(0, 0, 0.5, -20)
-    indicator.BackgroundColor3 = defaultValue and CONFIG.colors.success or CONFIG.colors.textDark
-    indicator.BorderSizePixel = 0
-    indicator.Parent = toggleFrame
-    createCorner(indicator, 2)
-    
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -100, 1, 0)
-    label.Position = UDim2.new(0, 20, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = CONFIG.colors.text
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 15
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = toggleFrame
-    
-    local toggleBtn = Instance.new("Frame")
-    toggleBtn.Size = UDim2.new(0, 50, 0, 28)
-    toggleBtn.Position = UDim2.new(1, -65, 0.5, -14)
-    toggleBtn.BackgroundColor3 = defaultValue and CONFIG.colors.success or CONFIG.colors.toggleOff
-    toggleBtn.Parent = toggleFrame
-    createCorner(toggleBtn, 14)
-    
-    local circle = Instance.new("Frame")
-    circle.Size = UDim2.new(0, 22, 0, 22)
-    circle.Position = UDim2.new(0, defaultValue and 26 or 2, 0.5, -11)
-    circle.BackgroundColor3 = Color3.new(1, 1, 1)
-    circle.Parent = toggleBtn
-    createCorner(circle, 11)
-    
-    local isOn = defaultValue
-    
-    local clickArea = Instance.new("TextButton")
-    clickArea.Size = UDim2.new(1, 0, 1, 0)
-    clickArea.BackgroundTransparency = 1
-    clickArea.Text = ""
-    clickArea.Parent = toggleFrame
-    
-    clickArea.MouseButton1Click:Connect(function()
-        isOn = not isOn
-        
-        TweenService:Create(toggleBtn, TweenInfo.new(0.2), {
-            BackgroundColor3 = isOn and CONFIG.colors.success or CONFIG.colors.toggleOff
-        }):Play()
-        
-        TweenService:Create(circle, TweenInfo.new(0.2), {
-            Position = UDim2.new(0, isOn and 26 or 2, 0.5, -11)
-        }):Play()
-        
-        TweenService:Create(indicator, TweenInfo.new(0.2), {
-            BackgroundColor3 = isOn and CONFIG.colors.success or CONFIG.colors.textDark
-        }):Play()
-        
-        callback(isOn)
-    end)
-    
-    return toggleFrame
-end
-
--- SLIDER MODERNO
-local function createSlider(parent, text, value, min, max, color, callback, yPos)
-    local section = Instance.new("Frame")
-    section.Size = UDim2.new(1, 0, 0, 140)
-    section.Position = UDim2.new(0, 0, 0, yPos or 0)
-    section.BackgroundColor3 = CONFIG.colors.cardBg
-    section.Parent = parent
-    createCorner(section, 12)
-    
-    local indicator = Instance.new("Frame")
-    indicator.Size = UDim2.new(0, 4, 0, 60)
-    indicator.Position = UDim2.new(0, 0, 0, 20)
-    indicator.BackgroundColor3 = color
-    indicator.BorderSizePixel = 0
-    indicator.Parent = section
-    createCorner(indicator, 2)
-    
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -30, 0, 25)
-    label.Position = UDim2.new(0, 20, 0, 15)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = color
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 14
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = section
-    
-    local valueContainer = Instance.new("Frame")
-    valueContainer.Size = UDim2.new(0, 80, 0, 40)
-    valueContainer.Position = UDim2.new(1, -95, 0, 10)
-    valueContainer.BackgroundColor3 = CONFIG.colors.tabBg
-    valueContainer.Parent = section
-    createCorner(valueContainer, 8)
-    
-    local valueLabel = Instance.new("TextLabel")
-    valueLabel.Size = UDim2.new(1, 0, 1, 0)
-    valueLabel.BackgroundTransparency = 1
-    valueLabel.Text = tostring(value)
-    valueLabel.TextColor3 = CONFIG.colors.text
-    valueLabel.Font = Enum.Font.GothamBlack
-    valueLabel.TextSize = 24
-    valueLabel.Parent = valueContainer
-    
-    local studsLabel = Instance.new("TextLabel")
-    studsLabel.Size = UDim2.new(0, 50, 0, 20)
-    studsLabel.Position = UDim2.new(0, 105, 0, 28)
-    studsLabel.BackgroundTransparency = 1
-    studsLabel.Text = "studs"
-    studsLabel.TextColor3 = CONFIG.colors.textDim
-    studsLabel.Font = Enum.Font.Gotham
-    studsLabel.TextSize = 12
-    studsLabel.Parent = section
-    
-    local sliderTrack = Instance.new("Frame")
-    sliderTrack.Size = UDim2.new(1, -40, 0, 8)
-    sliderTrack.Position = UDim2.new(0, 20, 0, 95)
-    sliderTrack.BackgroundColor3 = CONFIG.colors.tabBg
-    sliderTrack.BorderSizePixel = 0
-    sliderTrack.Parent = section
-    createCorner(sliderTrack, 4)
-    
-    local sliderFill = Instance.new("Frame")
-    sliderFill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
-    sliderFill.BackgroundColor3 = color
-    sliderFill.BorderSizePixel = 0
-    sliderFill.Parent = sliderTrack
-    createCorner(sliderFill, 4)
-    
-    local function updateValue(newVal)
-        newVal = math.clamp(math.floor(newVal + 0.5), min, max)
-        valueLabel.Text = tostring(newVal)
-        TweenService:Create(sliderFill, TweenInfo.new(0.15), {
-            Size = UDim2.new((newVal - min) / (max - min), 0, 1, 0)
-        }):Play()
-        callback(newVal)
-        return newVal
-    end
-    
-    local dragging = false
-    
-    sliderTrack.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            local pos = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
-            updateValue(min + (pos * (max - min)))
-        end
-    end)
-    
-    sliderTrack.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local pos = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
-            updateValue(min + (pos * (max - min)))
-        end
-    end)
-    
-    local btnContainer = Instance.new("Frame")
-    btnContainer.Size = UDim2.new(0, 90, 0, 35)
-    btnContainer.Position = UDim2.new(1, -105, 0, 55)
-    btnContainer.BackgroundTransparency = 1
-    btnContainer.Parent = section
-    
-    local minusBtn = Instance.new("TextButton")
-    minusBtn.Size = UDim2.new(0, 40, 1, 0)
-    minusBtn.Position = UDim2.new(0, 0, 0, 0)
-    minusBtn.BackgroundColor3 = CONFIG.colors.tabBg
-    minusBtn.Text = "−"
-    minusBtn.TextColor3 = CONFIG.colors.text
-    minusBtn.Font = Enum.Font.GothamBold
-    minusBtn.TextSize = 18
-    minusBtn.Parent = btnContainer
-    createCorner(minusBtn, 8)
-    
-    local plusBtn = Instance.new("TextButton")
-    plusBtn.Size = UDim2.new(0, 40, 1, 0)
-    plusBtn.Position = UDim2.new(1, -40, 0, 0)
-    plusBtn.BackgroundColor3 = color
-    plusBtn.Text = "+"
-    plusBtn.TextColor3 = Color3.new(0, 0, 0)
-    plusBtn.Font = Enum.Font.GothamBold
-    plusBtn.TextSize = 18
-    plusBtn.Parent = btnContainer
-    createCorner(plusBtn, 8)
-    
-    local currentValue = value
-    
-    minusBtn.MouseButton1Click:Connect(function()
-        currentValue = updateValue(currentValue - 1)
-    end)
-    
-    plusBtn.MouseButton1Click:Connect(function()
-        currentValue = updateValue(currentValue + 1)
-    end)
-    
-    return section
-end
-
--- BUILD MAIN GUI (CADU style)
-function buildMainGUI()
+-- ============================================
+-- UI PRINCIPAL ESTILO SITE MODERNO
+-- ============================================
+function buildMainUI()
     if mainGui then return end
     
     mainGui = Instance.new("ScreenGui")
-    mainGui.Name = "CADUXX137Hub"
+    mainGui.Name = "CADUXX137Site"
     mainGui.ResetOnSpawn = false
-    mainGui.Enabled = false -- Desabilitado até a intro terminar
     mainGui.Parent = player:WaitForChild("PlayerGui")
     
-    -- Main Window
-    mainWindow = Instance.new("Frame")
-    mainWindow.Size = UDim2.new(0, 500, 0, 400)
-    mainWindow.Position = UDim2.new(0.5, -250, 0.5, -200)
-    mainWindow.BackgroundColor3 = CONFIG.colors.bg
-    mainWindow.BorderSizePixel = 0
-    mainWindow.ClipsDescendants = true
-    mainWindow.Visible = false -- Escondido até a intro terminar
-    mainWindow.Parent = mainGui
+    -- Container principal (estilo site)
+    local mainContainer = Instance.new("Frame")
+    mainContainer.Size = UDim2.new(0, 900, 0, 600)
+    mainContainer.Position = UDim2.new(0.5, -450, 0.5, -300)
+    mainContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    mainContainer.BorderSizePixel = 0
+    mainContainer.ClipsDescendants = true
+    mainContainer.Parent = mainGui
     
-    createCorner(mainWindow, 16)
-    createShadow(mainWindow)
+    -- Borda neon
+    local neonBorder = Instance.new("UIStroke")
+    neonBorder.Color = CONFIG.accentColor
+    neonBorder.Thickness = 2
+    neonBorder.Parent = mainContainer
     
-    -- Draggable
-    local dragging = false
-    local dragInput, dragStart, startPos
+    -- Cantos arredondados
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 16)
+    corner.Parent = mainContainer
     
-    local function updateDrag(input)
-        local delta = input.Position - dragStart
-        mainWindow.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    -- Animação de entrada
+    mainContainer.Size = UDim2.new(0, 800, 0, 500)
+    mainContainer.Position = UDim2.new(0.5, -400, 0.5, -250)
+    TweenService:Create(mainContainer, TweenInfo.new(0.6, Enum.EasingStyle.Back), {
+        Size = UDim2.new(0, 900, 0, 600),
+        Position = UDim2.new(0.5, -450, 0.5, -300)
+    }):Play()
+    
+    -- HEADER (Navbar estilo site)
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 70)
+    header.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+    header.BorderSizePixel = 0
+    header.Parent = mainContainer
+    
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0, 16)
+    headerCorner.Parent = header
+    
+    -- Logo no header
+    local headerLogo = Instance.new("TextLabel")
+    headerLogo.Size = UDim2.new(0, 200, 1, 0)
+    headerLogo.Position = UDim2.new(0, 20, 0, 0)
+    headerLogo.BackgroundTransparency = 1
+    headerLogo.Text = "CADUXX137"
+    headerLogo.TextColor3 = CONFIG.accentColor
+    headerLogo.Font = Enum.Font.GothamBlack
+    headerLogo.TextSize = 28
+    headerLogo.TextXAlignment = Enum.TextXAlignment.Left
+    headerLogo.Parent = header
+    
+    local headerSub = Instance.new("TextLabel")
+    headerSub.Size = UDim2.new(0, 200, 0, 20)
+    headerSub.Position = UDim2.new(0, 20, 0.6, 0)
+    headerSub.BackgroundTransparency = 1
+    headerSub.Text = "HUB SUPREME v3.0"
+    headerSub.TextColor3 = CONFIG.secondaryColor
+    headerSub.Font = Enum.Font.GothamBold
+    headerSub.TextSize = 12
+    headerSub.TextXAlignment = Enum.TextXAlignment.Left
+    headerSub.Parent = header
+    
+    -- Status online
+    local statusDot = Instance.new("Frame")
+    statusDot.Size = UDim2.new(0, 8, 0, 8)
+    statusDot.Position = UDim2.new(0, 195, 0.35, 0)
+    statusDot.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+    statusDot.Parent = header
+    
+    local statusCorner = Instance.new("UICorner")
+    statusCorner.CornerRadius = UDim.new(1, 0)
+    statusCorner.Parent = statusDot
+    
+    -- Animação pulso
+    task.spawn(function()
+        while statusDot and statusDot.Parent do
+            TweenService:Create(statusDot, TweenInfo.new(1), {Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0, 193, 0.35, -2)}):Play()
+            task.wait(1)
+            TweenService:Create(statusDot, TweenInfo.new(1), {Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0, 195, 0.35, 0)}):Play()
+            task.wait(1)
+        end
+    end)
+    
+    -- NAVBAR LINKS
+    local navLinks = {"Home", "Reach", "Visual", "Settings"}
+    local navButtons = {}
+    
+    for i, link in ipairs(navLinks) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 100, 0, 40)
+        btn.Position = UDim2.new(0, 500 + ((i-1) * 110), 0.5, -20)
+        btn.BackgroundTransparency = 1
+        btn.Text = link
+        btn.TextColor3 = currentTab == link:lower() and CONFIG.accentColor or Color3.fromRGB(150, 150, 150)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 16
+        btn.Parent = header
+        
+        -- Underline animado
+        local underline = Instance.new("Frame")
+        underline.Size = UDim2.new(0, 0, 0, 2)
+        underline.Position = UDim2.new(0.5, 0, 1, -5)
+        underline.BackgroundColor3 = CONFIG.accentColor
+        underline.BorderSizePixel = 0
+        underline.Parent = btn
+        
+        btn.MouseEnter:Connect(function()
+            TweenService:Create(underline, TweenInfo.new(0.3), {Size = UDim2.new(0.8, 0, 0, 2), Position = UDim2.new(0.1, 0, 1, -5)}):Play()
+            TweenService:Create(btn, TweenInfo.new(0.3), {TextColor3 = CONFIG.accentColor}):Play()
+        end)
+        
+        btn.MouseLeave:Connect(function()
+            if currentTab ~= link:lower() then
+                TweenService:Create(underline, TweenInfo.new(0.3), {Size = UDim2.new(0, 0, 0, 2), Position = UDim2.new(0.5, 0, 1, -5)}):Play()
+                TweenService:Create(btn, TweenInfo.new(0.3), {TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
+            end
+        end)
+        
+        btn.MouseButton1Click:Connect(function()
+            currentTab = link:lower()
+            -- Atualiza cores
+            for _, b in ipairs(navButtons) do
+                TweenService:Create(b, TweenInfo.new(0.3), {TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
+                TweenService:Create(b:FindFirstChildOfClass("Frame"), TweenInfo.new(0.3), {Size = UDim2.new(0, 0, 0, 2), Position = UDim2.new(0.5, 0, 1, -5)}):Play()
+            end
+            TweenService:Create(btn, TweenInfo.new(0.3), {TextColor3 = CONFIG.accentColor}):Play()
+            TweenService:Create(underline, TweenInfo.new(0.3), {Size = UDim2.new(0.8, 0, 0, 2), Position = UDim2.new(0.1, 0, 1, -5)}):Play()
+            
+            -- Troca página
+            switchPage(link:lower())
+        end)
+        
+        table.insert(navButtons, btn)
     end
     
-    local titleBar = Instance.new("Frame")
-    titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, 0, 0, 60)
-    titleBar.BackgroundColor3 = CONFIG.colors.tabBg
-    titleBar.BorderSizePixel = 0
-    titleBar.Parent = mainWindow
+    -- Close button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 40, 0, 40)
+    closeBtn.Position = UDim2.new(1, -50, 0.5, -20)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 20
+    closeBtn.Parent = header
     
-    titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = mainWindow.Position
+    closeBtn.MouseEnter:Connect(function()
+        TweenService:Create(closeBtn, TweenInfo.new(0.2), {TextColor3 = CONFIG.secondaryColor}):Play()
+    end)
+    
+    closeBtn.MouseLeave:Connect(function()
+        TweenService:Create(closeBtn, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(200, 200, 200)}):Play()
+    end)
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        TweenService:Create(mainContainer, TweenInfo.new(0.4), {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
+        task.wait(0.4)
+        mainGui.Enabled = false
+        notify("Pressione RightShift para abrir", "info", 3)
+    end)
+    
+    -- CONTENT AREA (Páginas)
+    local contentArea = Instance.new("Frame")
+    contentArea.Size = UDim2.new(1, -40, 1, -90)
+    contentArea.Position = UDim2.new(0, 20, 0, 80)
+    contentArea.BackgroundTransparency = 1
+    contentArea.Parent = mainContainer
+    
+    local pages = {}
+    
+    -- FUNÇÃO PARA CRIAR CARD MODERNO
+    local function createCard(parent, title, position, size)
+        local card = Instance.new("Frame")
+        card.Size = size or UDim2.new(0, 400, 0, 200)
+        card.Position = position
+        card.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+        card.BorderSizePixel = 0
+        card.Parent = parent
+        
+        local cardCorner = Instance.new("UICorner")
+        cardCorner.CornerRadius = UDim.new(0, 12)
+        cardCorner.Parent = card
+        
+        -- Glow sutil
+        local glow = Instance.new("ImageLabel")
+        glow.Size = UDim2.new(1, 20, 1, 20)
+        glow.Position = UDim2.new(0, -10, 0, -10)
+        glow.BackgroundTransparency = 1
+        glow.Image = "rbxassetid://5028857084"
+        glow.ImageColor3 = CONFIG.accentColor
+        glow.ImageTransparency = 0.95
+        glow.ScaleType = Enum.ScaleType.Slice
+        glow.SliceCenter = Rect.new(10, 10, 90, 90)
+        glow.Parent = card
+        
+        -- Título do card
+        local cardTitle = Instance.new("TextLabel")
+        cardTitle.Size = UDim2.new(1, -20, 0, 30)
+        cardTitle.Position = UDim2.new(0, 15, 0, 15)
+        cardTitle.BackgroundTransparency = 1
+        cardTitle.Text = title
+        cardTitle.TextColor3 = CONFIG.accentColor
+        cardTitle.Font = Enum.Font.GothamBold
+        cardTitle.TextSize = 18
+        cardTitle.TextXAlignment = Enum.TextXAlignment.Left
+        cardTitle.Parent = card
+        
+        -- Linha decorativa
+        local line = Instance.new("Frame")
+        line.Size = UDim2.new(0, 50, 0, 2)
+        line.Position = UDim2.new(0, 15, 0, 45)
+        line.BackgroundColor3 = CONFIG.secondaryColor
+        line.BorderSizePixel = 0
+        line.Parent = card
+        
+        return card
+    end
+    
+    -- FUNÇÃO PARA CRIAR SLIDER MODERNO
+    local function createModernSlider(parent, title, value, min, max, callback, yPos)
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(1, -30, 0, 80)
+        container.Position = UDim2.new(0, 15, 0, yPos)
+        container.BackgroundTransparency = 1
+        container.Parent = parent
+        
+        -- Label
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.6, 0, 0, 25)
+        label.BackgroundTransparency = 1
+        label.Text = title
+        label.TextColor3 = Color3.fromRGB(200, 200, 200)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 14
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = container
+        
+        -- Valor
+        local valueLabel = Instance.new("TextLabel")
+        valueLabel.Size = UDim2.new(0.3, 0, 0, 25)
+        valueLabel.Position = UDim2.new(0.7, 0, 0, 0)
+        valueLabel.BackgroundTransparency = 1
+        valueLabel.Text = tostring(value)
+        valueLabel.TextColor3 = CONFIG.accentColor
+        valueLabel.Font = Enum.Font.GothamBlack
+        valueLabel.TextSize = 20
+        valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+        valueLabel.Parent = container
+        
+        -- Track
+        local track = Instance.new("Frame")
+        track.Size = UDim2.new(1, 0, 0, 6)
+        track.Position = UDim2.new(0, 0, 0, 50)
+        track.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        track.BorderSizePixel = 0
+        track.Parent = container
+        
+        local trackCorner = Instance.new("UICorner")
+        trackCorner.CornerRadius = UDim.new(0, 3)
+        trackCorner.Parent = track
+        
+        -- Fill
+        local fill = Instance.new("Frame")
+        fill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
+        fill.BackgroundColor3 = CONFIG.accentColor
+        fill.BorderSizePixel = 0
+        fill.Parent = track
+        
+        local fillCorner = Instance.new("UICorner")
+        fillCorner.CornerRadius = UDim.new(0, 3)
+        fillCorner.Parent = fill
+        
+        -- Interação
+        local dragging = false
+        
+        local function updateFromInput(input)
+            local pos = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+            local newVal = math.floor(min + (pos * (max - min)))
             
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
+            valueLabel.Text = tostring(newVal)
+            TweenService:Create(fill, TweenInfo.new(0.1), {
+                Size = UDim2.new(pos, 0, 1, 0)
+            }):Play()
+            
+            callback(newVal)
+            return newVal
+        end
+        
+        track.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                updateFromInput(input)
+            end
+        end)
+        
+        track.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                updateFromInput(input)
+            end
+        end)
+        
+        return container
+    end
+    
+    -- FUNÇÃO PARA CRIAR TOGGLE MODERNO
+    local function createModernToggle(parent, title, default, callback, yPos)
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(1, -30, 0, 50)
+        container.Position = UDim2.new(0, 15, 0, yPos)
+        container.BackgroundTransparency = 1
+        container.Parent = parent
+        
+        -- Label
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.7, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = title
+        label.TextColor3 = Color3.fromRGB(200, 200, 200)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 14
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = container
+        
+        -- Toggle button
+        local toggleBtn = Instance.new("TextButton")
+        toggleBtn.Size = UDim2.new(0, 60, 0, 30)
+        toggleBtn.Position = UDim2.new(1, -60, 0.5, -15)
+        toggleBtn.BackgroundColor3 = default and CONFIG.accentColor or Color3.fromRGB(60, 60, 70)
+        toggleBtn.Text = default and "ON" or "OFF"
+        toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+        toggleBtn.Font = Enum.Font.GothamBold
+        toggleBtn.TextSize = 12
+        toggleBtn.AutoButtonColor = false
+        toggleBtn.Parent = container
+        
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 15)
+        btnCorner.Parent = toggleBtn
+        
+        local isOn = default
+        
+        toggleBtn.MouseButton1Click:Connect(function()
+            isOn = not isOn
+            TweenService:Create(toggleBtn, TweenInfo.new(0.2), {
+                BackgroundColor3 = isOn and CONFIG.accentColor or Color3.fromRGB(60, 60, 70)
+            }):Play()
+            toggleBtn.Text = isOn and "ON" or "OFF"
+            callback(isOn)
+        end)
+        
+        return container
+    end
+    
+    -- PÁGINA: HOME (Dashboard)
+    local homePage = Instance.new("Frame")
+    homePage.Size = UDim2.new(1, 0, 1, 0)
+    homePage.BackgroundTransparency = 1
+    homePage.Visible = true
+    homePage.Parent = contentArea
+    pages.home = homePage
+    
+    -- Welcome card
+    local welcomeCard = createCard(homePage, "Bem-vindo, " .. player.Name, UDim2.new(0, 0, 0, 0), UDim2.new(0, 420, 0, 180))
+    
+    local welcomeText = Instance.new("TextLabel")
+    welcomeText.Size = UDim2.new(1, -30, 0, 60)
+    welcomeText.Position = UDim2.new(0, 15, 0, 60)
+    welcomeText.BackgroundTransparency = 1
+    welcomeText.Text = "Reach Ultra Otimizada ativa.\nSimulando ping de 0ms para máxima performance."
+    welcomeText.TextColor3 = Color3.fromRGB(180, 180, 180)
+    welcomeText.Font = Enum.Font.Gotham
+    welcomeText.TextSize = 14
+    welcomeText.TextWrapped = true
+    welcomeText.TextXAlignment = Enum.TextXAlignment.Left
+    welcomeText.TextYAlignment = Enum.TextYAlignment.Top
+    welcomeText.Parent = welcomeCard
+    
+    -- Stats cards
+    local statsCard = createCard(homePage, "Status do Sistema", UDim2.new(0.5, 10, 0, 0), UDim2.new(0, 420, 0, 180))
+    
+    local stats = {
+        {label = "Reach Atual", value = CONFIG.reach .. " studs"},
+        {label = "Modo", value = "Ultra Low Ping"},
+        {label = "Otimizador", value = CONFIG.optimizerEnabled and "Ativo" or "Inativo"},
+        {label = "Bolas Detectadas", value = "0"}
+    }
+    
+    for i, stat in ipairs(stats) do
+        local statLabel = Instance.new("TextLabel")
+        statLabel.Size = UDim2.new(0.5, -10, 0, 25)
+        statLabel.Position = UDim2.new(0, 15, 0, 60 + ((i-1) * 30))
+        statLabel.BackgroundTransparency = 1
+        statLabel.Text = stat.label .. ":"
+        statLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+        statLabel.Font = Enum.Font.Gotham
+        statLabel.TextSize = 13
+        statLabel.TextXAlignment = Enum.TextXAlignment.Left
+        statLabel.Parent = statsCard
+        
+        local statValue = Instance.new("TextLabel")
+        statValue.Size = UDim2.new(0.5, -10, 0, 25)
+        statValue.Position = UDim2.new(0.5, 0, 0, 60 + ((i-1) * 30))
+        statValue.BackgroundTransparency = 1
+        statValue.Text = stat.value
+        statValue.TextColor3 = CONFIG.accentColor
+        statValue.Font = Enum.Font.GothamBold
+        statValue.TextSize = 13
+        statValue.TextXAlignment = Enum.TextXAlignment.Left
+        statValue.Parent = statsCard
+        
+        -- Atualiza bolas detectadas
+        if stat.label == "Bolas Detectadas" then
+            task.spawn(function()
+                while statValue and statValue.Parent do
+                    statValue.Text = tostring(#balls)
+                    task.wait(0.5)
                 end
             end)
         end
-    end)
-    
-    titleBar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            updateDrag(input)
-        end
-    end)
-    
-    -- Title Bar Content
-    local topGradient = Instance.new("Frame")
-    topGradient.Size = UDim2.new(1, 0, 0, 3)
-    topGradient.BackgroundColor3 = CONFIG.colors.accent
-    topGradient.BorderSizePixel = 0
-    topGradient.Parent = titleBar
-    
-    local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, CONFIG.colors.gradient1),
-        ColorSequenceKeypoint.new(1, CONFIG.colors.gradient2)
-    })
-    gradient.Rotation = 45
-    gradient.Parent = topGradient
-    
-    local titleText = Instance.new("TextLabel")
-    titleText.Size = UDim2.new(0, 300, 0, 30)
-    titleText.Position = UDim2.new(0, 20, 0, 15)
-    titleText.BackgroundTransparency = 1
-    titleText.Text = "⚽ CADUXX137 HUB"
-    titleText.TextColor3 = CONFIG.colors.text
-    titleText.Font = Enum.Font.GothamBlack
-    titleText.TextSize = 22
-    titleText.TextXAlignment = Enum.TextXAlignment.Left
-    titleText.Parent = titleBar
-    
-    local subtitle = Instance.new("TextLabel")
-    subtitle.Size = UDim2.new(0, 200, 0, 20)
-    subtitle.Position = UDim2.new(0, 20, 0, 38)
-    subtitle.BackgroundTransparency = 1
-    subtitle.Text = "SUPREME EDITION"
-    subtitle.TextColor3 = CONFIG.colors.accent2
-    subtitle.Font = Enum.Font.GothamBold
-    subtitle.TextSize = 11
-    subtitle.TextXAlignment = Enum.TextXAlignment.Left
-    subtitle.Parent = titleBar
-    
-    -- Status Pulsing Dot
-    local statusDot = Instance.new("Frame")
-    statusDot.Size = UDim2.new(0, 8, 0, 8)
-    statusDot.Position = UDim2.new(0, 210, 0, 22)
-    statusDot.BackgroundColor3 = CONFIG.colors.success
-    statusDot.Parent = titleBar
-    createCorner(statusDot, 4)
-    
-    task.spawn(function()
-        while titleBar and titleBar.Parent do
-            TweenService:Create(statusDot, TweenInfo.new(1), {BackgroundTransparency = 0.5}):Play()
-            task.wait(1)
-            TweenService:Create(statusDot, TweenInfo.new(1), {BackgroundTransparency = 0}):Play()
-            task.wait(1)
-        end
-    end)
-    
-    -- Controls
-    local controlsFrame = Instance.new("Frame")
-    controlsFrame.Size = UDim2.new(0, 80, 0, 35)
-    controlsFrame.Position = UDim2.new(1, -90, 0, 15)
-    controlsFrame.BackgroundTransparency = 1
-    controlsFrame.Parent = titleBar
-    
-    local minBtn = Instance.new("TextButton")
-    minBtn.Size = UDim2.new(0, 32, 0, 32)
-    minBtn.Position = UDim2.new(0, 0, 0, 0)
-    minBtn.BackgroundColor3 = CONFIG.colors.warning
-    minBtn.Text = "−"
-    minBtn.TextColor3 = Color3.new(0, 0, 0)
-    minBtn.Font = Enum.Font.GothamBold
-    minBtn.TextSize = 18
-    minBtn.Parent = controlsFrame
-    createCorner(minBtn, 8)
-    
-    minBtn.MouseButton1Click:Connect(function()
-        isUIOpen = not isUIOpen
-        contentArea.Visible = isUIOpen
-        tabBar.Visible = isUIOpen
-        minBtn.Text = isUIOpen and "−" or "+"
-        mainWindow.Size = isUIOpen and UDim2.new(0, 500, 0, 400) or UDim2.new(0, 500, 0, 60)
-    end)
-    
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 32, 0, 32)
-    closeBtn.Position = UDim2.new(1, -32, 0, 0)
-    closeBtn.BackgroundColor3 = CONFIG.colors.danger
-    closeBtn.Text = "×"
-    closeBtn.TextColor3 = Color3.new(1, 1, 1)
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextSize = 18
-    closeBtn.Parent = controlsFrame
-    createCorner(closeBtn, 8)
-    
-    closeBtn.MouseButton1Click:Connect(function()
-        mainWindow.Visible = false
-        notify("UI escondida. Pressione RightShift para abrir")
-    end)
-    
-    -- Tab Bar
-    local tabBar = Instance.new("Frame")
-    tabBar.Size = UDim2.new(0, 130, 1, -60)
-    tabBar.Position = UDim2.new(0, 0, 0, 60)
-    tabBar.BackgroundColor3 = CONFIG.colors.tabBg
-    tabBar.BorderSizePixel = 0
-    tabBar.Parent = mainWindow
-    
-    local contentArea = Instance.new("Frame")
-    contentArea.Name = "ContentArea"
-    contentArea.Size = UDim2.new(1, -130, 1, -60)
-    contentArea.Position = UDim2.new(0, 130, 0, 60)
-    contentArea.BackgroundTransparency = 1
-    contentArea.Parent = mainWindow
-    
-    -- User Card com Avatar
-    local userCard = Instance.new("Frame")
-    userCard.Size = UDim2.new(1, -20, 0, 70)
-    userCard.Position = UDim2.new(0, 10, 1, -80)
-    userCard.BackgroundColor3 = CONFIG.colors.cardBg
-    userCard.Parent = tabBar
-    createCorner(userCard, 10)
-    
-    local avatar = Instance.new("Frame")
-    avatar.Size = UDim2.new(0, 40, 0, 40)
-    avatar.Position = UDim2.new(0, 15, 0.5, -20)
-    avatar.BackgroundColor3 = CONFIG.colors.accent
-    avatar.Parent = userCard
-    createCorner(avatar, 20)
-    
-    local avatarImage = Instance.new("ImageLabel")
-    avatarImage.Size = UDim2.new(1, 0, 1, 0)
-    avatarImage.BackgroundTransparency = 1
-    avatarImage.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"
-    avatarImage.Parent = avatar
-    
-    local userName = Instance.new("TextLabel")
-    userName.Size = UDim2.new(1, -70, 0, 20)
-    userName.Position = UDim2.new(0, 65, 0, 15)
-    userName.BackgroundTransparency = 1
-    userName.Text = player.Name
-    userName.TextColor3 = CONFIG.colors.text
-    userName.Font = Enum.Font.GothamBold
-    userName.TextSize = 13
-    userName.TextXAlignment = Enum.TextXAlignment.Left
-    userName.Parent = userCard
-    
-    local userStatus = Instance.new("TextLabel")
-    userStatus.Size = UDim2.new(1, -70, 0, 15)
-    userStatus.Position = UDim2.new(0, 65, 0, 38)
-    userStatus.BackgroundTransparency = 1
-    userStatus.Text = "Supreme User"
-    userStatus.TextColor3 = CONFIG.colors.accent2
-    userStatus.Font = Enum.Font.Gotham
-    userStatus.TextSize = 10
-    userStatus.TextXAlignment = Enum.TextXAlignment.Left
-    userStatus.Parent = userCard
-    
-    -- TAB SYSTEM
-local tabs = {}
-local tabButtons = {}
-
-local function createTab(name, icon, position)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -20, 0, 45)
-    btn.Position = UDim2.new(0, 10, 0, 15 + (position * 55))
-    btn.BackgroundColor3 = currentTab == name and CONFIG.colors.cardBg or Color3.fromRGB(45, 45, 60)
-    btn.BackgroundTransparency = currentTab == name and 0 or 1
-    btn.Text = ""
-    btn.Parent = tabBar
-    createCorner(btn, 10)
-    
-    local iconLabel = Instance.new("TextLabel")
-    iconLabel.Size = UDim2.new(0, 30, 0, 30)
-    iconLabel.Position = UDim2.new(0, 12, 0.5, -15)
-    iconLabel.BackgroundTransparency = 1
-    iconLabel.Text = icon
-    iconLabel.TextSize = 18
-    iconLabel.Parent = btn
-    
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, -50, 1, 0)
-    textLabel.Position = UDim2.new(0, 45, 0, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = name
-    textLabel.TextColor3 = currentTab == name and CONFIG.colors.text or CONFIG.colors.textDim
-    textLabel.Font = Enum.Font.GothamBold
-    textLabel.TextSize = 14
-    textLabel.TextXAlignment = Enum.TextXAlignment.Left
-    textLabel.Parent = btn
-    
-    local indicator = Instance.new("Frame")
-    indicator.Size = UDim2.new(0, 3, 0, 20)
-    indicator.Position = UDim2.new(0, 0, 0.5, -10)
-    indicator.BackgroundColor3 = currentTab == name and CONFIG.colors.accent or Color3.fromRGB(45, 45, 60)
-    indicator.BorderSizePixel = 0
-    indicator.Parent = btn
-    createCorner(indicator, 2)
-    
-    tabButtons[name] = {btn = btn, text = textLabel, indicator = indicator}
-    
-    local content = Instance.new("ScrollingFrame")
-    content.Name = name .. "Content"
-    content.Size = UDim2.new(1, -20, 1, -20)
-    content.Position = UDim2.new(0, 10, 0, 10)
-    content.BackgroundTransparency = 1
-    content.ScrollBarThickness = 4
-    content.ScrollBarImageColor3 = CONFIG.colors.accent
-    content.Visible = currentTab == name
-    content.CanvasSize = UDim2.new(0, 0, 0, 0)
-    content.Parent = contentArea
-    
-    tabs[name] = content
-    
-    btn.MouseButton1Click:Connect(function()
-        currentTab = name
-        for n, c in pairs(tabs) do
-            c.Visible = (n == name)
-        end
-        for n, b in pairs(tabButtons) do
-            local isActive = (n == name)
-            b.btn.BackgroundColor3 = isActive and CONFIG.colors.cardBg or Color3.fromRGB(45, 45, 60)
-            b.btn.BackgroundTransparency = isActive and 0 or 1
-            b.text.TextColor3 = isActive and CONFIG.colors.text or CONFIG.colors.textDim
-            b.indicator.BackgroundColor3 = isActive and CONFIG.colors.accent or Color3.fromRGB(45, 45, 60)
-        end
-    end)
-    
-    return content
-end
-
--- REACH TAB
-local reachTab = createTab("Reach", "⚡", 0)
-
-local reachHeader = Instance.new("TextLabel")
-reachHeader.Size = UDim2.new(1, 0, 0, 30)
-reachHeader.BackgroundTransparency = 1
-reachHeader.Text = "REACH CONFIGURATION"
-reachHeader.TextColor3 = CONFIG.colors.textDim
-reachHeader.Font = Enum.Font.GothamBold
-reachHeader.TextSize = 12
-reachHeader.Parent = reachTab
-
-createSlider(reachTab, "⚽ MAIN REACH", CONFIG.reach, 1, 150, CONFIG.colors.accent, function(val)
-    CONFIG.reach = val
-    updateReachSphere()
-    notify("Reach: " .. val)
-end, 40)
-
-createSlider(reachTab, "🎯 BALL EXPAND", CONFIG.ballReach, 1, 100, CONFIG.colors.accent2, function(val)
-    CONFIG.ballReach = val
-    for ball, data in pairs(ballAuras) do
-        if data.aura then
-            data.aura.Size = Vector3.new(val * 2, val * 2, val * 2)
-        end
     end
-end, 190)
-
-createSlider(reachTab, "🔮 QUANTUM", CONFIG.quantumReach, 1, 200, CONFIG.colors.accent3, function(val)
-    CONFIG.quantumReach = val
-    updateQuantumCircle()
-end, 340)
-
-createToggle(reachTab, "🎯 EXPAND HITBOX", CONFIG.expandBallHitbox, function(val)
-    CONFIG.expandBallHitbox = val
-    if not val then
-        for ball, data in pairs(ballHitboxes) do
-            if data.conn then data.conn:Disconnect() end
-            if data.hitbox then data.hitbox:Destroy() end
-        end
-        ballHitboxes = {}
-    end
-end, 490)
-
-createToggle(reachTab, "⚡ FLASH EFFECT", CONFIG.flashEnabled, function(val)
-    CONFIG.flashEnabled = val
-end, 570)
-
-createToggle(reachTab, "🔮 QUANTUM MODE", CONFIG.quantumReachEnabled, function(val)
-    CONFIG.quantumReachEnabled = val
-    updateQuantumCircle()
-    notify("Quantum: " .. (val and "ON" or "OFF"))
-end, 650)
-
--- FEATURES TAB
-local featuresTab = createTab("Features", "🚀", 1)
-
-local featuresHeader = Instance.new("TextLabel")
-featuresHeader.Size = UDim2.new(1, 0, 0, 30)
-featuresHeader.BackgroundTransparency = 1
-featuresHeader.Text = "ADVANCED FEATURES"
-featuresHeader.TextColor3 = CONFIG.colors.textDim
-featuresHeader.Font = Enum.Font.GothamBold
-featuresHeader.TextSize = 12
-featuresHeader.Parent = featuresTab
-
-createToggle(featuresTab, "🦵 FULL BODY TOUCH", CONFIG.fullBodyTouch, function(val)
-    CONFIG.fullBodyTouch = val
-    notify("Full Body: " .. (val and "ON" or "OFF"))
-end, 40)
-
-createToggle(featuresTab, "🧲 BALL MAGNET", CONFIG.ballMagnet, function(val)
-    CONFIG.ballMagnet = val
-    notify("Magnet: " .. (val and "ON" or "OFF"))
-end, 120)
-
-createSlider(featuresTab, "🧲 MAGNET POWER", CONFIG.magnetStrength, 0, 200, CONFIG.colors.warning, function(val)
-    CONFIG.magnetStrength = val
-end, 200)
-
-createToggle(featuresTab, "🔄 AUTO SECOND", CONFIG.autoSecondTouch, function(val)
-    CONFIG.autoSecondTouch = val
-end, 350)
-
-createToggle(featuresTab, "🤖 AUTO TOUCH", CONFIG.autoTouch, function(val)
-    CONFIG.autoTouch = val
-end, 430)
-
-createToggle(featuresTab, "👁️ SHOW VISUALS", CONFIG.showVisuals, function(val)
-    CONFIG.showVisuals = val
-    if not val then
-        clearAllAuras()
-    else
-        updateBallAuras()
-        updateQuantumCircle()
-    end
-end, 510)
-
-createToggle(featuresTab, "🔵 SHOW SPHERE", CONFIG.showReachSphere, function(val)
-    CONFIG.showReachSphere = val
-    updateReachSphere()
-end, 590)
-
--- SETTINGS TAB
-local settingsTab = createTab("Settings", "⚙️", 2)
-
-local settingsHeader = Instance.new("TextLabel")
-settingsHeader.Size = UDim2.new(1, 0, 0, 30)
-settingsHeader.BackgroundTransparency = 1
-settingsHeader.Text = "SYSTEM SETTINGS"
-settingsHeader.TextColor3 = CONFIG.colors.textDim
-settingsHeader.Font = Enum.Font.GothamBold
-settingsHeader.TextSize = 12
-settingsHeader.Parent = settingsTab
-
-createToggle(settingsTab, "😴 ANTI-AFK", CONFIG.antiAFK, function(val)
-    CONFIG.antiAFK = val
-end, 40)
-
-createSlider(settingsTab, "⏱️ SCAN RATE", CONFIG.scanCooldown, 0, 5, CONFIG.colors.success, function(val)
-    CONFIG.scanCooldown = val
-end, 120)
-
--- INFO TAB
-local infoTab = createTab("Info", "ℹ️", 3)
-
-local infoCard = Instance.new("Frame")
-infoCard.Size = UDim2.new(1, 0, 0, 280)
-infoCard.BackgroundColor3 = CONFIG.colors.cardBg
-infoCard.Parent = infoTab
-createCorner(infoCard, 12)
-
-local infoTitle = Instance.new("TextLabel")
-infoTitle.Size = UDim2.new(1, -20, 0, 30)
-infoTitle.Position = UDim2.new(0, 10, 0, 15)
-infoTitle.BackgroundTransparency = 1
-infoTitle.Text = "⚽ CADUXX137 HUB"
-infoTitle.TextColor3 = CONFIG.colors.accent
-infoTitle.Font = Enum.Font.GothamBlack
-infoTitle.TextSize = 18
-infoTitle.Parent = infoCard
-
-local infoText = Instance.new("TextLabel")
-infoText.Size = UDim2.new(1, -20, 0, 200)
-infoText.Position = UDim2.new(0, 10, 0, 50)
-infoText.BackgroundTransparency = 1
-infoText.Text = "Supreme Edition v2.0\n\nBase: pedrinjr hub + CADU Hub\n\nFeatures:\n• Full Body Touch (pedrinjr)\n• Expanded Hitbox (CADU)\n• Multi-Point Touch (7 pontos)\n• Ball Magnet com força\n• Quantum Reach separado\n• Sphere Visual Azul\n• Anti-AFK integrado\n• UI Premium com Abas\n\nCriador: CADUXX137\n\nHotkey: RightShift"
-infoText.TextColor3 = CONFIG.colors.textDim
-infoText.Font = Enum.Font.Gotham
-infoText.TextSize = 12
-infoText.TextWrapped = true
-infoText.TextXAlignment = Enum.TextXAlignment.Left
-infoText.TextYAlignment = Enum.TextYAlignment.Top
-infoText.Parent = infoCard
-
--- Update canvas sizes
-for _, tab in pairs(tabs) do
-    local contentHeight = 0
-    for _, child in pairs(tab:GetChildren()) do
-        if child:IsA("GuiObject") then
-            contentHeight = math.max(contentHeight, child.Position.Y.Offset + child.Size.Y.Offset)
-        end
-    end
-    tab.CanvasSize = UDim2.new(0, 0, 0, contentHeight + 20)
-end
-
--- Keybind
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightShift then
-        if introCompleted then
-            mainWindow.Visible = not mainWindow.Visible
-        end
-    end
-end)
-
--- Mobile Button
-if isMobile then
-    local mobileBtn = Instance.new("TextButton")
-    mobileBtn.Size = UDim2.new(0, 55, 0, 55)
-    mobileBtn.Position = UDim2.new(0, 20, 0.5, -27)
-    mobileBtn.BackgroundColor3 = CONFIG.colors.accent
-    mobileBtn.Text = "⚽"
-    mobileBtn.TextColor3 = Color3.new(1, 1, 1)
-    mobileBtn.Font = Enum.Font.GothamBold
-    mobileBtn.TextSize = 24
-    mobileBtn.Parent = mainGui
-    createCorner(mobileBtn, 28)
-    createStroke(mobileBtn, CONFIG.colors.accent2, 2)
     
-    mobileBtn.MouseButton1Click:Connect(function()
-        if introCompleted then
-            mainWindow.Visible = not mainWindow.Visible
-        end
-    end)
-end
-
-mainGui.Enabled = true
-end
-
--- MAIN LOOPS
-RunService.RenderStepped:Connect(function()
-    if HRP then
-        getBalls()
-        if isUIOpen and introCompleted then
-            updateBallAuras()
-            updateBallHitboxes()
-            updateReachSphere()
-            updateQuantumCircle()
-        end
+    -- Quick actions
+    local quickCard = createCard(homePage, "Ações Rápidas", UDim2.new(0, 0, 0, 200), UDim2.new(1, 0, 0, 150))
+    
+    local quickActions = {
+        {name = "Reach Máxima", action = function() CONFIG.reach = 50; notify("Reach máxima ativada!", "success") end},
+        {name = "Modo Stealth", action = function() CONFIG.showVisuals = false; clearAllAuras(); notify("Modo stealth ativado", "warning") end},
+        {name = "Reset Visual", action = function() CONFIG.showVisuals = true; notify("Visuais restaurados", "success") end}
+    }
+    
+    for i, action in ipairs(quickActions) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 150, 0, 40)
+        btn.Position = UDim2.new(0, 15 + ((i-1) * 170), 0, 60)
+        btn.BackgroundColor3 = CONFIG.accentColor
+        btn.Text = action.name
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 14
+        btn.AutoButtonColor = false
+        btn.Parent = quickCard
         
-        if playerSphere then playerSphere.Position = HRP.Position end
-        if quantumCircle then 
-            quantumCircle.Position = HRP.Position 
-            quantumCircle.Transparency = (CONFIG.quantumReachEnabled and CONFIG.showVisuals) and 0.75 or 1
-        end
-    end
-    
-    if introCompleted then
-        doReach()
-        doQuantumReach()
-        doBallMagnet()
-    end
-end)
-
--- START
-buildMainGUI()
-playIntro()
-
-print("✅ CADUXX137 HUB SUPREME loaded!")
-print("⚽ Base: pedrinjr hub + CADU Hub")
-print("🎬 Intro animada ativa")
-
--- FIX PARA SERVERS PRIVADOS (Place Changing)
--- Detecta quando o jogador teleporta/muda de game
-player.OnTeleport:Connect(function(teleportState)
-    if teleportState == Enum.TeleportState.Started then
-        print("🔄 Teleport detectado, salvando dados...")
-        -- O script vai reiniciar automaticamente no novo lugar
-    end
-end)
-
--- Reconectar quando o character respawnar (importante para servers privados)
-player.CharacterAdded:Connect(function(char)
-    task.wait(1)
-    refreshLegs()
-    
-    -- Recriar HRP reference
-    local newHRP = char:WaitForChild("HumanoidRootPart", 5)
-    if newHRP then
-        HRP = newHRP
-        print("✅ HRP reconectado após respawn")
-    end
-    
-    -- Recriar UI se necessário (se foi destruída)
-    if not mainGui or not mainGui.Parent then
-        print("🔄 Recriando UI após mudança de lugar...")
-        mainGui = nil
-        mainWindow = nil
-        buildMainGUI()
-        if introCompleted then
-            mainWindow.Visible = true
-        end
-    end
-end)
-
--- Loop adicional para garantir funcionamento em servers privados
-task.spawn(function()
-    while true do
-        task.wait(5)
-        -- Verifica se as referências ainda existem
-        if not playerSphere or not playerSphere.Parent then
-            playerSphere = nil
-        end
-        if not quantumCircle or not quantumCircle.Parent then
-            quantumCircle = nil
-        end
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        btnCorner.Parent = btn
         
-        -- Recria HRP se necessário
-        if not HRP or not HRP.Parent then
-            local char = player.Character
-            if char then
-                HRP = char:FindFirstChild("HumanoidRootPart")
-            end
-        end
+        btn.MouseEnter:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = CONFIG.secondaryColor}):Play()
+        end)
+        
+        btn.MouseLeave:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = CONFIG.accentColor}):Play()
+        end)
+        
+        btn.MouseButton1Click:Connect(action.action)
     end
-end)
+    
+    -- PÁGINA: REACH
+    local reachPage = Instance.new("Frame")
+    reachPage.Size = UDim2.new(1, 0, 1, 0)
+    reachPage.BackgroundTransparency = 1
+    reachPage.Visible = false
+    reachPage.Parent = contentArea
+    pages.reach = reachPage
+    
+    local reachCard = createCard(reachPage, "Configuração de Reach", UDim2.new(0, 0, 0,
