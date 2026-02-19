@@ -1025,7 +1025,7 @@ function buildMainUI()
         btn.MouseButton1Click:Connect(action.action)
     end
     
-    -- PÁGINA: REACH
+        -- PÁGINA: REACH
     local reachPage = Instance.new("Frame")
     reachPage.Size = UDim2.new(1, 0, 1, 0)
     reachPage.BackgroundTransparency = 1
@@ -1033,4 +1033,412 @@ function buildMainUI()
     reachPage.Parent = contentArea
     pages.reach = reachPage
     
-    local reachCard = createCard(reachPage, "Configuração de Reach", UDim2.new(0, 0, 0,
+    local reachCard = createCard(reachPage, "Configuração de Reach", UDim2.new(0, 0, 0, 0), UDim2.new(1, 0, 1, 0))
+    
+    createModernSlider(reachCard, "Alcance Principal", CONFIG.reach, 1, 100, function(val)
+        CONFIG.reach = val
+        updateReachSphere()
+    end, 70)
+    
+    createModernSlider(reachCard, "Expansão da Bola", CONFIG.ballReach, 1, 50, function(val)
+        CONFIG.ballReach = val
+    end, 160)
+    
+    createModernSlider(reachCard, "Quantum Reach", CONFIG.quantumReach, 1, 100, function(val)
+        CONFIG.quantumReach = val
+        updateQuantumCircle()
+    end, 250)
+    
+    createModernToggle(reachCard, "Modo Ultra Ping (0ms)", true, function(val)
+        CONFIG.reactionTime = val and 0 or 0.05
+        notify(val and "Modo 0ms ativado!" or "Modo normal", val and "success" or "warning")
+    end, 340)
+    
+    createModernToggle(reachCard, "Full Body Touch", CONFIG.fullBodyTouch, function(val)
+        CONFIG.fullBodyTouch = val
+    end, 400)
+    
+    -- PÁGINA: VISUAL
+    local visualPage = Instance.new("Frame")
+    visualPage.Size = UDim2.new(1, 0, 1, 0)
+    visualPage.BackgroundTransparency = 1
+    visualPage.Visible = false
+    visualPage.Parent = contentArea
+    pages.visual = visualPage
+    
+    local visualCard = createCard(visualPage, "Configurações Visuais", UDim2.new(0, 0, 0, 0), UDim2.new(1, 0, 1, 0))
+    
+    createModernToggle(visualCard, "Mostrar Sphere", CONFIG.showReachSphere, function(val)
+        CONFIG.showReachSphere = val
+        updateReachSphere()
+    end, 70)
+    
+    createModernToggle(visualCard, "Auras das Bolas", CONFIG.showVisuals, function(val)
+        CONFIG.showVisuals = val
+        if not val then clearAllAuras() end
+    end, 130)
+    
+    createModernToggle(visualCard, "Flash Effects", CONFIG.flashEnabled, function(val)
+        CONFIG.flashEnabled = val
+    end, 190)
+    
+    createModernToggle(visualCard, "Hitbox Expandida", CONFIG.expandBallHitbox, function(val)
+        CONFIG.expandBallHitbox = val
+    end, 250)
+    
+    -- PÁGINA: SETTINGS
+    local settingsPage = Instance.new("Frame")
+    settingsPage.Size = UDim2.new(1, 0, 1, 0)
+    settingsPage.BackgroundTransparency = 1
+    settingsPage.Visible = false
+    settingsPage.Parent = contentArea
+    pages.settings = settingsPage
+    
+    local settingsCard = createCard(settingsPage, "Configurações Avançadas", UDim2.new(0, 0, 0, 0), UDim2.new(1, 0, 1, 0))
+    
+    createModernToggle(settingsCard, "Otimizador Inteligente", CONFIG.optimizerEnabled, function(val)
+        CONFIG.optimizerEnabled = val
+    end, 70)
+    
+    createModernSlider(settingsCard, "Taxa de Scan", CONFIG.scanRate * 100, 1, 10, function(val)
+        CONFIG.scanRate = val / 100
+    end, 160)
+    
+    createModernToggle(settingsCard, "Anti-AFK", CONFIG.antiAFK, function(val)
+        CONFIG.antiAFK = val
+    end, 250)
+    
+    -- FUNÇÃO DE TROCA DE PÁGINA
+    function switchPage(pageName)
+        for name, page in pairs(pages) do
+            page.Visible = (name == pageName)
+            if name == pageName then
+                TweenService:Create(page, TweenInfo.new(0.3), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+            end
+        end
+    end
+    
+    -- Hotkey RightShift
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == Enum.KeyCode.RightShift then
+            if not mainGui.Enabled then
+                mainGui.Enabled = true
+                TweenService:Create(mainContainer, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
+                    Size = UDim2.new(0, 900, 0, 600),
+                    Position = UDim2.new(0.5, -450, 0.5, -300)
+                }):Play()
+            else
+                mainGui.Enabled = not mainGui.Enabled
+            end
+        end
+    end)
+end
+
+-- ============================================
+-- SISTEMA DE REACH ULTRA OTIMIZADA (PC Gamer)
+-- ============================================
+
+-- Update HRP rápido
+RunService.Heartbeat:Connect(function()
+    if player.Character then
+        HRP = player.Character:FindFirstChild("HumanoidRootPart")
+    end
+end)
+
+-- Get balls otimizado
+local function getBalls()
+    local now = tick()
+    if now - lastScan < CONFIG.scanRate then return balls end
+    lastScan = now
+    
+    table.clear(balls)
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            for _, name in ipairs(CONFIG.ballNames) do
+                if obj.Name == name then
+                    table.insert(balls, obj)
+                    break
+                end
+            end
+        end
+    end
+    return balls
+end
+
+-- Get character parts
+local function getCharacterParts(char)
+    local parts = {}
+    for _, v in ipairs(char:GetChildren()) do
+        if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+            table.insert(parts, v)
+        end
+    end
+    return parts
+end
+
+-- Criar hitbox
+local function createBallHitbox(ball)
+    if ballHitboxes[ball] or not CONFIG.expandBallHitbox then return end
+    
+    local hitbox = Instance.new("Part")
+    hitbox.Name = "Hitbox_" .. ball.Name
+    hitbox.Shape = Enum.PartType.Ball
+    hitbox.Size = Vector3.new(CONFIG.ballReach * 2, CONFIG.ballReach * 2, CONFIG.ballReach * 2)
+    hitbox.Transparency = 1
+    hitbox.Anchored = true
+    hitbox.CanCollide = false
+    hitbox.Parent = Workspace
+    
+    local conn = RunService.Heartbeat:Connect(function()
+        if ball and ball.Parent then
+            hitbox.CFrame = ball.CFrame
+        else
+            hitbox:Destroy()
+        end
+    end)
+    
+    ballHitboxes[ball] = {hitbox = hitbox, conn = conn}
+end
+
+-- Update reach sphere
+local playerSphere = nil
+local function updateReachSphere()
+    if not CONFIG.showReachSphere then
+        if playerSphere then playerSphere:Destroy() playerSphere = nil end
+        return
+    end
+    if not HRP then return end
+    
+    if not playerSphere then
+        playerSphere = Instance.new("Part")
+        playerSphere.Name = "ReachSphere"
+        playerSphere.Shape = Enum.PartType.Ball
+        playerSphere.Anchored = true
+        playerSphere.CanCollide = false
+        playerSphere.Transparency = 0.85
+        playerSphere.Material = Enum.Material.ForceField
+        playerSphere.Color = CONFIG.accentColor
+        playerSphere.Parent = Workspace
+    end
+    
+    playerSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
+    playerSphere.Position = HRP.Position
+end
+
+-- Quantum circle
+local quantumCircle = nil
+local function updateQuantumCircle()
+    if not quantumCircle then
+        quantumCircle = Instance.new("Part")
+        quantumCircle.Name = "Quantum"
+        quantumCircle.Shape = Enum.PartType.Ball
+        quantumCircle.Anchored = true
+        quantumCircle.CanCollide = false
+        quantumCircle.Material = Enum.Material.ForceField
+        quantumCircle.Color = CONFIG.secondaryColor
+        quantumCircle.Parent = Workspace
+    end
+    quantumCircle.Size = Vector3.new(CONFIG.quantumReach * 2, CONFIG.quantumReach * 2, CONFIG.quantumReach * 2)
+    quantumCircle.Transparency = 0.9
+end
+
+-- Ultra touch otimizado
+local function ultraTouch(ball, part)
+    if not ball or not part then return end
+    
+    -- Cache de toque (evita tocar múltiplas vezes no mesmo frame)
+    local cacheKey = ball.Name .. "_" .. tostring(tick())
+    if touchCache[cacheKey] then return end
+    touchCache[cacheKey] = true
+    
+    -- Limpa cache antigo
+    task.delay(0.1, function()
+        touchCache[cacheKey] = nil
+    end)
+    
+    -- Toque principal
+    pcall(function()
+        firetouchinterest(ball, part, 0)
+        firetouchinterest(ball, part, 1)
+    end)
+    
+    -- Hitbox
+    if ballHitboxes[ball] and ballHitboxes[ball].hitbox then
+        pcall(function()
+            firetouchinterest(ballHitboxes[ball].hitbox, part, 0)
+            firetouchinterest(ballHitboxes[ball].hitbox, part, 1)
+        end)
+    end
+end
+
+-- Clear all
+local function clearAllAuras()
+    for _, data in pairs(ballHitboxes) do
+        if data.conn then data.conn:Disconnect() end
+        if data.hitbox then data.hitbox:Destroy() end
+    end
+    ballHitboxes = {}
+    
+    if playerSphere then
+        playerSphere:Destroy()
+        playerSphere = nil
+    end
+end
+
+-- Do reach principal (ULTRA OTIMIZADO)
+local function doReach()
+    if not CONFIG.autoTouch or not HRP then return end
+    
+    local char = player.Character
+    if not char then return end
+    
+    local parts = CONFIG.fullBodyTouch and getCharacterParts(char) or {HRP}
+    if #parts == 0 then return end
+    
+    local ballsList = getBalls()
+    local effectiveReach = CONFIG.reach + CONFIG.ballReach
+    
+    for _, ball in ipairs(ballsList) do
+        if not ball or not ball.Parent then continue end
+        
+        for _, part in ipairs(parts) do
+            local dist = (ball.Position - part.Position).Magnitude
+            
+            if dist < effectiveReach then
+                -- Delay simulado de ping baixo (0ms = instantâneo)
+                if CONFIG.reactionTime > 0 then
+                    task.delay(CONFIG.reactionTime, function()
+                        ultraTouch(ball, part)
+                    end)
+                else
+                    ultraTouch(ball, part)
+                end
+                
+                -- Flash effect
+                if CONFIG.flashEnabled and CONFIG.showVisuals then
+                    local flash = Instance.new("Part")
+                    flash.Size = Vector3.new(0.5, 0.5, 0.5)
+                    flash.Position = ball.Position
+                    flash.Anchored = true
+                    flash.CanCollide = false
+                    flash.Material = Enum.Material.Neon
+                    flash.Color = CONFIG.accentColor
+                    flash.Parent = Workspace
+                    
+                    TweenService:Create(flash, TweenInfo.new(0.1), {
+                        Size = Vector3.new(2, 2, 2),
+                        Transparency = 1
+                    }):Play()
+                    
+                    Debris:AddItem(flash, 0.1)
+                end
+            end
+        end
+    end
+end
+
+-- ============================================
+-- OTIMIZADOR INTELIGENTE PRO
+-- ============================================
+local OPTIMIZER = {
+    fpsHistory = {},
+    lastCheck = tick(),
+    currentMode = "high"
+}
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        
+        if not CONFIG.optimizerEnabled then continue end
+        
+        -- Calcula FPS médio
+        local avgFPS = 60
+        if #OPTIMIZER.fpsHistory > 0 then
+            local sum = 0
+            for _, fps in ipairs(OPTIMIZER.fpsHistory) do
+                sum = sum + fps
+            end
+            avgFPS = sum / #OPTIMIZER.fpsHistory
+        end
+        
+        -- Limpa histórico antigo
+        if #OPTIMIZER.fpsHistory > 10 then
+            table.remove(OPTIMIZER.fpsHistory, 1)
+        end
+        
+        -- Ajusta qualidade baseado em FPS
+        if avgFPS < 25 then
+            if OPTIMIZER.currentMode ~= "critical" then
+                OPTIMIZER.currentMode = "critical"
+                CONFIG.flashEnabled = false
+                CONFIG.showVisuals = false
+                CONFIG.scanRate = 0.1
+                notify("Otimizador: Modo Crítico ativado", "warning", 2)
+            end
+        elseif avgFPS < 40 then
+            if OPTIMIZER.currentMode ~= "low" then
+                OPTIMIZER.currentMode = "low"
+                CONFIG.flashEnabled = false
+                CONFIG.scanRate = 0.05
+                notify("Otimizador: Modo Economia", "warning", 2)
+            end
+        else
+            if OPTIMIZER.currentMode ~= "high" then
+                OPTIMIZER.currentMode = "high"
+                CONFIG.flashEnabled = true
+                CONFIG.scanRate = 0.03
+            end
+        end
+    end
+end)
+
+-- Contador de FPS
+local frameCount = 0
+local lastFPSUpdate = tick()
+
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local now = tick()
+    
+    if now - lastFPSUpdate >= 1 then
+        table.insert(OPTIMIZER.fpsHistory, frameCount)
+        frameCount = 0
+        lastFPSUpdate = now
+    end
+    
+    -- Atualiza visuais
+    if HRP then
+        getBalls()
+        updateReachSphere()
+        updateQuantumCircle()
+        
+        if playerSphere then
+            playerSphere.Position = HRP.Position
+        end
+        if quantumCircle then
+            quantumCircle.Position = HRP.Position
+        end
+    end
+    
+    -- Executa reach
+    doReach()
+end)
+
+-- ============================================
+-- INICIALIZAÇÃO
+-- ============================================
+showLoadingScreen()
+
+print([[
+    ╔══════════════════════════════════════╗
+    ║     CADUXX137 HUB SUPREME v3.0       ║
+    ║                                      ║
+    ║  ✓ Site-Style UI                     ║
+    ║  ✓ Reach Ultra (0ms ping)            ║
+    ║  ✓ Otimizador Pro                    ║
+    ║  ✓ Intro Cinematográfica             ║
+    ║                                      ║
+    ║  Criador: CADUXX137                  ║
+    ╚══════════════════════════════════════╝
+]])
