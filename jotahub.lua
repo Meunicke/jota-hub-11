@@ -1,12 +1,60 @@
 -- ============================================
+-- BUILD MAIN UI (DEVE VIR ANTES DE TUDO)
+-- ============================================
+function buildMainUI()
+    if mainGui then return end
+    
+    mainGui = Instance.new("ScreenGui")
+    mainGui.Name = "CADUXX137Site"
+    mainGui.ResetOnSpawn = false
+    mainGui.Parent = player:WaitForChild("PlayerGui")
+    
+    -- Container principal (estilo site)
+    local mainContainer = Instance.new("Frame")
+    mainContainer.Size = UDim2.new(0, 900, 0, 600)
+    mainContainer.Position = UDim2.new(0.5, -450, 0.5, -300)
+    mainContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    mainContainer.BorderSizePixel = 0
+    mainContainer.ClipsDescendants = true
+    mainContainer.Parent = mainGui
+    
+    -- Borda neon
+    local neonBorder = Instance.new("UIStroke")
+    neonBorder.Color = CONFIG.accentColor
+    neonBorder.Thickness = 2
+    neonBorder.Parent = mainContainer
+    
+    -- Cantos arredondados
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 16)
+    corner.Parent = mainContainer
+    
+    -- Animação de entrada
+    mainContainer.Size = UDim2.new(0, 800, 0, 500)
+    mainContainer.Position = UDim2.new(0.5, -400, 0.5, -250)
+    TweenService:Create(mainContainer, TweenInfo.new(0.6, Enum.EasingStyle.Back), {
+        Size = UDim2.new(0, 900, 0, 600),
+        Position = UDim2.new(0.5, -450, 0.5, -300)
+    }):Play()
+    
+    -- HEADER (Navbar estilo site)
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 70)
+    header.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+    header.BorderSizePixel = 0
+    header.Parent = mainContainer
+    
+    -- ... (restante do código da UI que você já tem)
+    
+    notify("✅ Menu carregado com sucesso!", "success", 3)
+end
+
+-- =================================
+
+
+-- ============================================
 -- TELA DE LOADING CORRIGIDA
 -- ============================================
-local function showLoadingScreen()
-    loadingGui = Instance.new("ScreenGui")
-    loadingGui.Name = "CADULoading"
-    loadingGui.ResetOnSpawn = false
-    loadingGui.DisplayOrder = 1000000
-    loadingGui.Parent = player:WaitForChild("PlayerGui")
     
     -- Background gradiente animado
     local bg = Instance.new("Frame")
