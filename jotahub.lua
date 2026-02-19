@@ -1383,3 +1383,58 @@ playIntro()
 print("✅ CADUXX137 HUB SUPREME loaded!")
 print("⚽ Base: pedrinjr hub + CADU Hub")
 print("🎬 Intro animada ativa")
+
+-- FIX PARA SERVERS PRIVADOS (Place Changing)
+-- Detecta quando o jogador teleporta/muda de game
+player.OnTeleport:Connect(function(teleportState)
+    if teleportState == Enum.TeleportState.Started then
+        print("🔄 Teleport detectado, salvando dados...")
+        -- O script vai reiniciar automaticamente no novo lugar
+    end
+end)
+
+-- Reconectar quando o character respawnar (importante para servers privados)
+player.CharacterAdded:Connect(function(char)
+    task.wait(1)
+    refreshLegs()
+    
+    -- Recriar HRP reference
+    local newHRP = char:WaitForChild("HumanoidRootPart", 5)
+    if newHRP then
+        HRP = newHRP
+        print("✅ HRP reconectado após respawn")
+    end
+    
+    -- Recriar UI se necessário (se foi destruída)
+    if not mainGui or not mainGui.Parent then
+        print("🔄 Recriando UI após mudança de lugar...")
+        mainGui = nil
+        mainWindow = nil
+        buildMainGUI()
+        if introCompleted then
+            mainWindow.Visible = true
+        end
+    end
+end)
+
+-- Loop adicional para garantir funcionamento em servers privados
+task.spawn(function()
+    while true do
+        task.wait(5)
+        -- Verifica se as referências ainda existem
+        if not playerSphere or not playerSphere.Parent then
+            playerSphere = nil
+        end
+        if not quantumCircle or not quantumCircle.Parent then
+            quantumCircle = nil
+        end
+        
+        -- Recria HRP se necessário
+        if not HRP or not HRP.Parent then
+            local char = player.Character
+            if char then
+                HRP = char:FindFirstChild("HumanoidRootPart")
+            end
+        end
+    end
+end)
