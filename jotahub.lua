@@ -1,54 +1,295 @@
 -- ============================================
--- BUILD MAIN UI (DEVE VIR ANTES DE TUDO)
+-- CADUXX137 UI - VERSÃO EXPLOIT/EXECUTOR
+-- ============================================
+
+-- ESPERA O JOGO CARREGAR (COMPATÍVEL COM EXPLOITS)
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+-- SERVIÇOS (COM VERIFICAÇÃO)
+local Players = game:FindService("Players") or game:GetService("Players")
+local TweenService = game:FindService("TweenService") or game:GetService("TweenService")
+local RunService = game:FindService("RunService") or game:GetService("RunService")
+
+-- OBTÉM O JOGADOR LOCAL (MÉTODO UNIVERSAL PARA EXPLOITS)
+local player = Players.LocalPlayer
+
+-- SE NÃO ACHOU, TENTA OUTROS MÉTODOS (ALGUNS EXECUTORES SÃO BUGADOS)
+if not player then
+    for _, p in pairs(Players:GetPlayers()) do
+        if p:IsA("Player") and p.Character then
+            -- Verifica se é o dono do script
+            if p:FindFirstChild("PlayerGui") and p.PlayerGui:FindFirstChildOfClass("ScreenGui") then
+                -- Pode ser o local, mas vamos pegar o correto
+            end
+        end
+    end
+    player = Players.LocalPlayer -- Tenta de novo
+end
+
+-- ESPERA O PLAYERGUI EXISTIR (LOOP SEGURO)
+local playerGui = nil
+local attempts = 0
+while not playerGui and attempts < 50 do -- 5 segundos máximo
+    if player and player:FindFirstChild("PlayerGui") then
+        playerGui = player.PlayerGui
+        break
+    end
+    task.wait(0.1)
+    attempts = attempts + 1
+end
+
+if not playerGui then
+    warn("❌ Não foi possível encontrar PlayerGui após 5 segundos")
+    warn("Player existe: " .. tostring(player ~= nil))
+    if player then
+        warn("Children do player: " .. table.concat(player:GetChildren(), ", "))
+    end
+    return -- Para a execução
+end
+
+-- VARIÁVEL GLOBAL DA UI
+getgenv().CADUXX137_MainGui = getgenv().CADUXX137_MainGui or nil
+
+-- CONFIGURAÇÕES
+local CONFIG = {
+    accentColor = Color3.fromRGB(0, 170, 255),
+    secondaryColor = Color3.fromRGB(138, 43, 226)
+}
+
+-- ============================================
+-- FUNÇÃO DE NOTIFICAÇÃO
+-- ============================================
+local function notify(message, type, duration)
+    duration = duration or 3
+    type = type or "info"
+    
+    -- Fallback para print se não conseguir criar GUI
+    if not playerGui then
+        print("[" .. string.upper(type) .. "] " .. message)
+        return
+    end
+    
+    local success, err = pcall(function()
+        local notif = Instance.new("ScreenGui")
+        notif.Name = "CADUXX137_Notif_" .. tostring(tick())
+        notif.ResetOnSpawn = false
+        notif.Parent = playerGui
+        
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(0, 300, 0, 50)
+        frame.Position = UDim2.new(0.5, -150, 0, -60)
+        frame.BackgroundColor3 = type == "success" and Color3.fromRGB(0, 200, 0) 
+            or type == "error" and Color3.fromRGB(200, 50, 50) 
+            or Color3.fromRGB(0, 100, 200)
+        frame.BorderSizePixel = 0
+        frame.Parent = notif
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 8)
+        corner.Parent = frame
+        
+        local text = Instance.new("TextLabel")
+        text.Size = UDim2.new(1, 0, 1, 0)
+        text.Text = message
+        text.TextColor3 = Color3.fromRGB(255, 255, 255)
+        text.Font = Enum.Font.GothamBold
+        text.TextSize = 14
+        text.BackgroundTransparency = 1
+        text.Parent = frame
+        
+        TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+            Position = UDim2.new(0.5, -150, 0, 20)
+        }):Play()
+        
+        task.delay(duration, function()
+            pcall(function()
+                TweenService:Create(frame, TweenInfo.new(0.3), {
+                    Position = UDim2.new(0.5, -150, 0, -60),
+                    BackgroundTransparency = 1
+                }):Play()
+                task.wait(0.3)
+                notif:Destroy()
+            end)
+        end)
+    end)
+    
+    if not success then
+        print("[" .. string.upper(type) .. "] " .. message .. " (Erro GUI: " .. tostring(err) .. ")")
+    end
+end
+
+-- ============================================
+-- BUILD MAIN UI
 -- ============================================
 function buildMainUI()
-    if mainGui then return end
+    -- Verifica se já existe (usando getgenv para persistir entre execuções)
+    if getgenv().CADUXX137_MainGui and getgenv().CADUXX137_MainGui.Parent then
+        warn("UI já está carregada!")
+        notify("⚠️ Menu já está aberto!", "warning", 2)
+        return
+    end
     
-    mainGui = Instance.new("ScreenGui")
-    mainGui.Name = "CADUXX137Site"
-    mainGui.ResetOnSpawn = false
-    mainGui.Parent = player:WaitForChild("PlayerGui")
+    -- Verificação de segurança
+    if not playerGui then
+        warn("PlayerGui é nil!")
+        return
+    end
     
-    -- Container principal (estilo site)
-    local mainContainer = Instance.new("Frame")
-    mainContainer.Size = UDim2.new(0, 900, 0, 600)
-    mainContainer.Position = UDim2.new(0.5, -450, 0.5, -300)
-    mainContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-    mainContainer.BorderSizePixel = 0
-    mainContainer.ClipsDescendants = true
-    mainContainer.Parent = mainGui
+    -- PROTEÇÃO CONTRA ERROS
+    local success, result = pcall(function()
+        -- CRIA SCREENGUI
+        local gui = Instance.new("ScreenGui")
+        gui.Name = "CADUXX137Site"
+        gui.ResetOnSpawn = false
+        gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        gui.Parent = playerGui
+        
+        -- Salva na variável global
+        getgenv().CADUXX137_MainGui = gui
+        
+        -- CONTAINER PRINCIPAL
+        local mainContainer = Instance.new("Frame")
+        mainContainer.Name = "MainContainer"
+        mainContainer.Size = UDim2.new(0, 800, 0, 500)
+        mainContainer.Position = UDim2.new(0.5, -400, 0.5, -250)
+        mainContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        mainContainer.BorderSizePixel = 0
+        mainContainer.ClipsDescendants = true
+        mainContainer.Parent = gui
+        
+        -- BORDA NEON
+        local neonBorder = Instance.new("UIStroke")
+        neonBorder.Name = "NeonBorder"
+        neonBorder.Color = CONFIG.accentColor
+        neonBorder.Thickness = 2
+        neonBorder.Parent = mainContainer
+        
+        -- CANTOS ARREDONDADOS
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 16)
+        corner.Parent = mainContainer
+        
+        -- ANIMAÇÃO DE ENTRADA
+        TweenService:Create(mainContainer, TweenInfo.new(0.6, Enum.EasingStyle.Back), {
+            Size = UDim2.new(0, 900, 0, 600),
+            Position = UDim2.new(0.5, -450, 0.5, -300)
+        }):Play()
+        
+        -- HEADER
+        local header = Instance.new("Frame")
+        header.Name = "Header"
+        header.Size = UDim2.new(1, 0, 0, 70)
+        header.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+        header.BorderSizePixel = 0
+        header.Parent = mainContainer
+        
+        -- TÍTULO
+        local title = Instance.new("TextLabel")
+        title.Name = "Title"
+        title.Size = UDim2.new(0, 200, 1, 0)
+        title.Position = UDim2.new(0, 20, 0, 0)
+        title.Text = "CADUXX137"
+        title.Font = Enum.Font.GothamBlack
+        title.TextSize = 24
+        title.TextColor3 = CONFIG.accentColor
+        title.BackgroundTransparency = 1
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.Parent = header
+        
+        -- BOTÃO FECHAR
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Name = "CloseBtn"
+        closeBtn.Size = UDim2.new(0, 40, 0, 40)
+        closeBtn.Position = UDim2.new(1, -50, 0, 15)
+        closeBtn.Text = "X"
+        closeBtn.Font = Enum.Font.GothamBold
+        closeBtn.TextSize = 18
+        closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        closeBtn.BorderSizePixel = 0
+        closeBtn.Parent = header
+        
+        local closeCorner = Instance.new("UICorner")
+        closeCorner.CornerRadius = UDim.new(0, 8)
+        closeCorner.Parent = closeBtn
+        
+        -- FUNÇÃO FECHAR
+        closeBtn.MouseButton1Click:Connect(function()
+            local tween = TweenService:Create(mainContainer, TweenInfo.new(0.3), {
+                Size = UDim2.new(0, 0, 0, 0),
+                Position = UDim2.new(0.5, 0, 0.5, 0)
+            })
+            tween:Play()
+            tween.Completed:Wait()
+            gui:Destroy()
+            getgenv().CADUXX137_MainGui = nil
+        end)
+        
+        -- CONTEÚDO
+        local content = Instance.new("Frame")
+        content.Name = "Content"
+        content.Size = UDim2.new(1, 0, 1, -70)
+        content.Position = UDim2.new(0, 0, 0, 70)
+        content.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        content.BorderSizePixel = 0
+        content.Parent = mainContainer
+        
+        -- TEXTO PLACEHOLDER
+        local placeholder = Instance.new("TextLabel")
+        placeholder.Size = UDim2.new(1, 0, 1, 0)
+        placeholder.Text = "Menu carregado com sucesso!\nAdicione seus botões aqui."
+        placeholder.Font = Enum.Font.Gotham
+        placeholder.TextSize = 18
+        placeholder.TextColor3 = Color3.fromRGB(200, 200, 200)
+        placeholder.BackgroundTransparency = 1
+        placeholder.Parent = content
+        
+        return gui
+    end)
     
-    -- Borda neon
-    local neonBorder = Instance.new("UIStroke")
-    neonBorder.Color = CONFIG.accentColor
-    neonBorder.Thickness = 2
-    neonBorder.Parent = mainContainer
-    
-    -- Cantos arredondados
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 16)
-    corner.Parent = mainContainer
-    
-    -- Animação de entrada
-    mainContainer.Size = UDim2.new(0, 800, 0, 500)
-    mainContainer.Position = UDim2.new(0.5, -400, 0.5, -250)
-    TweenService:Create(mainContainer, TweenInfo.new(0.6, Enum.EasingStyle.Back), {
-        Size = UDim2.new(0, 900, 0, 600),
-        Position = UDim2.new(0.5, -450, 0.5, -300)
-    }):Play()
-    
-    -- HEADER (Navbar estilo site)
-    local header = Instance.new("Frame")
-    header.Size = UDim2.new(1, 0, 0, 70)
-    header.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
-    header.BorderSizePixel = 0
-    header.Parent = mainContainer
-    
-    -- ... (restante do código da UI que você já tem)
-    
-    notify("✅ Menu carregado com sucesso!", "success", 3)
+    if success then
+        notify("✅ Menu carregado com sucesso!", "success", 3)
+        return result
+    else
+        warn("❌ Erro ao criar UI: " .. tostring(result))
+        notify("❌ Erro: " .. tostring(result), "error", 5)
+        return nil
+    end
 end
-Ainda tá dando erro, corrige essa parte
+
+-- ============================================
+-- EXECUÇÃO FINAL
+-- ============================================
+
+-- Delay para garantir que o executor injetou tudo
+task.wait(0.5)
+
+-- Executa com proteção total
+local execSuccess, execErr = pcall(function()
+    buildMainUI()
+end)
+
+if not execSuccess then
+    warn("❌ ERRO FATAL: " .. tostring(execErr))
+    -- Tenta notificar mesmo com erro
+    pcall(function()
+        if playerGui then
+            local emergency = Instance.new("ScreenGui")
+            emergency.Name = "ErrorMsg"
+            emergency.Parent = playerGui
+            local txt = Instance.new("TextLabel")
+            txt.Size = UDim2.new(1, 0, 0, 100)
+            txt.Text = "ERRO: " .. tostring(execErr)
+            txt.TextColor3 = Color3.fromRGB(255, 0, 0)
+            txt.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            txt.Parent = emergency
+        end
+    end)
+end
+
+
 
 -- =================================
 
