@@ -1,5 +1,5 @@
 -- Cadu Hub | The Classic Soccer
--- Design minimalista com animações fluidas
+-- Script premium com arrasto livre para fora da tela
 
 local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
@@ -10,7 +10,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 
--- CONFIG
+-- CONFIGURAÇÕES PREMIUM
 local CONFIG = {
     reach = 10,
     showReachSphere = true,
@@ -18,16 +18,24 @@ local CONFIG = {
     scanCooldown = 1.5,
     ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ" },
     menuOpen = false,
-    accentColor = Color3.fromRGB(0, 170, 255),
-    bgColor = Color3.fromRGB(20, 20, 25),
-    textColor = Color3.fromRGB(255, 255, 255)
+    
+    -- Cores tema
+    accentColor = Color3.fromRGB(0, 180, 255),
+    accentSecondary = Color3.fromRGB(0, 255, 180),
+    bgColor = Color3.fromRGB(15, 15, 20),
+    bgLight = Color3.fromRGB(35, 35, 45),
+    textColor = Color3.fromRGB(255, 255, 255),
+    textDark = Color3.fromRGB(180, 180, 190),
+    
+    -- Animações
+    animSpeed = 0.35
 }
 
--- VARIÁVEIS
+-- VARIÁVEIS GLOBAIS
 local balls = {}
 local lastRefresh = 0
 local reachSphere
-local gui, mainFrame, menuButton, reachLabel, sphereToggle, contentFrame
+local gui, mainFrame, menuButton, reachLabel, sphereToggle, contentFrame, iconContainer
 
 -- BALL SET
 local BALL_NAME_SET = {}
@@ -35,18 +43,19 @@ for _, n in ipairs(CONFIG.ballNames) do
     BALL_NAME_SET[n] = true
 end
 
--- NOTIFY
+-- NOTIFICAÇÃO ELEGANTE
 local function notify(txt, t)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "Cadu Hub",
+            Title = "⚽ Cadu Hub",
             Text = txt,
-            Duration = t or 2
+            Duration = t or 3,
+            Icon = "rbxassetid://3926305904"
         })
     end)
 end
 
--- REFRESH BALLS
+-- ATUALIZAR BOLAS
 local function refreshBalls(force)
     if not force and tick() - lastRefresh < CONFIG.scanCooldown then return end
     lastRefresh = tick()
@@ -70,11 +79,16 @@ local function getValidParts(char)
     return parts
 end
 
--- REACH SPHERE
+-- ESFERA DE ALCANCE
 local function updateReachSphere()
     if not CONFIG.showReachSphere then
-        if reachSphere then reachSphere:Destroy() end
-        reachSphere = nil
+        if reachSphere then 
+            TweenService:Create(reachSphere, TweenInfo.new(0.5), {Transparency = 1}):Play()
+            task.delay(0.5, function()
+                if reachSphere then reachSphere:Destroy() end
+                reachSphere = nil
+            end)
+        end
         return
     end
 
@@ -84,7 +98,7 @@ local function updateReachSphere()
         reachSphere.Shape = Enum.PartType.Ball
         reachSphere.Anchored = true
         reachSphere.CanCollide = false
-        reachSphere.Transparency = 0.9
+        reachSphere.Transparency = 0.92
         reachSphere.Material = Enum.Material.ForceField
         reachSphere.Color = CONFIG.accentColor
         reachSphere.Parent = Workspace
@@ -99,42 +113,28 @@ local function updateReachSphere()
     reachSphere.Size = Vector3.new(CONFIG.reach*2, CONFIG.reach*2, CONFIG.reach*2)
 end
 
--- ANIMAÇÕES SUAVES
-local function smoothTween(obj, properties, duration, easingStyle, easingDirection)
-    local tween = TweenService:Create(obj, TweenInfo.new(
-        duration or 0.4,
-        easingStyle or Enum.EasingStyle.Quint,
-        easingDirection or Enum.EasingDirection.Out
+-- SISTEMA DE ANIMAÇÕES
+local function smoothTween(obj, properties, duration, style, direction)
+    return TweenService:Create(obj, TweenInfo.new(
+        duration or CONFIG.animSpeed,
+        style or Enum.EasingStyle.Quint,
+        direction or Enum.EasingDirection.Out
     ), properties)
-    tween:Play()
-    return tween
 end
 
-local function popIn(obj, delay)
-    obj.Size = UDim2.new(0, 0, 0, 0)
-    obj.Visible = true
-    task.delay(delay or 0, function()
-        smoothTween(obj, {Size = obj:GetAttribute("OriginalSize")}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-    end)
+local function elasticTween(obj, properties, duration)
+    return TweenService:Create(obj, TweenInfo.new(
+        duration or 0.6,
+        Enum.EasingStyle.Back,
+        Enum.EasingDirection.Out
+    ), properties)
 end
 
-local function fadeOut(obj, duration)
-    smoothTween(obj, {BackgroundTransparency = 1, TextTransparency = 1}, duration or 0.3)
-    for _, v in ipairs(obj:GetDescendants()) do
-        if v:IsA("GuiObject") then
-            if v:IsA("TextLabel") or v:IsA("TextButton") then
-                smoothTween(v, {TextTransparency = 1}, duration or 0.3)
-            elseif v:IsA("Frame") then
-                smoothTween(v, {BackgroundTransparency = 1}, duration or 0.3)
-            end
-        end
-    end
-end
-
--- DRAG FUNCTION APRIMORADO
-local function makeDraggable(frame, handle)
+-- ARRASTO ULTRA FLUIDO - LIVRE PARA FORA DA TELA
+local function makeFreeDraggable(frame, handle)
     local dragging = false
     local dragStart, startPos
+    local dragConnection
     
     handle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -142,13 +142,13 @@ local function makeDraggable(frame, handle)
             dragStart = input.Position
             startPos = frame.Position
             
-            -- Efeito de pressionado
-            smoothTween(handle, {BackgroundColor3 = handle.BackgroundColor3:Lerp(Color3.new(0,0,0), 0.2)}, 0.1)
+            -- Feedback visual
+            smoothTween(handle, {BackgroundColor3 = handle.BackgroundColor3:Lerp(Color3.new(0,0,0), 0.2)}, 0.1):Play()
             
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
-                    smoothTween(handle, {BackgroundColor3 = handle:GetAttribute("OriginalColor") or handle.BackgroundColor3}, 0.2)
+                    smoothTween(handle, {BackgroundColor3 = handle:GetAttribute("OriginalColor")}, 0.2):Play()
                 end
             end)
         end
@@ -157,6 +157,7 @@ local function makeDraggable(frame, handle)
     handle.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - dragStart
+            -- Movimento direto sem restrições - pode ir para qualquer lugar
             frame.Position = UDim2.new(
                 startPos.X.Scale, 
                 startPos.X.Offset + delta.X,
@@ -165,312 +166,366 @@ local function makeDraggable(frame, handle)
             )
         end
     end)
+    
+    -- Hover effects
+    if handle:IsA("TextButton") or handle:IsA("ImageButton") then
+        handle.MouseEnter:Connect(function()
+            if not dragging then
+                smoothTween(handle, {BackgroundColor3 = handle:GetAttribute("HoverColor") or handle.BackgroundColor3:Lerp(Color3.new(1,1,1), 0.2)}, 0.2):Play()
+                smoothTween(handle, {Size = handle.Size + UDim2.new(0, 6, 0, 6)}, 0.2):Play()
+            end
+        end)
+        
+        handle.MouseLeave:Connect(function()
+            if not dragging then
+                smoothTween(handle, {BackgroundColor3 = handle:GetAttribute("OriginalColor")}, 0.2):Play()
+                smoothTween(handle, {Size = handle:GetAttribute("OriginalSize")}, 0.2):Play()
+            end
+        end)
+    end
 end
 
--- GUI MINIMALISTA E SUAVE
+-- CRIAR SOMBRA SUAVE
+local function createShadow(parent, offset, transparency)
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1, offset * 2, 1, offset * 2)
+    shadow.Position = UDim2.new(0, -offset, 0, -offset)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://131296141"
+    shadow.ImageColor3 = Color3.new(0, 0, 0)
+    shadow.ImageTransparency = transparency or 0.7
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+    shadow.ZIndex = parent.ZIndex - 1
+    shadow.Parent = parent
+    return shadow
+end
+
+-- INTERFACE PREMIUM
 local function buildGUI()
     if gui then return end
 
     gui = Instance.new("ScreenGui")
-    gui.Name = "CaduHubGUI"
+    gui.Name = "CaduHubPremium"
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
     gui.Parent = player:WaitForChild("PlayerGui")
 
-    -- BOTÃO FLUTUANTE (ÍCONE ARRASTÁVEL)
+    -- CONTAINER DO ÍCONE - PODE SAIR FORA DA TELA
+    iconContainer = Instance.new("Frame")
+    iconContainer.Name = "IconContainer"
+    iconContainer.Size = UDim2.new(0, 60, 0, 60)
+    iconContainer.Position = UDim2.new(1, -80, 0.15, 0)
+    iconContainer.BackgroundTransparency = 1
+    iconContainer.Parent = gui
+
     menuButton = Instance.new("TextButton")
     menuButton.Name = "MenuButton"
     menuButton.Size = UDim2.new(0, 50, 0, 50)
-    menuButton.Position = UDim2.new(0.9, -60, 0.1, 0)
+    menuButton.Position = UDim2.new(0.5, -25, 0.5, -25)
     menuButton.BackgroundColor3 = CONFIG.accentColor
     menuButton.Text = "⚽"
-    menuButton.TextSize = 24
-    menuButton.Font = Enum.Font.GothamBold
+    menuButton.TextSize = 26
+    menuButton.Font = Enum.Font.GothamBlack
     menuButton.TextColor3 = CONFIG.textColor
     menuButton.BorderSizePixel = 0
     menuButton.AutoButtonColor = false
-    menuButton.Parent = gui
-    menuButton:SetAttribute("OriginalColor", CONFIG.accentColor)
+    menuButton.Parent = iconContainer
     
-    -- Sombra suave do botão
-    local btnShadow = Instance.new("ImageLabel")
-    btnShadow.Name = "Shadow"
-    btnShadow.Size = UDim2.new(1, 10, 1, 10)
-    btnShadow.Position = UDim2.new(0, -5, 0, -5)
-    btnShadow.BackgroundTransparency = 1
-    btnShadow.Image = "rbxassetid://131296141"
-    btnShadow.ImageColor3 = Color3.new(0, 0, 0)
-    btnShadow.ImageTransparency = 0.7
-    btnShadow.ScaleType = Enum.ScaleType.Slice
-    btnShadow.SliceCenter = Rect.new(10, 10, 118, 118)
-    btnShadow.ZIndex = menuButton.ZIndex - 1
-    btnShadow.Parent = menuButton
+    menuButton:SetAttribute("OriginalColor", CONFIG.accentColor)
+    menuButton:SetAttribute("HoverColor", Color3.fromRGB(0, 210, 255))
+    menuButton:SetAttribute("OriginalSize", UDim2.new(0, 50, 0, 50))
+    
+    -- Sombra premium
+    createShadow(menuButton, 12, 0.6)
+    
+    -- Glow sutil pulsante
+    local glow = Instance.new("ImageLabel")
+    glow.Name = "Glow"
+    glow.Size = UDim2.new(1.4, 0, 1.4, 0)
+    glow.Position = UDim2.new(-0.2, 0, -0.2, 0)
+    glow.BackgroundTransparency = 1
+    glow.Image = "rbxassetid://10873939892"
+    glow.ImageColor3 = CONFIG.accentColor
+    glow.ImageTransparency = 0.9
+    glow.ScaleType = Enum.ScaleType.Stretch
+    glow.ZIndex = menuButton.ZIndex - 2
+    glow.Parent = menuButton
+    
+    -- Animação de pulso
+    task.spawn(function()
+        while menuButton and menuButton.Parent do
+            smoothTween(glow, {ImageTransparency = 0.75}, 1.2):Play()
+            task.wait(1.2)
+            smoothTween(glow, {ImageTransparency = 0.9}, 1.2):Play()
+            task.wait(1.2)
+        end
+    end)
     
     local btnCorner = Instance.new("UICorner")
     btnCorner.CornerRadius = UDim.new(0.5, 0)
     btnCorner.Parent = menuButton
-    
-    -- Efeito hover no botão
-    menuButton.MouseEnter:Connect(function()
-        smoothTween(menuButton, {Size = UDim2.new(0, 55, 0, 55), BackgroundColor3 = Color3.fromRGB(0, 200, 255)}, 0.3)
-    end)
-    
-    menuButton.MouseLeave:Connect(function()
-        smoothTween(menuButton, {Size = UDim2.new(0, 50, 0, 50), BackgroundColor3 = CONFIG.accentColor}, 0.3)
-    end)
 
-    -- FRAME PRINCIPAL (MENU MINIMALISTA)
+    -- MENU PRINCIPAL ELEGANTE
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 220, 0, 160)
-    mainFrame.Position = UDim2.new(0.5, -110, 0.5, -80)
+    mainFrame.Size = UDim2.new(0, 300, 0, 220)
+    mainFrame.Position = UDim2.new(0.5, -150, 0.5, -110)
     mainFrame.BackgroundColor3 = CONFIG.bgColor
-    mainFrame.BackgroundTransparency = 0.05
+    mainFrame.BackgroundTransparency = 0.02
     mainFrame.BorderSizePixel = 0
     mainFrame.Visible = false
     mainFrame.ClipsDescendants = true
     mainFrame.Parent = gui
-    mainFrame:SetAttribute("OriginalSize", UDim2.new(0, 220, 0, 160))
+    
+    createShadow(mainFrame, 25, 0.5)
 
     local frameCorner = Instance.new("UICorner")
-    frameCorner.CornerRadius = UDim.new(0, 16)
+    frameCorner.CornerRadius = UDim.new(0, 20)
     frameCorner.Parent = mainFrame
 
-    -- Sombra do menu
-    local frameShadow = Instance.new("ImageLabel")
-    frameShadow.Name = "Shadow"
-    frameShadow.Size = UDim2.new(1, 30, 1, 30)
-    frameShadow.Position = UDim2.new(0, -15, 0, -15)
-    frameShadow.BackgroundTransparency = 1
-    frameShadow.Image = "rbxassetid://131296141"
-    frameShadow.ImageColor3 = Color3.new(0, 0, 0)
-    frameShadow.ImageTransparency = 0.6
-    frameShadow.ScaleType = Enum.ScaleType.Slice
-    frameShadow.SliceCenter = Rect.new(10, 10, 118, 118)
-    frameShadow.ZIndex = mainFrame.ZIndex - 1
-    frameShadow.Parent = mainFrame
-
-    -- CABEÇALHO ARRASTÁVEL
+    -- CABEÇALHO COM GRADIENTE
     local header = Instance.new("Frame")
     header.Name = "Header"
-    header.Size = UDim2.new(1, 0, 0, 35)
+    header.Size = UDim2.new(1, 0, 0, 50)
     header.BackgroundColor3 = CONFIG.accentColor
     header.BorderSizePixel = 0
     header.Parent = mainFrame
     header:SetAttribute("OriginalColor", CONFIG.accentColor)
+    
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, CONFIG.accentColor),
+        ColorSequenceKeypoint.new(1, CONFIG.accentSecondary)
+    })
+    gradient.Rotation = 45
+    gradient.Parent = header
 
     local headerCorner = Instance.new("UICorner")
-    headerCorner.CornerRadius = UDim.new(0, 16)
+    headerCorner.CornerRadius = UDim.new(0, 20)
     headerCorner.Parent = header
     
-    -- Fixar cantos superiores apenas
     local headerFix = Instance.new("Frame")
     headerFix.Size = UDim2.new(1, 0, 0.5, 0)
     headerFix.Position = UDim2.new(0, 0, 0.5, 0)
     headerFix.BackgroundColor3 = CONFIG.accentColor
     headerFix.BorderSizePixel = 0
     headerFix.Parent = header
+    
+    local gradientFix = Instance.new("UIGradient")
+    gradientFix.Color = gradient.Color
+    gradientFix.Rotation = 45
+    gradientFix.Parent = headerFix
 
+    -- Título
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -50, 1, 0)
-    title.Position = UDim2.new(0, 15, 0, 0)
+    title.Size = UDim2.new(1, -60, 1, 0)
+    title.Position = UDim2.new(0, 20, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "Cadu Hub"
-    title.TextSize = 18
+    title.Text = "⚽ Cadu Hub"
+    title.TextSize = 22
     title.Font = Enum.Font.GothamBold
     title.TextColor3 = CONFIG.textColor
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = header
 
-    -- BOTÃO FECHAR (X minimalista)
+    -- Botão fechar
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(1, -35, 0.5, -15)
-    closeBtn.BackgroundTransparency = 1
+    closeBtn.Size = UDim2.new(0, 35, 0, 35)
+    closeBtn.Position = UDim2.new(1, -45, 0.5, -17.5)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
     closeBtn.Text = "×"
     closeBtn.TextSize = 24
     closeBtn.Font = Enum.Font.GothamBold
     closeBtn.TextColor3 = CONFIG.textColor
+    closeBtn.BorderSizePixel = 0
+    closeBtn.AutoButtonColor = false
     closeBtn.Parent = header
     
-    closeBtn.MouseEnter:Connect(function()
-        smoothTween(closeBtn, {TextColor3 = Color3.fromRGB(255, 100, 100)}, 0.2)
-    end)
-    closeBtn.MouseLeave:Connect(function()
-        smoothTween(closeBtn, {TextColor3 = CONFIG.textColor}, 0.2)
-    end)
+    closeBtn:SetAttribute("OriginalColor", Color3.fromRGB(255, 80, 80))
+    closeBtn:SetAttribute("HoverColor", Color3.fromRGB(255, 120, 120))
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0.3, 0)
+    closeCorner.Parent = closeBtn
 
-    -- CONTEÚDO COM LAYOUT SUAVE
+    -- CONTEÚDO
     contentFrame = Instance.new("Frame")
     contentFrame.Name = "Content"
-    contentFrame.Size = UDim2.new(1, 0, 1, -35)
-    contentFrame.Position = UDim2.new(0, 0, 0, 35)
+    contentFrame.Size = UDim2.new(1, 0, 1, -50)
+    contentFrame.Position = UDim2.new(0, 0, 0, 50)
     contentFrame.BackgroundTransparency = 1
     contentFrame.Parent = mainFrame
 
-    -- DISPLAY DE REACH (Estilo moderno)
-    local reachContainer = Instance.new("Frame")
-    reachContainer.Size = UDim2.new(1, -30, 0, 40)
-    reachContainer.Position = UDim2.new(0, 15, 0, 15)
-    reachContainer.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-    reachContainer.BorderSizePixel = 0
-    reachContainer.Parent = contentFrame
+    -- SEÇÃO DE REACH
+    local reachSection = Instance.new("Frame")
+    reachSection.Size = UDim2.new(1, -40, 0, 60)
+    reachSection.Position = UDim2.new(0, 20, 0, 20)
+    reachSection.BackgroundColor3 = CONFIG.bgLight
+    reachSection.BorderSizePixel = 0
+    reachSection.Parent = contentFrame
     
-    local reachCorner = Instance.new("UICorner")
-    reachCorner.CornerRadius = UDim.new(0, 10)
-    reachCorner.Parent = reachContainer
+    local reachSectionCorner = Instance.new("UICorner")
+    reachSectionCorner.CornerRadius = UDim.new(0, 12)
+    reachSectionCorner.Parent = reachSection
+
+    local reachText = Instance.new("TextLabel")
+    reachText.Size = UDim2.new(0.4, 0, 1, 0)
+    reachText.Position = UDim2.new(0, 15, 0, 0)
+    reachText.BackgroundTransparency = 1
+    reachText.Text = "Alcance"
+    reachText.TextSize = 14
+    reachText.Font = Enum.Font.Gotham
+    reachText.TextColor3 = CONFIG.textDark
+    reachText.TextXAlignment = Enum.TextXAlignment.Left
+    reachText.Parent = reachSection
 
     reachLabel = Instance.new("TextLabel")
-    reachLabel.Size = UDim2.new(1, 0, 1, 0)
+    reachLabel.Size = UDim2.new(0.6, -15, 1, 0)
+    reachLabel.Position = UDim2.new(0.4, 0, 0, 0)
     reachLabel.BackgroundTransparency = 1
-    reachLabel.Text = "Reach: " .. CONFIG.reach
-    reachLabel.TextSize = 16
-    reachLabel.Font = Enum.Font.GothamBold
+    reachLabel.Text = tostring(CONFIG.reach)
+    reachLabel.TextSize = 32
+    reachLabel.Font = Enum.Font.GothamBlack
     reachLabel.TextColor3 = CONFIG.accentColor
-    reachLabel.Parent = reachContainer
+    reachLabel.TextXAlignment = Enum.TextXAlignment.Right
+    reachLabel.Parent = reachSection
 
-    -- BOTÕES + E - (Design minimalista)
-    local buttonContainer = Instance.new("Frame")
-    buttonContainer.Size = UDim2.new(1, -30, 0, 45)
-    buttonContainer.Position = UDim2.new(0, 15, 0, 65)
-    buttonContainer.BackgroundTransparency = 1
-    buttonContainer.Parent = contentFrame
+    -- BOTÕES DE CONTROLE
+    local controlsFrame = Instance.new("Frame")
+    controlsFrame.Size = UDim2.new(1, -40, 0, 55)
+    controlsFrame.Position = UDim2.new(0, 20, 0, 90)
+    controlsFrame.BackgroundTransparency = 1
+    controlsFrame.Parent = contentFrame
 
     local minus = Instance.new("TextButton")
+    minus.Name = "Minus"
     minus.Size = UDim2.new(0.48, 0, 1, 0)
-    minus.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    minus.BackgroundColor3 = CONFIG.bgLight
     minus.Text = "−"
-    minus.TextSize = 20
+    minus.TextSize = 24
     minus.Font = Enum.Font.GothamBold
     minus.TextColor3 = CONFIG.textColor
     minus.BorderSizePixel = 0
     minus.AutoButtonColor = false
-    minus.Parent = buttonContainer
+    minus.Parent = controlsFrame
+    
+    minus:SetAttribute("OriginalColor", CONFIG.bgLight)
+    minus:SetAttribute("HoverColor", Color3.fromRGB(255, 100, 100))
     
     local minusCorner = Instance.new("UICorner")
-    minusCorner.CornerRadius = UDim.new(0, 10)
+    minusCorner.CornerRadius = UDim.new(0, 12)
     minusCorner.Parent = minus
 
     local plus = Instance.new("TextButton")
+    plus.Name = "Plus"
     plus.Size = UDim2.new(0.48, 0, 1, 0)
     plus.Position = UDim2.new(0.52, 0, 0, 0)
-    plus.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    plus.BackgroundColor3 = CONFIG.bgLight
     plus.Text = "+"
-    plus.TextSize = 20
+    plus.TextSize = 24
     plus.Font = Enum.Font.GothamBold
     plus.TextColor3 = CONFIG.textColor
     plus.BorderSizePixel = 0
     plus.AutoButtonColor = false
-    plus.Parent = buttonContainer
+    plus.Parent = controlsFrame
+    
+    plus:SetAttribute("OriginalColor", CONFIG.bgLight)
+    plus:SetAttribute("HoverColor", Color3.fromRGB(100, 255, 150))
     
     local plusCorner = Instance.new("UICorner")
-    plusCorner.CornerRadius = UDim.new(0, 10)
+    plusCorner.CornerRadius = UDim.new(0, 12)
     plusCorner.Parent = plus
 
-    -- Efeitos hover nos botões
-    local function setupButtonHover(btn, originalColor)
-        btn.MouseEnter:Connect(function()
-            smoothTween(btn, {BackgroundColor3 = CONFIG.accentColor}, 0.2)
-        end)
-        btn.MouseLeave:Connect(function()
-            smoothTween(btn, {BackgroundColor3 = originalColor}, 0.2)
-        end)
-        btn.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                smoothTween(btn, {Size = UDim2.new(btn.Size.X.Scale * 0.95, 0, 0.95, 0)}, 0.1)
-            end
-        end)
-        btn.InputEnded:Connect(function()
-            smoothTween(btn, {Size = UDim2.new(0.48, 0, 1, 0)}, 0.1)
-        end)
-    end
-
-    setupButtonHover(minus, Color3.fromRGB(45, 45, 50))
-    setupButtonHover(plus, Color3.fromRGB(45, 45, 50))
-
-    -- TOGGLE SPHERE (Switch moderno)
-    local toggleContainer = Instance.new("Frame")
-    toggleContainer.Size = UDim2.new(1, -30, 0, 35)
-    toggleContainer.Position = UDim2.new(0, 15, 0, 115)
-    toggleContainer.BackgroundTransparency = 1
-    toggleContainer.Parent = contentFrame
+    -- TOGGLE DE ESFERA
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Size = UDim2.new(1, -40, 0, 45)
+    toggleFrame.Position = UDim2.new(0, 20, 0, 155)
+    toggleFrame.BackgroundTransparency = 1
+    toggleFrame.Parent = contentFrame
 
     local toggleLabel = Instance.new("TextLabel")
     toggleLabel.Size = UDim2.new(0.6, 0, 1, 0)
     toggleLabel.BackgroundTransparency = 1
-    toggleLabel.Text = "Show Sphere"
-    toggleLabel.TextSize = 14
+    toggleLabel.Text = "Mostrar Esfera"
+    toggleLabel.TextSize = 15
     toggleLabel.Font = Enum.Font.Gotham
-    toggleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    toggleLabel.TextColor3 = CONFIG.textDark
     toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    toggleLabel.Parent = toggleContainer
+    toggleLabel.Parent = toggleFrame
 
-    -- Switch visual
-    local switchBg = Instance.new("Frame")
-    switchBg.Size = UDim2.new(0, 50, 0, 26)
-    switchBg.Position = UDim2.new(1, -50, 0.5, -13)
-    switchBg.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    switchBg.BorderSizePixel = 0
-    switchBg.Parent = toggleContainer
+    local switchContainer = Instance.new("TextButton")
+    switchContainer.Size = UDim2.new(0, 55, 0, 30)
+    switchContainer.Position = UDim2.new(1, -55, 0.5, -15)
+    switchContainer.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+    switchContainer.Text = ""
+    switchContainer.BorderSizePixel = 0
+    switchContainer.AutoButtonColor = false
+    switchContainer.Parent = toggleFrame
     
     local switchCorner = Instance.new("UICorner")
     switchCorner.CornerRadius = UDim.new(0.5, 0)
-    switchCorner.Parent = switchBg
-
+    switchCorner.Parent = switchContainer
+    
     local switchCircle = Instance.new("Frame")
-    switchCircle.Size = UDim2.new(0, 22, 0, 22)
-    switchCircle.Position = UDim2.new(0, 2, 0.5, -11)
+    switchCircle.Size = UDim2.new(0, 24, 0, 24)
+    switchCircle.Position = UDim2.new(0, 3, 0.5, -12)
     switchCircle.BackgroundColor3 = Color3.new(1, 1, 1)
     switchCircle.BorderSizePixel = 0
-    switchCircle.Parent = switchBg
+    switchCircle.Parent = switchContainer
     
     local circleCorner = Instance.new("UICorner")
     circleCorner.CornerRadius = UDim.new(0.5, 0)
     circleCorner.Parent = switchCircle
+    
+    sphereToggle = switchContainer
 
-    sphereToggle = switchBg
-
-    -- EVENTOS COM ANIMAÇÕES SUAVES
+    -- EVENTOS
+    
+    -- Abrir/Fechar menu
     menuButton.MouseButton1Click:Connect(function()
         CONFIG.menuOpen = not CONFIG.menuOpen
         
         if CONFIG.menuOpen then
-            -- Animação de abertura suave
             mainFrame.Visible = true
             mainFrame.Size = UDim2.new(0, 0, 0, 0)
             mainFrame.BackgroundTransparency = 1
             
-            smoothTween(mainFrame, {
-                Size = UDim2.new(0, 220, 0, 160),
-                BackgroundTransparency = 0.05
-            }, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+            elasticTween(mainFrame, {
+                Size = UDim2.new(0, 300, 0, 220),
+                BackgroundTransparency = 0.02
+            }, 0.6):Play()
             
-            -- Animação do botão
-            smoothTween(menuButton, {BackgroundColor3 = Color3.fromRGB(0, 255, 150)}, 0.3)
+            smoothTween(menuButton, {BackgroundColor3 = CONFIG.accentSecondary}, 0.3):Play()
             
-            -- Animação dos elementos internos
+            -- Animar elementos internos
             for _, child in ipairs(contentFrame:GetDescendants()) do
                 if child:IsA("GuiObject") and child ~= contentFrame then
                     child.Visible = false
                 end
             end
             
-            task.delay(0.2, function()
-                for _, child in ipairs(contentFrame:GetDescendants()) do
-                    if child:IsA("GuiObject") and child ~= contentFrame then
-                        child.Visible = true
-                        if child:IsA("TextLabel") or child:IsA("TextButton") then
-                            child.TextTransparency = 1
-                            smoothTween(child, {TextTransparency = 0}, 0.3)
-                        elseif child:IsA("Frame") then
-                            child.BackgroundTransparency = 1
-                            smoothTween(child, {BackgroundTransparency = child.Name == "Shadow" and 0.6 or 0}, 0.3)
+            local delay = 0
+            for _, child in ipairs(contentFrame:GetChildren()) do
+                task.delay(delay, function()
+                    for _, subChild in ipairs(child:GetDescendants()) do
+                        if subChild:IsA("GuiObject") then
+                            subChild.Visible = true
+                            if subChild:IsA("TextLabel") or subChild:IsA("TextButton") then
+                                subChild.TextTransparency = 1
+                                smoothTween(subChild, {TextTransparency = 0}, 0.4):Play()
+                            elseif subChild:IsA("Frame") and subChild.Name ~= "Shadow" then
+                                subChild.BackgroundTransparency = 1
+                                smoothTween(subChild, {BackgroundTransparency = 0}, 0.4):Play()
+                            end
                         end
                     end
-                end
-            end)
+                end)
+                delay += 0.05
+            end
+            
         else
-            -- Animação de fechamento suave
             smoothTween(mainFrame, {
                 Size = UDim2.new(0, 0, 0, 0),
                 BackgroundTransparency = 1
@@ -478,7 +533,7 @@ local function buildGUI()
                 mainFrame.Visible = false
             end)
             
-            smoothTween(menuButton, {BackgroundColor3 = CONFIG.accentColor}, 0.3)
+            smoothTween(menuButton, {BackgroundColor3 = CONFIG.accentColor}, 0.3):Play()
         end
     end)
 
@@ -490,52 +545,57 @@ local function buildGUI()
         }, 0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.In).Completed:Connect(function()
             mainFrame.Visible = false
         end)
-        smoothTween(menuButton, {BackgroundColor3 = CONFIG.accentColor}, 0.3)
+        smoothTween(menuButton, {BackgroundColor3 = CONFIG.accentColor}, 0.3):Play()
     end)
 
-    -- Controles de Reach com animação de contador
+        -- Controles de Reach
     local function updateReachDisplay()
-        reachLabel.Text = "Reach: " .. CONFIG.reach
-        -- Animação de pulo no número
-        smoothTween(reachLabel, {TextSize = 20}, 0.1).Completed:Connect(function()
-            smoothTween(reachLabel, {TextSize = 16}, 0.2)
+        reachLabel.Text = tostring(CONFIG.reach)
+        elasticTween(reachLabel, {TextSize = 38}, 0.15).Completed:Connect(function()
+            smoothTween(reachLabel, {TextSize = 32}, 0.3):Play()
         end)
+        reachLabel.TextColor3 = CONFIG.accentSecondary
+        smoothTween(reachLabel, {TextColor3 = CONFIG.accentColor}, 0.5):Play()
     end
 
     minus.MouseButton1Click:Connect(function()
-        CONFIG.reach = math.max(1, CONFIG.reach - 1)
-        updateReachDisplay()
-        updateReachSphere()
-        notify("Reach: " .. CONFIG.reach, 1)
+        if CONFIG.reach > 1 then
+            CONFIG.reach -= 1
+            updateReachDisplay()
+            updateReachSphere()
+            smoothTween(minus, {BackgroundColor3 = Color3.fromRGB(255, 100, 100)}, 0.1).Completed:Connect(function()
+                smoothTween(minus, {BackgroundColor3 = CONFIG.bgLight}, 0.2):Play()
+            end)
+        end
     end)
 
     plus.MouseButton1Click:Connect(function()
         CONFIG.reach += 1
         updateReachDisplay()
         updateReachSphere()
-        notify("Reach: " .. CONFIG.reach, 1)
+        smoothTween(plus, {BackgroundColor3 = Color3.fromRGB(100, 255, 150)}, 0.1).Completed:Connect(function()
+            smoothTween(plus, {BackgroundColor3 = CONFIG.bgLight}, 0.2):Play()
+        end)
     end)
 
-    -- Toggle Sphere com animação de switch
-    sphereToggle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            CONFIG.showReachSphere = not CONFIG.showReachSphere
-            
-            if CONFIG.showReachSphere then
-                smoothTween(switchBg, {BackgroundColor3 = Color3.fromRGB(0, 170, 0)}, 0.3)
-                smoothTween(switchCircle, {Position = UDim2.new(0, 2, 0.5, -11)}, 0.3, Enum.EasingStyle.Quint)
-            else
-                smoothTween(switchBg, {BackgroundColor3 = Color3.fromRGB(170, 0, 0)}, 0.3)
-                smoothTween(switchCircle, {Position = UDim2.new(0, 26, 0.5, -11)}, 0.3, Enum.EasingStyle.Quint)
-            end
-            
-            updateReachSphere()
+    -- Toggle Sphere
+    switchContainer.MouseButton1Click:Connect(function()
+        CONFIG.showReachSphere = not CONFIG.showReachSphere
+        
+        if CONFIG.showReachSphere then
+            smoothTween(switchContainer, {BackgroundColor3 = Color3.fromRGB(0, 200, 100)}, 0.3):Play()
+            smoothTween(switchCircle, {Position = UDim2.new(0, 3, 0.5, -12)}, 0.3, Enum.EasingStyle.Quint):Play()
+        else
+            smoothTween(switchContainer, {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}, 0.3):Play()
+            smoothTween(switchCircle, {Position = UDim2.new(1, -27, 0.5, -12)}, 0.3, Enum.EasingStyle.Quint):Play()
         end
+        
+        updateReachSphere()
     end)
 
-    -- TORNAR ARRASTÁVEL
-    makeDraggable(mainFrame, header)
-    makeDraggable(menuButton, menuButton)
+    -- ARRASTAR LIVREMENTE - SEM RESTRIÇÕES
+    makeFreeDraggable(iconContainer, iconContainer)
+    makeFreeDraggable(mainFrame, header)
 end
 
 -- AUTO TOUCH
@@ -572,9 +632,9 @@ task.spawn(function()
     end
 end)
 
--- INIT
+-- INICIALIZAÇÃO
 buildGUI()
 updateReachSphere()
 refreshBalls(true)
-notify("⚽ Cadu Hub Online!", 3)
-print("Cadu Hub executado com sucesso!")
+notify("⚽ Cadu Hub Premium Ativo!", 4)
+print("✅ Cadu Hub Premium carregado com sucesso!")
