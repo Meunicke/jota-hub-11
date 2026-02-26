@@ -1288,8 +1288,8 @@ function TitanHub:Init()
         Size = UDim2.new(0, 400, 0, 550)
     }, Enum.EasingStyle.Back)
 
-    
-        notify("TITANIUM HUB v3.0", "Sistema reformulado carregado!", 3, "success")
+
+    notify("TITANIUM HUB v3.0", "Sistema reformulado carregado!", 3, "success")
     
     return self
 end
@@ -1490,3 +1490,12 @@ print([[
  ║                                                               ║
  ╚═══════════════════════════════════════════════════════════════╝
 ]])
+
+
+
+
+
+
+
+ 
+                    
