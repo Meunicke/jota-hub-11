@@ -1137,22 +1137,25 @@ function TitanHub:UpdateStatus()
 end
 
 -- ============================================
--- MAIN LOOP
+-- MAIN LOOP CORRIGIDO (Estabilidade e Performance)
 -- ============================================
 
--- Initialize Hub
+-- Inicializa o Hub
 local Hub = TitanHub:Init()
 
--- Main Loop
+-- Loop Principal usando Heartbeat para evitar travamentos
 RunService.Heartbeat:Connect(function()
+    -- Garante que o personagem e os dados estejam atualizados antes de prosseguir
     updateCharacter()
     updateSphere()
     findBalls()
     Hub:UpdateStatus()
 
-    if not HRP then return end
+    -[span_0](start_span)- PROTEÇÃO: Verifica se o HumanoidRootPart existe e está no Workspace[span_0](end_span)
+    if not HRP or not HRP.Parent then return end
 
     local now = tick()
+    -- Controle de taxa de atualização (Cooldown global de toque)
     if now - lastTouch < 0.05 then return end
 
     local hrpPos = HRP.Position
@@ -1163,8 +1166,10 @@ RunService.Heartbeat:Connect(function()
     local closestBall = nil
     local closestDistance = CADU_CONFIG.reach
 
+    -[span_1](start_span)[span_2](start_span)- Busca a bola mais próxima com verificação de existência[span_1](end_span)[span_2](end_span)
     for _, ball in ipairs(balls) do
-        if ball and ball.Parent then
+        -- Adicionada verificação IsA("BasePart") para evitar erro de indexação de posição
+        if ball and ball.Parent and ball:IsA("BasePart") then
             local distance = (ball.Position - hrpPos).Magnitude
             if distance <= CADU_CONFIG.reach and distance < closestDistance then
                 ballInRange = true
@@ -1174,25 +1179,30 @@ RunService.Heartbeat:Connect(function()
         end
     end
 
+    -[span_3](start_span)- Lógica de Auto Touch (Pegar a bola automaticamente)[span_3](end_span)
     if CADU_CONFIG.autoTouch and ballInRange and closestBall then
         lastTouch = now
-
         for _, part in ipairs(characterParts) do
-            doTouch(closestBall, part)
+            -- Proteção adicional: verifica se a parte do corpo ainda existe
+            if part and part.Parent then
+                doTouch(closestBall, part)
+            end
         end
     end
 
+    -[span_4](start_span)[span_5](start_span)- Lógica de Auto Skills (Ativação automática de botões)[span_4](end_span)[span_5](end_span)
     if CADU_CONFIG.autoSkills and ballInRange and (now - lastSkillActivation > CADU_CONFIG.skillCooldown) then
-        lastSkillActivation = now
-
         local skillButtons = findSkillButtons()
         local mainSkills = {"Shoot", "Pass", "Dribble", "Control"}
 
         for _, button in ipairs(skillButtons) do
-            for _, mainSkill in ipairs(mainSkills) do
-                if button.Name == mainSkill or button.Text == mainSkill then
-                    activateSkillButton(button)
-                    break
+            if button and button.Parent then -- Verifica se o botão da UI ainda é válido
+                for _, mainSkill in ipairs(mainSkills) do
+                    if button.Name == mainSkill or (button:IsA("TextButton") and button.Text == mainSkill) then
+                        lastSkillActivation = now
+                        activateSkillButton(button)
+                        break
+                    end
                 end
             end
         end
