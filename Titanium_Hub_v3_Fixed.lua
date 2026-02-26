@@ -642,7 +642,7 @@ function TitaniumHub:CreateModernToggle(parent, config)
         end)
     end)
     
-    -- Touch ripple
+        -- Touch ripple
     clickArea.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.Touch then
             local pos = input.Position
@@ -661,4 +661,615 @@ function TitaniumHub:CreateModernToggle(parent, config)
     }
 end
 
-func
+function TitaniumHub:CreateModernSlider(parent, config)
+    config = config or {}
+    local text = config.Text or "Slider"
+    local min = config.Min or 0
+    local max = config.Max or 100
+    local default = math.clamp(config.Default or min, min, max)
+    local suffix = config.Suffix or ""
+    local callback = config.Callback or function() end
+    
+    local container = Create("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -30, 0, 70),
+        Parent = parent
+    })
+    
+    -- Header com título e valor
+    local header = Create("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 25),
+        Parent = container
+    })
+    
+    local titleLabel = Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = text,
+        TextColor3 = CONFIG.colors.text,
+        Font = Enum.Font.GothamSemibold,
+        TextSize = 15,
+        Size = UDim2.new(0.6, 0, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = header
+    })
+    
+    local valueLabel = Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = tostring(default) .. suffix,
+        TextColor3 = CONFIG.colors.primary,
+        Font = Enum.Font.GothamBold,
+        TextSize = 16,
+        Size = UDim2.new(0.4, 0, 1, 0),
+        Position = UDim2.new(0.6, 0, 0, 0),
+        TextXAlignment = Enum.TextXAlignment.Right,
+        Parent = header
+    })
+    
+    -- Track container
+    local trackContainer = Create("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 30),
+        Position = UDim2.new(0, 0, 0, 35),
+        Parent = container
+    })
+    
+    -- Track background
+    local trackHeight = 8
+    local track = Create("Frame", {
+        BackgroundColor3 = CONFIG.colors.outline,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, trackHeight),
+        Position = UDim2.new(0, 0, 0.5, -trackHeight/2),
+        Parent = trackContainer
+    })
+    
+    Create("UICorner", {
+        CornerRadius = UDim.new(1, 0),
+        Parent = track
+    })
+    
+    -- Fill
+    local fillPercent = (default - min) / (max - min)
+    local fill = Create("Frame", {
+        BackgroundColor3 = CONFIG.colors.primary,
+        BorderSizePixel = 0,
+        Size = UDim2.new(fillPercent, 0, 1, 0),
+        Parent = track
+    })
+    
+    Create("UICorner", {
+        CornerRadius = UDim.new(1, 0),
+        Parent = fill
+    })
+    
+    -- Thumb maior e mais fácil de pegar em mobile
+    local thumbSize = 24
+    local thumb = Create("Frame", {
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0,
+        Size = UDim2.new(0, thumbSize, 0, thumbSize),
+        Position = UDim2.new(fillPercent, -thumbSize/2, 0.5, -thumbSize/2),
+        ZIndex = 5,
+        Parent = track
+    })
+    
+    Create("UICorner", {
+        CornerRadius = UDim.new(1, 0),
+        Parent = thumb
+    })
+    
+    -- Sombra do thumb
+    Create("UIStroke", {
+        Color = Color3.fromRGB(0, 0, 0),
+        Thickness = 2,
+        Transparency = 0.8,
+        Parent = thumb
+    })
+    
+    -- Glow effect
+    local glow = Create("Frame", {
+        BackgroundColor3 = CONFIG.colors.primary,
+        BackgroundTransparency = 0.8,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1.5, 0, 1.5, 0),
+        Position = UDim2.new(-0.25, 0, -0.25, 0),
+        ZIndex = 4,
+        Visible = false,
+        Parent = thumb
+    })
+    
+    Create("UICorner", {
+        CornerRadius = UDim.new(1, 0),
+        Parent = glow
+    })
+    
+    local dragging = false
+    
+    local function updateFromInput(input)
+        local trackAbsPos = track.AbsolutePosition.X
+        local trackAbsSize = track.AbsoluteSize.X
+        
+        if trackAbsSize <= 0 then return end
+        
+        local pos = math.clamp((input.Position.X - trackAbsPos) / trackAbsSize, 0, 1)
+        local value = math.floor(min + (pos * (max - min)))
+        
+        fill.Size = UDim2.new(pos, 0, 1, 0)
+        thumb.Position = UDim2.new(pos, -thumbSize/2, 0.5, -thumbSize/2)
+        valueLabel.Text = tostring(value) .. suffix
+        
+        callback(value)
+        return value
+    end
+    
+    -- Eventos de input
+    thumb.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or 
+           input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            glow.Visible = true
+            Tween(thumb, 0.15, {Size = UDim2.new(0, thumbSize + 8, 0, thumbSize + 8)})
+            Tween(glow, 0.15, {BackgroundTransparency = 0.5})
+        end
+    end)
+    
+    Services.UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or 
+           input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+            glow.Visible = false
+            Tween(thumb, 0.15, {Size = UDim2.new(0, thumbSize, 0, thumbSize)})
+        end
+    end)
+    
+    Services.UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+                        input.UserInputType == Enum.UserInputType.Touch) then
+            updateFromInput(input)
+        end
+    end)
+    
+    -- Click na track para pular
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or 
+           input.UserInputType == Enum.UserInputType.MouseButton1 then
+            updateFromInput(input)
+            
+            -- Animação de ripple
+            local relativeX = input.Position.X - track.AbsolutePosition.X
+            RippleEffect(track, relativeX, track.AbsoluteSize.Y/2, CONFIG.colors.primary)
+        end
+    end)
+    
+    return {
+        Instance = container,
+        Set = function(_, value)
+            local clamped = math.clamp(value, min, max)
+            local pos = (clamped - min) / (max - min)
+            Tween(fill, 0.3, {Size = UDim2.new(pos, 0, 1, 0)})
+            Tween(thumb, 0.3, {Position = UDim2.new(pos, -thumbSize/2, 0.5, -thumbSize/2)})
+            valueLabel.Text = tostring(clamped) .. suffix
+        end
+    }
+end
+
+function TitaniumHub:CreateModernButton(parent, config)
+    config = config or {}
+    local text = config.Text or "Button"
+    local icon = config.Icon
+    local callback = config.Callback or function() end
+    local style = config.Style or "filled" -- filled, outlined, text
+    local color = config.Color or CONFIG.colors.primary
+    
+    local height = config.Height or 50
+    
+    local btn = Create("Frame", {
+        BackgroundColor3 = style == "filled" and color or CONFIG.colors.surface,
+        BackgroundTransparency = style == "text" and 1 or 0,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, -30, 0, height),
+        Position = config.Position or UDim2.new(0, 15, 0, 0),
+        ClipsDescendants = true,
+        Parent = parent
+    })
+    
+    Create("UICorner", {
+        CornerRadius = UDim.new(0, 12),
+        Parent = btn
+    })
+    
+    if style == "outlined" then
+        Create("UIStroke", {
+            Color = color,
+            Thickness = 2,
+            Parent = btn
+        })
+    end
+    
+    -- Conteúdo
+    local contentPadding = 16
+    
+    local label = Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = text,
+        TextColor3 = style == "filled" and Color3.fromRGB(0, 0, 0) or color,
+        Font = Enum.Font.GothamBold,
+        TextSize = 15,
+        Size = UDim2.new(1, -contentPadding * 2, 1, 0),
+        Position = UDim2.new(0, contentPadding, 0, 0),
+        TextXAlignment = icon and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center,
+        Parent = btn
+    })
+    
+    if icon then
+        local iconImg = Create("ImageLabel", {
+            BackgroundTransparency = 1,
+            Image = icon,
+            ImageColor3 = style == "filled" and Color3.fromRGB(0, 0, 0) or color,
+            Size = UDim2.new(0, 24, 0, 24),
+            Position = UDim2.new(1, -40, 0.5, -12),
+            Parent = btn
+        })
+    end
+    
+    -- Interatividade
+    local clickArea = Create("TextButton", {
+        BackgroundTransparency = 1,
+        Text = "",
+        Size = UDim2.new(1, 0, 1, 0),
+        Parent = btn
+    })
+    
+    local originalColor = btn.BackgroundColor3
+    
+    clickArea.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or 
+           input.UserInputType == Enum.UserInputType.MouseButton1 then
+            Tween(btn, 0.1, {
+                BackgroundColor3 = style == "filled" and 
+                    color:Lerp(Color3.fromRGB(0, 0, 0), 0.2) or 
+                    CONFIG.colors.surfaceVariant
+            })
+            
+            local pos = Vector2.new(input.Position.X, input.Position.Y) - btn.AbsolutePosition
+            RippleEffect(btn, pos.X, pos.Y, color)
+        end
+    end)
+    
+    clickArea.InputEnded:Connect(function()
+        Tween(btn, 0.2, {BackgroundColor3 = originalColor})
+    end)
+    
+    clickArea.MouseButton1Click:Connect(function()
+        local success, err = pcall(callback)
+        if not success then
+            notify("Erro", tostring(err), 3, "error")
+        end
+    end)
+    
+    return btn
+end
+
+function TitaniumHub:CreateSegmentedControl(parent, config)
+    config = config or {}
+    local options = config.Options or {"Opção 1", "Opção 2"}
+    local default = config.Default or 1
+    local callback = config.Callback or function() end
+    
+    local container = Create("Frame", {
+        BackgroundColor3 = CONFIG.colors.surfaceVariant,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, -30, 0, 44),
+        Parent = parent
+    })
+    
+    Create("UICorner", {
+        CornerRadius = UDim.new(0, 8),
+        Parent = container
+    })
+    
+    local padding = 4
+    local optionWidth = 1 / #options
+    
+    local indicators = {}
+    local buttons = {}
+    
+    for i, option in ipairs(options) do
+        local btn = Create("TextButton", {
+            Name = "Option_" .. i,
+            BackgroundTransparency = 1,
+            Text = option,
+            TextColor3 = i == default and CONFIG.colors.primary or CONFIG.colors.textSecondary,
+            Font = i == default and Enum.Font.GothamBold or Enum.Font.GothamMedium,
+            TextSize = 13,
+            Size = UDim2.new(optionWidth, 0, 1, 0),
+            Position = UDim2.new((i-1) * optionWidth, 0, 0, 0),
+            Parent = container
+        })
+        
+        table.insert(buttons, btn)
+        
+        btn.MouseButton1Click:Connect(function()
+            -- Atualiza visual
+            for j, b in ipairs(buttons) do
+                if j == i then
+                    Tween(b, 0.2, {TextColor3 = CONFIG.colors.primary})
+                    b.Font = Enum.Font.GothamBold
+                else
+                    Tween(b, 0.2, {TextColor3 = CONFIG.colors.textSecondary})
+                    b.Font = Enum.Font.GothamMedium
+                end
+            end
+            
+            -- Move indicador
+            Tween(indicators[1], 0.3, {
+                Position = UDim2.new((i-1) * optionWidth, padding, 0, padding),
+                Size = UDim2.new(optionWidth, -padding * 2, 1, -padding * 2)
+            }, Enum.EasingStyle.Quart)
+            
+            callback(i, option)
+        end)
+    end
+    
+    -- Indicador de seleção
+    local indicator = Create("Frame", {
+        Name = "Indicator",
+        BackgroundColor3 = CONFIG.colors.surface,
+        BorderSizePixel = 0,
+        Size = UDim2.new(optionWidth, -padding * 2, 1, -padding * 2),
+        Position = UDim2.new((default-1) * optionWidth, padding, 0, padding),
+        ZIndex = 0,
+        Parent = container
+    })
+    
+    Create("UICorner", {
+        CornerRadius = UDim.new(0, 6),
+        Parent = indicator
+    })
+    
+    table.insert(indicators, indicator)
+    
+    return {
+        Instance = container,
+        Select = function(_, index)
+            buttons[index].MouseButton1Click:Fire()
+        end
+    }
+end
+
+-- ============================================
+-- CONSTRUÇÃO DAS PÁGINAS
+-- ============================================
+
+function TitaniumHub:BuildMainPage()
+    local page = Create("ScrollingFrame", {
+        Name = "MainPage",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = CONFIG.colors.primary,
+        CanvasSize = UDim2.new(0, 0, 0, 800),
+        Parent = self.UI.ContentFrame
+    })
+    
+    local layout = Create("UIListLayout", {
+        Padding = UDim.new(0, 16),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = page
+    })
+    
+    -- Header do jogador
+    local profileCard = self:CreateCard(page, {
+        Name = "ProfileCard",
+        Title = "👤 " .. LocalPlayer.Name,
+        Size = UDim2.new(1, -20, 0, 100),
+        LayoutOrder = 1
+    })
+    
+    -- Status do sistema
+    local statusText = Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "🟢 Sistema Ativo",
+        TextColor3 = CONFIG.colors.success,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 14,
+        Size = UDim2.new(1, -30, 0, 20),
+        Position = UDim2.new(0, 15, 0, 45),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = profileCard
+    })
+    
+    -- Contador de bolas
+    local ballsText = Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "⚽ Bolas: 0",
+        TextColor3 = CONFIG.colors.textSecondary,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 14,
+        Size = UDim2.new(1, -30, 0, 20),
+        Position = UDim2.new(0, 15, 0, 70),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = profileCard
+    })
+    
+    -- Atualizador de status
+    spawn(function()
+        while task.wait(0.5) do
+            if not statusText or not statusText.Parent then break end
+            
+            local hasChar = State.HRP ~= nil
+            statusText.Text = hasChar and "🟢 Sistema Ativo" or "🟡 Aguardando..."
+            statusText.TextColor3 = hasChar and CONFIG.colors.success or CONFIG.colors.warning
+            ballsText.Text = "⚽ Bolas: " .. tostring(#State.balls)
+        end
+    end)
+    
+    -- Quick Actions
+    local actionsTitle = Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "AÇÕES RÁPIDAS",
+        TextColor3 = CONFIG.colors.textSecondary,
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        Size = UDim2.new(1, -30, 0, 20),
+        Position = UDim2.new(0, 15, 0, 0),
+        LayoutOrder = 2,
+        Parent = page
+    })
+    
+    -- Botão de emergência (desativa tudo)
+    self:CreateModernButton(page, {
+        Text = "🛑 DESATIVAR TUDO",
+        Style = "filled",
+        Color = CONFIG.colors.error,
+        Height = 55,
+        Position = UDim2.new(0, 15, 0, 0),
+        Callback = function()
+            CONFIG.autoTouch = false
+            CONFIG.autoSkills = false
+            CONFIG.showReachSphere = false
+            notify("Sistema", "Todas as funções desativadas", 2, "warning")
+        end,
+        LayoutOrder = 3
+    })
+    
+    -- Botão de reativar
+    self:CreateModernButton(page, {
+        Text = "▶️ REATIVAR SISTEMA",
+        Style = "filled",
+        Color = CONFIG.colors.success,
+        Height = 55,
+        Position = UDim2.new(0, 15, 0, 0),
+        Callback = function()
+            CONFIG.autoTouch = true
+            CONFIG.autoSkills = true
+            CONFIG.showReachSphere = true
+            notify("Sistema", "Sistema reativado!", 2, "success")
+        end,
+        LayoutOrder = 4
+    })
+    
+    -- Estatísticas
+    local statsTitle = Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "ESTATÍSTICAS",
+        TextColor3 = CONFIG.colors.textSecondary,
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        Size = UDim2.new(1, -30, 0, 20),
+        Position = UDim2.new(0, 15, 0, 0),
+        LayoutOrder = 5,
+        Parent = page
+    })
+    
+    local statsCard = self:CreateCard(page, {
+        Size = UDim2.new(1, -20, 0, 150),
+        LayoutOrder = 6
+    })
+    
+    -- Grid de estatísticas
+    local stats = {
+        {Label = "Toques", Value = "0", Color = CONFIG.colors.primary},
+        {Label = "Skills", Value = "0", Color = CONFIG.colors.secondary},
+        {Label = "Bolas", Value = "0", Color = CONFIG.colors.accent},
+        {Label = "Reach", Value = tostring(CONFIG.reach), Color = CONFIG.colors.success}
+    }
+    
+    for i, stat in ipairs(stats) do
+        local row = math.floor((i-1) / 2)
+        local col = (i-1) % 2
+        
+        local statFrame = Create("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(0.5, -5, 0, 60),
+            Position = UDim2.new(col * 0.5, 5, 0, 10 + row * 70),
+            Parent = statsCard
+        })
+        
+        Create("TextLabel", {
+            BackgroundTransparency = 1,
+            Text = stat.Value,
+            TextColor3 = stat.Color,
+            Font = Enum.Font.GothamBlack,
+            TextSize = 28,
+            Size = UDim2.new(1, 0, 0, 35),
+            Parent = statFrame
+        })
+        
+        Create("TextLabel", {
+            BackgroundTransparency = 1,
+            Text = stat.Label,
+            TextColor3 = CONFIG.colors.textSecondary,
+            Font = Enum.Font.GothamMedium,
+            TextSize = 12,
+            Position = UDim2.new(0, 0, 0, 38),
+            Size = UDim2.new(1, 0, 0, 20),
+            Parent = statFrame
+        })
+    end
+    
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    self.UI.Pages.Main = page
+end
+
+function TitaniumHub:BuildReachPage()
+    local page = Create("ScrollingFrame", {
+        Name = "ReachPage",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = CONFIG.colors.primary,
+        CanvasSize = UDim2.new(0, 0, 0, 600),
+        Visible = false,
+        Parent = self.UI.ContentFrame
+    })
+    
+    local layout = Create("UIListLayout", {
+        Padding = UDim.new(0, 16),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = page
+    })
+    
+    -- Header visual grande
+    local headerCard = self:CreateCard(page, {
+        Size = UDim2.new(1, -20, 0, 120),
+        LayoutOrder = 1
+    })
+    
+    -- Display do reach em destaque
+    local reachDisplay = Create("TextLabel", {
+        Name = "ReachDisplay",
+        BackgroundTransparency = 1,
+        Text = tostring(CONFIG.reach),
+        TextColor3 = CONFIG.colors.primary,
+        Font = Enum.Font.GothamBlack,
+        TextSize = 64,
+        Size = UDim2.new(1, 0, 0, 70),
+        Position = UDim2.new(0, 0, 0, 10),
+        Parent = headerCard
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "STUDS DE ALCANCE",
+        TextColor3 = CONFIG.colors.textSecondary,
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, 85),
+        Parent = headerCard
+    })
+    
+    -- Slider de reach
+    local reachSlider = self:CreateModernSlider(page, {
+        Text = "Distância de Alcance",
+        Min = 1,
+        Max = 50,
+        Default = CONFIG.reach,
+        Suffix = " studs",
+        Callback = function(value)
+            CONFIG.reach = value
