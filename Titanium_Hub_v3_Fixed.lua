@@ -1908,5 +1908,263 @@ function TitaniumHub:Init()
             Parent = self.UI.TabBar
         })
         
-        -- Ícone
-        local icon = Create("Imag
+                -- Ícone
+        local icon = Create("ImageLabel", {
+            BackgroundTransparency = 1,
+            Image = tabInfo.Icon,
+            ImageColor3 = i == 1 and CONFIG.colors.primary or CONFIG.colors.textSecondary,
+            Size = UDim2.new(0, 28, 0, 28),
+            Position = UDim2.new(0.5, -14, 0, isBottomNav and 5 or 0),
+            Parent = tabBtn
+        })
+        
+        -- Label
+        local label = Create("TextLabel", {
+            BackgroundTransparency = 1,
+            Text = tabInfo.Label,
+            TextColor3 = i == 1 and CONFIG.colors.primary or CONFIG.colors.textSecondary,
+            Font = i == 1 and Enum.Font.GothamBold or Enum.Font.GothamMedium,
+            TextSize = 11,
+            Size = UDim2.new(1, 0, 0, 20),
+            Position = UDim2.new(0, 0, 0, isBottomNav and 38 or 0),
+            Parent = tabBtn
+        })
+        
+        -- Indicador de seleção (linha em cima em mobile)
+        local indicator = Create("Frame", {
+            BackgroundColor3 = CONFIG.colors.primary,
+            BorderSizePixel = 0,
+            Size = UDim2.new(0.5, 0, 0, 3),
+            Position = UDim2.new(0.25, 0, 0, 0),
+            Visible = i == 1,
+            Parent = tabBtn
+        })
+        
+        Create("UICorner", {
+            CornerRadius = UDim.new(0, 2),
+            Parent = indicator
+        })
+        
+        tabBtn.MouseButton1Click:Connect(function()
+            -- Atualizar visual das tabs
+            for _, child in ipairs(self.UI.TabBar:GetChildren()) do
+                if child:IsA("TextButton") then
+                    local childIcon = child:FindFirstChildOfClass("ImageLabel")
+                    local childLabel = child:FindFirstChildOfClass("TextLabel")
+                    local childIndicator = child:FindFirstChildOfClass("Frame")
+                    
+                    if childIcon then
+                        childIcon.ImageColor3 = CONFIG.colors.textSecondary
+                    end
+                    if childLabel then
+                        childLabel.TextColor3 = CONFIG.colors.textSecondary
+                        childLabel.Font = Enum.Font.GothamMedium
+                    end
+                    if childIndicator then
+                        childIndicator.Visible = false
+                    end
+                end
+            end
+            
+            -- Destacar tab atual
+            icon.ImageColor3 = CONFIG.colors.primary
+            label.TextColor3 = CONFIG.colors.primary
+            label.Font = Enum.Font.GothamBold
+            indicator.Visible = true
+            
+            -- Trocar página
+            self:SwitchTab(tabInfo.Name)
+        end)
+    end
+    
+    -- Content Frame
+    local contentOffset = isBottomNav and 80 or 0
+    local topOffset = 70
+    
+    self.UI.ContentFrame = Create("Frame", {
+        Name = "Content",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, -(topOffset + contentOffset)),
+        Position = UDim2.new(0, 0, 0, topOffset),
+        Parent = self.UI.MainFrame
+    })
+    
+    -- Construir todas as páginas
+    self:BuildMainPage()
+    self:BuildReachPage()
+    self:BuildSkillsPage()
+    self:BuildESPPage()
+    self:BuildSettingsPage()
+    
+    -- Mostrar página inicial
+    self:SwitchTab("Main")
+    
+    -- Animação de entrada
+    self.UI.MainFrame.Size = UDim2.new(0, 0, 0, 0)
+    Tween(self.UI.MainFrame, 0.5, {
+        Size = UDim2.new(0, CONFIG.frameWidth, 0, CONFIG.frameHeight)
+    }, Enum.EasingStyle.Back)
+    
+    -- Sistema de notificação flutuante
+    self.UI.NotificationContainer = Create("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -40, 0, 200),
+        Position = UDim2.new(0, 20, 0, 80),
+        ZIndex = 100,
+        Parent = self.UI.MainFrame
+    })
+    
+    notify("TITANIUM HUB v4.0", "Mobile Edition carregada!", 3, "success")
+    
+    return self
+end
+
+function TitaniumHub:SwitchTab(tabName)
+    for name, page in pairs(self.UI.Pages) do
+        page.Visible = (name == tabName)
+        
+        if name == tabName then
+            -- Animação de fade in
+            page.GroupTransparency = 1
+            Tween(page, 0.3, {GroupTransparency = 0})
+        end
+    end
+    State.currentTab = tabName
+end
+
+function TitaniumHub:Close()
+    State.isRunning = false
+    
+    Tween(self.UI.MainFrame, 0.3, {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0.5, 0, 0.5, 0)
+    })
+    
+    task.delay(0.3, function()
+        if self.UI.ScreenGui then
+            self.UI.ScreenGui:Destroy()
+        end
+        if State.reachSphere then
+            State.reachSphere:Destroy()
+        end
+        for _, conn in ipairs(State.ballConnections) do
+            pcall(function() conn:Disconnect() end)
+        end
+    end)
+end
+
+-- ============================================
+-- LOOP PRINCIPAL
+-- ============================================
+
+local Hub = TitaniumHub:Init()
+
+-- Heartbeat loop
+Services.RunService.Heartbeat:Connect(function()
+    if not State.isRunning then return end
+    
+    updateCharacter()
+    updateSphere()
+    findBalls()
+    
+    if not State.HRP or not State.HRP.Parent then 
+        return 
+    end
+    
+    local now = tick()
+    if now - State.lastTouch < 0.05 then 
+        return 
+    end
+    
+    local hrpPos = State.HRP.Position
+    local characterParts = getBodyParts()
+    
+    if #characterParts == 0 then 
+        return 
+    end
+    
+    local closestBall = nil
+    local closestDistance = CONFIG.reach
+    
+    for _, ball in ipairs(State.balls) do
+        if ball and ball.Parent and ball:IsA("BasePart") then
+            local success, distance = pcall(function()
+                return (ball.Position - hrpPos).Magnitude
+            end)
+            
+            if success and distance and distance <= CONFIG.reach and distance < closestDistance then
+                closestDistance = distance
+                closestBall = ball
+            end
+        end
+    end
+    
+    if CONFIG.autoTouch and closestBall then
+        State.lastTouch = now
+        for _, part in ipairs(characterParts) do
+            if part and part.Parent then
+                doTouch(closestBall, part)
+            end
+        end
+    end
+    
+    if CONFIG.autoSkills and closestBall and 
+       (now - State.lastSkillActivation > CONFIG.skillCooldown) then
+        
+        local skillButtons = findSkillButtons()
+        local mainSkills = {"Shoot", "Pass", "Dribble", "Control", "Kick"}
+        
+        for _, button in ipairs(skillButtons) do
+            if button and button.Parent then
+                for _, mainSkill in ipairs(mainSkills) do
+                    local buttonName = button.Name or ""
+                    local buttonText = button:IsA("TextButton") and button.Text or ""
+                    
+                    if buttonName == mainSkill or buttonText == mainSkill then
+                        State.lastSkillActivation = now
+                        activateSkillButton(button)
+                        break
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Cleanup
+task.spawn(function()
+    while State.isRunning do
+        task.wait(5)
+        local now = tick()
+        
+        for key, time in pairs(State.activatedSkills) do
+            if now - time > 10 then
+                State.activatedSkills[key] = nil
+            end
+        end
+        
+        for key, time in pairs(State.touchDebounce) do
+            if now - time > 5 then
+                State.touchDebounce[key] = nil
+            end
+        end
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    updateCharacter()
+end)
+
+print([[
+ ╔═══════════════════════════════════════════════════════════════╗
+ ║                                                               ║
+ ║     TITANIUM HUB v4.0 MOBILE - CARREGADO                    ║
+ ║     ✓ Interface responsiva para todas as telas              ║
+ ║     ✓ Fundo sólido visível                                  ║
+ ║     ✓ Design Material Design 3                              ║
+ ║     ✓ Navegação otimizada para mobile                       ║
+ ║                                                               ║
+ ╚═══════════════════════════════════════════════════════════════╝
+]])
+
