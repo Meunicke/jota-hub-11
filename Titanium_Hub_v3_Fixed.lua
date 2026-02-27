@@ -36,6 +36,7 @@ local IS_MOBILE = Services.UserInputService.TouchEnabled and not Services.UserIn
 local SCREEN_SIZE = Services.Workspace.CurrentCamera.ViewportSize
 local IS_PORTRAIT = SCREEN_SIZE.Y > SCREEN_SIZE.X
 
+
 -- CORREÇÃO: Aguarda LocalPlayer de forma segura
 local LocalPlayer
 local function GetLocalPlayer()
