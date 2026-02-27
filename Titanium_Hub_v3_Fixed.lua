@@ -33,7 +33,7 @@ local Services = {
 
 -- Detecção de dispositivo
 local IS_MOBILE = Services.UserInputService.TouchEnabled and not Services.UserInputService.KeyboardEnabled
-local SCREEN_SIZE = Services.GuiService.AbsoluteWindowSize
+local SCREEN_SIZE = Services.Workspace.CurrentCamera.ViewportSize
 local IS_PORTRAIT = SCREEN_SIZE.Y > SCREEN_SIZE.X
 
 -- CORREÇÃO: Aguarda LocalPlayer de forma segura
