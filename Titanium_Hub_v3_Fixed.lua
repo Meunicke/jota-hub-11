@@ -1272,4 +1272,641 @@ function TitaniumHub:BuildReachPage()
         Default = CONFIG.reach,
         Suffix = " studs",
         Callback = function(value)
-            CONFIG.reach = value
+                        CONFIG.reach = value
+            reachDisplay.Text = tostring(value)
+        end
+    })
+    reachSlider.Instance.LayoutOrder = 2
+    reachSlider.Instance.Parent = page
+    
+    -- Toggles de configuração
+    local togglesCard = self:CreateCard(page, {
+        Size = UDim2.new(1, -20, 0, 220),
+        LayoutOrder = 3
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "CONFIGURAÇÕES",
+        TextColor3 = CONFIG.colors.text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 16,
+        Size = UDim2.new(1, -20, 0, 25),
+        Position = UDim2.new(0, 15, 0, 15),
+        Parent = togglesCard
+    })
+    
+    -- Toggles
+    local toggle1 = self:CreateModernToggle(togglesCard, {
+        Text = "Auto Touch (Pegar bolas automaticamente)",
+        Default = CONFIG.autoTouch,
+        Callback = function(state)
+            CONFIG.autoTouch = state
+        end
+    })
+    toggle1.Instance.Position = UDim2.new(0, 15, 0, 50)
+    toggle1.Instance.Parent = togglesCard
+    
+    local toggle2 = self:CreateModernToggle(togglesCard, {
+        Text = "Full Body Touch (Tocar com todo corpo)",
+        Default = CONFIG.fullBodyTouch,
+        Callback = function(state)
+            CONFIG.fullBodyTouch = state
+        end
+    })
+    toggle2.Instance.Position = UDim2.new(0, 15, 0, 110)
+    toggle2.Instance.Parent = togglesCard
+    
+    local toggle3 = self:CreateModernToggle(togglesCard, {
+        Text = "Double Touch (Toque duplo para garantir)",
+        Default = CONFIG.autoSecondTouch,
+        Callback = function(state)
+            CONFIG.autoSecondTouch = state
+        end
+    })
+    toggle3.Instance.Position = UDim2.new(0, 15, 0, 170)
+    toggle3.Instance.Parent = togglesCard
+    
+    -- Visual sphere toggle
+    local sphereToggle = self:CreateModernToggle(page, {
+        Text = "Mostrar Esfera Visual de Alcance",
+        Default = CONFIG.showReachSphere,
+        Callback = function(state)
+            CONFIG.showReachSphere = state
+            notify("Visual", state and "Esfera ativada" or "Esfera desativada", 2, state and "success" or "info")
+        end
+    })
+    sphereToggle.Instance.LayoutOrder = 4
+    sphereToggle.Instance.Parent = page
+    
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    self.UI.Pages.Reach = page
+end
+
+function TitaniumHub:BuildSkillsPage()
+    local page = Create("ScrollingFrame", {
+        Name = "SkillsPage",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = CONFIG.colors.primary,
+        CanvasSize = UDim2.new(0, 0, 0, 700),
+        Visible = false,
+        Parent = self.UI.ContentFrame
+    })
+    
+    local layout = Create("UIListLayout", {
+        Padding = UDim.new(0, 16),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = page
+    })
+    
+    -- Header
+    local headerCard = self:CreateCard(page, {
+        Size = UDim2.new(1, -20, 0, 100),
+        LayoutOrder = 1
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "⚽ AUTO SKILLS",
+        TextColor3 = CONFIG.colors.primary,
+        Font = Enum.Font.GothamBlack,
+        TextSize = 28,
+        Size = UDim2.new(1, 0, 0, 40),
+        Position = UDim2.new(0, 0, 0, 15),
+        Parent = headerCard
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "Ativa skills automaticamente quando próximo da bola",
+        TextColor3 = CONFIG.colors.textSecondary,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        Size = UDim2.new(1, -20, 0, 40),
+        Position = UDim2.new(0, 10, 0, 55),
+        TextWrapped = true,
+        Parent = headerCard
+    })
+    
+    -- Toggle principal
+    local mainToggle = self:CreateModernToggle(page, {
+        Text = "Ativar Auto Skills",
+        Default = CONFIG.autoSkills,
+        Callback = function(state)
+            CONFIG.autoSkills = state
+            notify("Auto Skills", state and "Ativado" or "Desativado", 2, state and "success" or "warning")
+        end
+    })
+    mainToggle.Instance.LayoutOrder = 2
+    mainToggle.Instance.Parent = page
+    
+    -- Cooldown slider
+    local cooldownSlider = self:CreateModernSlider(page, {
+        Text = "Cooldown entre skills",
+        Min = 0.1,
+        Max = 2.0,
+        Default = CONFIG.skillCooldown,
+        Suffix = "s",
+        Callback = function(value)
+            CONFIG.skillCooldown = value
+        end
+    })
+    cooldownSlider.Instance.LayoutOrder = 3
+    cooldownSlider.Instance.Parent = page
+    
+    -- Lista de skills detectáveis
+    local skillsCard = self:CreateCard(page, {
+        Size = UDim2.new(1, -20, 0, 300),
+        LayoutOrder = 4
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "SKILLS DETECTADAS",
+        TextColor3 = CONFIG.colors.text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 16,
+        Size = UDim2.new(1, -20, 0, 25),
+        Position = UDim2.new(0, 15, 0, 15),
+        Parent = skillsCard
+    })
+    
+    local skillsList = Create("ScrollingFrame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -20, 0, 240),
+        Position = UDim2.new(0, 10, 0, 50),
+        ScrollBarThickness = 2,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        Parent = skillsCard
+    })
+    
+    local listLayout = Create("UIListLayout", {
+        Padding = UDim.new(0, 8),
+        Parent = skillsList
+    })
+    
+    -- Popular lista
+    for i, skill in ipairs(CONFIG.skillButtonNames) do
+        local skillItem = Create("Frame", {
+            BackgroundColor3 = CONFIG.colors.surfaceVariant,
+            BorderSizePixel = 0,
+            Size = UDim2.new(1, 0, 0, 40),
+            Parent = skillsList
+        })
+        
+        Create("UICorner", {
+            CornerRadius = UDim.new(0, 8),
+            Parent = skillItem
+        })
+        
+        Create("TextLabel", {
+            BackgroundTransparency = 1,
+            Text = "⚡ " .. skill,
+            TextColor3 = CONFIG.colors.text,
+            Font = Enum.Font.GothamMedium,
+            TextSize = 14,
+            Size = UDim2.new(1, -20, 1, 0),
+            Position = UDim2.new(0, 15, 0, 0),
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = skillItem
+        })
+    end
+    
+    listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        skillsList.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y)
+    end)
+    
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    self.UI.Pages.Skills = page
+end
+
+function TitaniumHub:BuildESPPage()
+    local page = Create("ScrollingFrame", {
+        Name = "ESPPage",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = CONFIG.colors.primary,
+        CanvasSize = UDim2.new(0, 0, 0, 500),
+        Visible = false,
+        Parent = self.UI.ContentFrame
+    })
+    
+    local layout = Create("UIListLayout", {
+        Padding = UDim.new(0, 16),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = page
+    })
+    
+    -- ESP de bolas
+    local espCard = self:CreateCard(page, {
+        Size = UDim2.new(1, -20, 0, 200),
+        LayoutOrder = 1
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "👁️ VISUALIZAÇÃO (ESP)",
+        TextColor3 = CONFIG.colors.primary,
+        Font = Enum.Font.GothamBlack,
+        TextSize = 20,
+        Size = UDim2.new(1, -20, 0, 30),
+        Position = UDim2.new(0, 15, 0, 15),
+        Parent = espCard
+    })
+    
+    local espToggle = self:CreateModernToggle(espCard, {
+        Text = "ESP de Bolas (Ver através das paredes)",
+        Default = false,
+        Callback = function(state)
+            -- Implementar ESP aqui
+            notify("ESP", state and "Ativado" or "Desativado", 2, state and "success" or "info")
+        end
+    })
+    espToggle.Instance.Position = UDim2.new(0, 15, 0, 60)
+    espToggle.Instance.Parent = espCard
+    
+    local tracerToggle = self:CreateModernToggle(espCard, {
+        Text = "Linhas até as bolas (Tracers)",
+        Default = false,
+        Callback = function(state)
+            notify("Tracers", state and "Ativado" or "Desativado", 2, state and "success" or "info")
+        end
+    })
+    tracerToggle.Instance.Position = UDim2.new(0, 15, 0, 120)
+    tracerToggle.Instance.Parent = espCard
+    
+    local infoToggle = self:CreateModernToggle(espCard, {
+        Text = "Mostrar distância das bolas",
+        Default = false,
+        Callback = function(state)
+            notify("Info", state and "Ativado" or "Desativado", 2, state and "success" or "info")
+        end
+    })
+    infoToggle.Instance.Position = UDim2.new(0, 15, 0, 180)
+    infoToggle.Instance.Parent = espCard
+    
+    -- Configurações de cor
+    local colorCard = self:CreateCard(page, {
+        Size = UDim2.new(1, -20, 0, 150),
+        LayoutOrder = 2
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "CORES DO ESP",
+        TextColor3 = CONFIG.colors.text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 16,
+        Size = UDim2.new(1, -20, 0, 25),
+        Position = UDim2.new(0, 15, 0, 15),
+        Parent = colorCard
+    })
+    
+    -- Segmented control para seleção de cor
+    local colorSelector = self:CreateSegmentedControl(colorCard, {
+        Options = {"Azul", "Verde", "Vermelho", "Amarelo"},
+        Default = 1,
+        Callback = function(index, option)
+            -- Mudar cor do ESP
+        end
+    })
+    colorSelector.Instance.Position = UDim2.new(0, 15, 0, 50)
+    colorSelector.Instance.Parent = colorCard
+    
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    self.UI.Pages.ESP = page
+end
+
+function TitaniumHub:BuildSettingsPage()
+    local page = Create("ScrollingFrame", {
+        Name = "SettingsPage",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = CONFIG.colors.primary,
+        CanvasSize = UDim2.new(0, 0, 0, 600),
+        Visible = false,
+        Parent = self.UI.ContentFrame
+    })
+    
+    local layout = Create("UIListLayout", {
+        Padding = UDim.new(0, 16),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = page
+    })
+    
+    -- Sobre
+    local aboutCard = self:CreateCard(page, {
+        Size = UDim2.new(1, -20, 0, 150),
+        LayoutOrder = 1
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "TITANIUM HUB v4.0",
+        TextColor3 = CONFIG.colors.primary,
+        Font = Enum.Font.GothamBlack,
+        TextSize = 24,
+        Size = UDim2.new(1, 0, 0, 35),
+        Position = UDim2.new(0, 0, 0, 20),
+        Parent = aboutCard
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "Mobile Edition - Reformulado",
+        TextColor3 = CONFIG.colors.textSecondary,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 14,
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, 60),
+        Parent = aboutCard
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "By CADUXX137",
+        TextColor3 = CONFIG.colors.accent,
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, 90),
+        Parent = aboutCard
+    })
+    
+    -- Configurações de interface
+    local uiCard = self:CreateCard(page, {
+        Size = UDim2.new(1, -20, 0, 200),
+        LayoutOrder = 2
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "INTERFACE",
+        TextColor3 = CONFIG.colors.text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 16,
+        Size = UDim2.new(1, -20, 0, 25),
+        Position = UDim2.new(0, 15, 0, 15),
+        Parent = uiCard
+    })
+    
+    -- Tema
+    local themeSelector = self:CreateSegmentedControl(uiCard, {
+        Options = {"Escuro", "Claro", "Auto"},
+        Default = 1,
+        Callback = function(index, option)
+            notify("Tema", "Tema alterado para: " .. option, 2, "success")
+        end
+    })
+    themeSelector.Instance.Position = UDim2.new(0, 15, 0, 50)
+    themeSelector.Instance.Parent = uiCard
+    
+    -- Animações toggle
+    local animToggle = self:CreateModernToggle(uiCard, {
+        Text = "Animações suaves",
+        Default = true,
+        Callback = function(state)
+            -- Toggle animações
+        end
+    })
+    animToggle.Instance.Position = UDim2.new(0, 15, 0, 110)
+    animToggle.Instance.Parent = uiCard
+    
+    -- Botões de ação
+    local actionsCard = self:CreateCard(page, {
+        Size = UDim2.new(1, -20, 0, 180),
+        LayoutOrder = 3
+    })
+    
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "AÇÕES",
+        TextColor3 = CONFIG.colors.text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 16,
+        Size = UDim2.new(1, -20, 0, 25),
+        Position = UDim2.new(0, 15, 0, 15),
+        Parent = actionsCard
+    })
+    
+    -- Botão reiniciar
+    self:CreateModernButton(actionsCard, {
+        Text = "🔄 Reiniciar Sistema",
+        Style = "outlined",
+        Color = CONFIG.colors.primary,
+        Height = 45,
+        Position = UDim2.new(0, 15, 0, 50),
+        Callback = function()
+            notify("Sistema", "Reiniciando...", 2, "info")
+            -- Lógica de restart
+        end
+    })
+    
+    -- Botão fechar
+    self:CreateModernButton(actionsCard, {
+        Text = "❌ Fechar Hub",
+        Style = "filled",
+        Color = CONFIG.colors.error,
+        Height = 45,
+        Position = UDim2.new(0, 15, 0, 105),
+        Callback = function()
+            self:Close()
+        end
+    })
+    
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    self.UI.Pages.Settings = page
+end
+
+-- ============================================
+-- INICIALIZAÇÃO PRINCIPAL
+-- ============================================
+
+function TitaniumHub:Init()
+    -- ScreenGui
+    self.UI.ScreenGui = Create("ScreenGui", {
+        Name = "TitaniumHub_Mobile_v4",
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        IgnoreGuiInset = true -- Ignora safe area do mobile
+    })
+    
+    -- Proteção
+    pcall(function()
+        if syn and syn.protect_gui then
+            syn.protect_gui(self.UI.ScreenGui)
+            self.UI.ScreenGui.Parent = Services.CoreGui
+        elseif gethui then
+            self.UI.ScreenGui.Parent = gethui()
+        else
+            self.UI.ScreenGui.Parent = Services.CoreGui
+        end
+    end)
+    
+    if not self.UI.ScreenGui.Parent then
+        self.UI.ScreenGui.Parent = Services.CoreGui
+    end
+    
+    -- Frame principal com fundo VISÍVEL (corrigido)
+    self.UI.MainFrame = Create("Frame", {
+        Name = "Main",
+        BackgroundColor3 = CONFIG.colors.background, -- FUNDO SÓLIDO
+        BackgroundTransparency = 0, -- TOTALMENTE VISÍVEL
+        BorderSizePixel = 0,
+        Size = UDim2.new(0, CONFIG.frameWidth, 0, CONFIG.frameHeight),
+        Position = CONFIG.position,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Active = true,
+        ClipsDescendants = true,
+        Parent = self.UI.ScreenGui
+    })
+    
+    -- Sombra/efeito de elevação
+    Create("UIStroke", {
+        Color = CONFIG.colors.outline,
+        Thickness = 2,
+        Transparency = 0.3,
+        Parent = self.UI.MainFrame
+    })
+    
+    Create("UICorner", {
+        CornerRadius = UDim.new(0, IS_MOBILE and 0 or 20), -- Sem bordas arredondadas em mobile full screen
+        Parent = self.UI.MainFrame
+    })
+    
+    -- Gradient overlay sutil
+    local gradient = Create("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, CONFIG.colors.background),
+            ColorSequenceKeypoint.new(1, CONFIG.colors.surface)
+        }),
+        Rotation = 180,
+        Transparency = NumberSequence.new(0.9),
+        Parent = self.UI.MainFrame
+    })
+    
+    -- Top Bar
+    self.UI.TopBar = Create("Frame", {
+        Name = "TopBar",
+        BackgroundColor3 = CONFIG.colors.surface,
+        BackgroundTransparency = 0,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, IS_MOBILE and 70 or 60),
+        Parent = self.UI.MainFrame
+    })
+    
+    Create("UICorner", {
+        CornerRadius = UDim.new(0, 0),
+        Parent = self.UI.TopBar
+    })
+    
+    -- Sombra na top bar
+    local topBarShadow = Create("Frame", {
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.9,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 4),
+        Position = UDim2.new(0, 0, 1, 0),
+        Parent = self.UI.TopBar
+    })
+    
+    -- Título
+    local title = Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = self.Name,
+        TextColor3 = CONFIG.colors.text,
+        Font = Enum.Font.GothamBlack,
+        TextSize = IS_MOBILE and 26 or 24,
+        Size = UDim2.new(0.6, 0, 0, 35),
+        Position = UDim2.new(0, 20, 0, IS_MOBILE and 18 or 12),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = self.UI.TopBar
+    })
+    
+    -- Versão
+    Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Text = "v4.0 Mobile",
+        TextColor3 = CONFIG.colors.primary,
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        Size = UDim2.new(0.3, 0, 0, 20),
+        Position = UDim2.new(0.6, 0, 0, IS_MOBILE and 25 or 20),
+        TextXAlignment = Enum.TextXAlignment.Right,
+        Parent = self.UI.TopBar
+    })
+    
+    -- Botão minimizar/fechar
+    local closeBtn = Create("ImageButton", {
+        BackgroundTransparency = 1,
+        Image = "rbxassetid://7733954760",
+        ImageColor3 = CONFIG.colors.error,
+        Size = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(1, -45, 0, IS_MOBILE and 21 or 16),
+        Parent = self.UI.TopBar
+    })
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        self:Close()
+    end)
+    
+    -- Tab Bar (navegação inferior em mobile, lateral em desktop)
+    local isBottomNav = IS_MOBILE and IS_PORTRAIT
+    
+    self.UI.TabBar = Create("Frame", {
+        Name = "TabBar",
+        BackgroundColor3 = CONFIG.colors.surface,
+        BackgroundTransparency = 0,
+        BorderSizePixel = 0,
+        Size = isBottomNav and UDim2.new(1, 0, 0, 80) or UDim2.new(0, 0, 0, 0),
+        Position = isBottomNav and UDim2.new(0, 0, 1, -80) or UDim2.new(0, 0, 0, 60),
+        Parent = self.UI.MainFrame
+    })
+    
+    if isBottomNav then
+        Create("UICorner", {
+            CornerRadius = UDim.new(0, 0),
+            Parent = self.UI.TabBar
+        })
+        
+        -- Safe area para iPhone/Android
+        Create("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 20),
+            Position = UDim2.new(0, 0, 1, 0),
+            Parent = self.UI.TabBar
+        })
+    end
+    
+    -- Criar tabs
+    local tabCount = #self.Tabs
+    local tabWidth = 1 / tabCount
+    
+    for i, tabInfo in ipairs(self.Tabs) do
+        local tabBtn = Create("TextButton", {
+            Name = tabInfo.Name .. "Tab",
+            BackgroundTransparency = 1,
+            Text = "",
+            Size = isBottomNav and UDim2.new(tabWidth, 0, 1, -20) or UDim2.new(0, 0, 0, 0),
+            Position = isBottomNav and UDim2.new((i-1) * tabWidth, 0, 0, 10) or UDim2.new(0, 0, 0, 0),
+            Parent = self.UI.TabBar
+        })
+        
+        -- Ícone
+        local icon = Create("Imag
