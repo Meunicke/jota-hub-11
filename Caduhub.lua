@@ -596,7 +596,7 @@ function CaduHub:InitFootballSystem()
         end
     end
     
-    -- Encontrar bola mais próxima
+        -- Encontrar bola mais próxima
     function Football:FindNearestBall()
         local nearestBall = nil
         local shortestDistance = math.huge
@@ -606,4 +606,284 @@ function CaduHub:InitFootballSystem()
         if not rootPart then return nil end
         
         for _, obj in pairs(Workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and (obj.Name:lowe
+            if obj:IsA("BasePart") and (obj.Name:lower():find("ball") or obj.Name:lower():find("soccer") or obj.Name:lower():find("football")) then
+                local distance = (obj.Position - rootPart.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    nearestBall = obj
+                end
+            end
+        end
+        
+        return nearestBall, shortestDistance
+    end
+    
+    -- Sistema de Auto-Touch otimizado
+    function Football:AutoTouch()
+        if not self.AutoTouch then return end
+        
+        local ball, distance = self:FindNearestBall()
+        if ball and distance <= self.Reach then
+            -- Simular toque na bola
+            local character = LocalPlayer.Character
+            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+            
+            if humanoid and rootPart then
+                -- Mover personagem suavemente em direção à bola se estiver longe
+                if distance > 5 then
+                    local direction = (ball.Position - rootPart.Position).Unit
+                    humanoid:MoveTo(ball.Position - (direction * 3))
+                end
+                
+                -- Trigger de toque físico
+                if distance <= self.Reach then
+                    -- Método 1: FireTouchInterest
+                    firetouchinterest(rootPart, ball, 0)
+                    firetouchinterest(rootPart, ball, 1)
+                    
+                    -- Método 2: Simular clique se for necessário
+                    if self.BallLock then
+                        ball.CFrame = CFrame.new(rootPart.Position + (rootPart.CFrame.LookVector * 3))
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Auto Skills (pressionar botões de habilidade automaticamente)
+    function Football:AutoSkills()
+        if not self.AutoSkills then return end
+        
+        -- Procurar por botões de habilidade comuns em jogos de futebol
+        local commonSkillNames = {"Shot", "Pass", "Tackle", "Sprint", "Skill", "Dribble", "Power", "LongPass", "Through"}
+        
+        for _, gui in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
+            if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                local name = gui.Name:lower()
+                for _, skillName in pairs(commonSkillNames) do
+                    if name:find(skillName:lower()) then
+                        -- Verificar se o botão está visível e ativo
+                        if gui.Visible and gui.Active then
+                            -- Simular clique
+                            pcall(function()
+                                gui.MouseButton1Click:Fire()
+                            end)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Loop principal do sistema
+    function Football:Start()
+        if self.Connection then self.Connection:Disconnect() end
+        
+        self.Connection = RunService.RenderStepped:Connect(function()
+            if not self.Enabled then 
+                if self.ReachPart then self.ReachPart.Transparency = 1 end
+                return 
+            end
+            
+            local character = LocalPlayer.Character
+            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+            
+            if rootPart then
+                -- Atualizar visualização
+                if self.VisualizeReach then
+                    if not self.ReachPart then
+                        self:CreateReachVisual()
+                    end
+                    self:UpdateReachVisual(rootPart.Position)
+                end
+                
+                -- Executar funções
+                self:AutoTouch()
+                self:AutoSkills()
+            end
+        end)
+    end
+    
+    -- Parar sistema
+    function Football:Stop()
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
+        if self.ReachPart then
+            self.ReachPart:Destroy()
+            self.ReachPart = nil
+        end
+    end
+    
+    return Football
+end
+
+-- Sistema de Keybinds Mobile/PC
+function CaduHub:InitKeybindSystem()
+    local Keybinds = {}
+    
+    -- Botão flutuante para Mobile
+    if self.Config.Mobile then
+        local FloatingBtn = self:Create("TextButton", {
+            Name = "CaduHub_FloatBtn",
+            Size = UDim2.new(0, 50, 0, 50),
+            Position = UDim2.new(0, 10, 0.5, -25),
+            BackgroundColor3 = self.Config.Theme.Accent,
+            Text = "⚡",
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            Font = Enum.Font.GothamBold,
+            TextSize = 24,
+            Parent = self.UI.ScreenGui
+        })
+        
+        local Corner = self:Create("UICorner", {
+            CornerRadius = UDim.new(1, 0),
+            Parent = FloatingBtn
+        })
+        
+        local Stroke = self:Create("UIStroke", {
+            Color = Color3.fromRGB(255, 255, 255),
+            Thickness = 2,
+            Parent = FloatingBtn
+        })
+        
+        -- Efeito de pulso
+        spawn(function()
+            while FloatingBtn and FloatingBtn.Parent do
+                TweenService:Create(FloatingBtn, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+                    Size = UDim2.new(0, 55, 0, 55)
+                }):Play()
+                wait(0.5)
+                TweenService:Create(FloatingBtn, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+                    Size = UDim2.new(0, 50, 0, 50)
+                }):Play()
+                wait(0.5)
+            end
+        end)
+        
+        FloatingBtn.MouseButton1Click:Connect(function()
+            self.UI.MainFrame.Visible = not self.UI.MainFrame.Visible
+        end)
+        
+        Keybinds.FloatingButton = FloatingBtn
+    end
+    
+    -- Tecla de atalho para PC (Insert)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == Enum.KeyCode.Insert then
+            self.UI.MainFrame.Visible = not self.UI.MainFrame.Visible
+        end
+    end)
+    
+    return Keybinds
+end
+
+-- Inicialização completa
+function CaduHub:Init()
+    -- Criar UI
+    self.UI = self:InitUI()
+    
+    -- Inicializar sistema de football
+    self.Football = self:InitFootballSystem()
+    
+    -- Inicializar keybinds
+    self.Keybinds = self:InitKeybindSystem()
+    
+    -- Criar seções e componentes
+    local Container = self.UI.Container
+    
+    -- Seção: Football
+    self:CreateSection(Container, "⚽ FOOTBALL SYSTEM")
+    
+    -- Toggle: Master Switch
+    local MasterToggle = self:CreateToggle(Container, "Enable System", false, function(enabled)
+        self.Football.Enabled = enabled
+        if enabled then
+            self.Football:Start()
+        else
+            self.Football:Stop()
+        end
+    end)
+    
+    -- Toggle: Auto Touch
+    local AutoTouchToggle = self:CreateToggle(Container, "Auto Touch", false, function(enabled)
+        self.Football.AutoTouch = enabled
+    end)
+    
+    -- Toggle: Ball Lock
+    local BallLockToggle = self:CreateToggle(Container, "Ball Lock (Magnet)", false, function(enabled)
+        self.Football.BallLock = enabled
+    end)
+    
+    -- Toggle: Auto Skills
+    local AutoSkillsToggle = self:CreateToggle(Container, "Auto Skills", false, function(enabled)
+        self.Football.AutoSkills = enabled
+    end)
+    
+    -- Toggle: Visualize Reach
+    local VisualizeToggle = self:CreateToggle(Container, "Show Reach Zone", true, function(enabled)
+        self.Football.VisualizeReach = enabled
+    end)
+    
+    -- Slider: Reach Distance
+    local ReachSlider = self:CreateSlider(Container, "Reach Distance", 5, 50, 10, false, function(value)
+        self.Football.Reach = value
+    end)
+    
+    -- Seção: Settings
+    self:CreateSection(Container, "⚙️ SETTINGS")
+    
+    -- Botão: Destroy
+    self:CreateButton(Container, "Destroy Hub", function()
+        self.Football:Stop()
+        if self.UI.ScreenGui then
+            self.UI.ScreenGui:Destroy()
+        end
+        -- Limpar variáveis globais se necessário
+        getgenv().CaduHub = nil
+    end)
+    
+    -- Botão: Rejoin
+    self:CreateButton(Container, "Rejoin Server", function()
+        local TeleportService = game:GetService("TeleportService")
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end)
+    
+    -- Animação de entrada
+    self.UI.MainFrame.Position = UDim2.new(0, -300, 0, 20)
+    TweenService:Create(self.UI.MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+        Position = UDim2.new(0, 20, 0, 20)
+    }):Play()
+    
+    -- Rainbow underline effect
+    spawn(function()
+        while self.UI and self.UI.Underline and self.UI.Underline.Parent do
+            for i = 0, 1, 0.01 do
+                if not (self.UI and self.UI.Underline and self.UI.Underline.Parent) then break end
+                self.UI.Underline.BackgroundColor3 = Color3.fromHSV(i, 1, 1)
+                wait(0.05)
+            end
+        end
+    end)
+    
+    print("✅ CaduHub Reborn v" .. self.Config.Version .. " initialized successfully!")
+    print("📱 Platform: " .. (self.Config.Mobile and "Mobile" or "PC"))
+    print("⌨️ Press INSERT to toggle UI (PC) or use the floating button (Mobile)")
+    
+    return self
+end
+
+-- Proteção contra múltiplas execuções
+if getgenv().CaduHub then
+    getgenv().CaduHub.Football:Stop()
+    if getgenv().CaduHub.UI and getgenv().CaduHub.UI.ScreenGui then
+        getgenv().CaduHub.UI.ScreenGui:Destroy()
+    end
+end
+
+-- Inicializar
+getgenv().CaduHub = CaduHub:Init()
+
+return CaduHub
