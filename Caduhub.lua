@@ -1,555 +1,609 @@
--- Cadu Hub | The Classic Soccer
--- Script completo e funcional
+--[[
+    ╔══════════════════════════════════════════════════════════════════╗
+    ║                    CADUHUB REBORN v2.0                           ║
+    ║              Original: CaduHub | Remake: Reborn Team             ║
+    ║                                                                  ║
+    ║  "O CaduHub foi abandonado, mas sua essência permanece."         ║
+    ║                                                                  ║
+    ║  Features:                                                       ║
+    ║  • Ball Reach System (Alcance de bola inteligente)              ║
+    ║  • Auto-Touch (Toque automático otimizado)                      ║
+    ║  • Mobile & PC Interface (Adaptativo)                           ║
+    ║  • Visualização de Alcance (Reach Sphere)                         ║
+    ║  • Auto-Skills (Habilidades automáticas)                          ║
+    ║  • Keybind System (Sistema de teclas)                           ║
+    ║                                                                  ║
+    ║  Compatible: Delta, Xeno, KRNL, Arceus X, Codex, Hydrogen      ║
+    ╚══════════════════════════════════════════════════════════════════╝
+]]
 
+local CaduHub = {}
+CaduHub.__index = CaduHub
+
+-- Services
 local Players = game:GetService("Players")
-local StarterGui = game:GetService("StarterGui")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
 
-local player = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
 
--- CONFIGURAÇÕES
-local CONFIG = {
-    reach = 10,
-    showReachSphere = true,
-    autoSecondTouch = true,
-    scanCooldown = 1.5,
-    ballNames = { "TPS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ" },
-    menuOpen = false,
-    accentColor = Color3.fromRGB(0, 180, 255),
-    accentSecondary = Color3.fromRGB(0, 255, 180),
-    bgColor = Color3.fromRGB(15, 15, 20),
-    bgLight = Color3.fromRGB(35, 35, 45),
-    textColor = Color3.fromRGB(255, 255, 255),
-    textDark = Color3.fromRGB(180, 180, 190)
+-- Configurações Globais
+CaduHub.Config = {
+    Theme = {
+        Primary = Color3.fromRGB(30, 30, 30),
+        Secondary = Color3.fromRGB(35, 35, 35),
+        Accent = Color3.fromRGB(0, 255, 140), -- Verde neon característico
+        Text = Color3.fromRGB(255, 255, 255),
+        Dark = Color3.fromRGB(25, 25, 25),
+        Border = Color3.fromRGB(60, 60, 60)
+    },
+    Mobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled,
+    Version = "2.0.0",
+    Credits = "Original: CaduHub | Remake: Reborn Team"
 }
 
--- VARIÁVEIS
-local balls = {}
-local lastRefresh = 0
-local reachSphere
-local gui, mainFrame, menuButton, reachLabel, iconContainer
+-- Sistema de Football
+CaduHub.Football = {
+    Enabled = false,
+    Reach = 10,
+    AutoTouch = false,
+    VisualizeReach = true,
+    AutoSkills = false,
+    BallLock = false,
+    CurrentBall = nil,
+    ReachPart = nil,
+    Connection = nil
+}
 
--- BALL SET
-local BALL_NAME_SET = {}
-for _, n in ipairs(CONFIG.ballNames) do
-    BALL_NAME_SET[n] = true
-end
-
--- NOTIFICAÇÃO
-local function notify(txt, t)
-    pcall(function()
-        StarterGui:SetCore("SendNotification", {
-            Title = "⚽ Cadu Hub",
-            Text = txt,
-            Duration = t or 3
-        })
-    end)
-end
-
--- ATUALIZAR BOLAS
-local function refreshBalls(force)
-    if not force and tick() - lastRefresh < CONFIG.scanCooldown then return end
-    lastRefresh = tick()
-    table.clear(balls)
-
-    for _, v in ipairs(Workspace:GetDescendants()) do
-        if v:IsA("BasePart") and BALL_NAME_SET[v.Name] then
-            table.insert(balls, v)
+-- Utilidades
+function CaduHub:Create(instanceType, properties)
+    local instance = Instance.new(instanceType)
+    for prop, value in pairs(properties) do
+        if prop ~= "Parent" then
+            if typeof(value) == "Instance" then
+                value.Parent = instance
+            else
+                instance[prop] = value
+            end
         end
     end
+    instance.Parent = properties.Parent
+    return instance
 end
 
--- PARTES DO CORPO
-local function getValidParts(char)
-    local parts = {}
-    for _, v in ipairs(char:GetChildren()) do
-        if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
-            table.insert(parts, v)
-        end
-    end
-    return parts
-end
-
--- ESFERA DE ALCANCE
-local function updateReachSphere()
-    if not CONFIG.showReachSphere then
-        if reachSphere then 
-            reachSphere:Destroy()
-            reachSphere = nil
-        end
-        return
-    end
-
-    if not reachSphere then
-        reachSphere = Instance.new("Part")
-        reachSphere.Name = "CaduReachSphere"
-        reachSphere.Shape = Enum.PartType.Ball
-        reachSphere.Anchored = true
-        reachSphere.CanCollide = false
-        reachSphere.Transparency = 0.9
-        reachSphere.Material = Enum.Material.ForceField
-        reachSphere.Color = CONFIG.accentColor
-        reachSphere.Parent = Workspace
-    end
-
-    local char = player.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        reachSphere.Position = hrp.Position
-    end
-
-    reachSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
-end
-
--- TWEEN HELPER
-local function tween(obj, props, dur, style, dir)
-    local info = TweenInfo.new(dur or 0.3, style or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out)
-    local t = TweenService:Create(obj, info, props)
-    t:Play()
-    return t
-end
-
--- ARRASTO LIVRE SEM RESTRIÇÕES
-local function makeDraggable(frame, handle)
+function CaduHub:MakeDraggable(frame)
+    local dragInput, dragStart, startPos
     local dragging = false
-    local dragStart, startPos
-
-    handle.InputBegan:Connect(function(input)
+    
+    frame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = frame.Position
             
-            -- Feedback visual
-            if handle:IsA("GuiObject") then
-                tween(handle, {BackgroundColor3 = handle.BackgroundColor3:Lerp(Color3.new(0,0,0), 0.2)}, 0.1)
-            end
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
         end
     end)
-
-    handle.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-
-    handle.InputEnded:Connect(function()
-        if dragging then
-            dragging = false
-            if handle:IsA("GuiObject") then
-                tween(handle, {BackgroundColor3 = handle:GetAttribute("OriginalColor") or CONFIG.accentColor}, 0.2)
-            end
-        end
-    end)
-end
-
--- CRIAR INTERFACE
-local function buildGUI()
-    if gui then return end
-
-    gui = Instance.new("ScreenGui")
-    gui.Name = "CaduHubGUI"
-    gui.ResetOnSpawn = false
-    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    gui.Parent = player:WaitForChild("PlayerGui")
-
-    -- CONTAINER DO ÍCONE (ÁREA DE TOQUE MAIOR)
-    iconContainer = Instance.new("Frame")
-    iconContainer.Name = "IconContainer"
-    iconContainer.Size = UDim2.new(0, 70, 0, 70)
-    iconContainer.Position = UDim2.new(1, -100, 0.1, 0)
-    iconContainer.BackgroundTransparency = 1
-    iconContainer.Parent = gui
-
-    -- BOTÃO DO ÍCONE (VISUAL)
-    menuButton = Instance.new("TextButton")
-    menuButton.Name = "MenuButton"
-    menuButton.Size = UDim2.new(0, 50, 0, 50)
-    menuButton.Position = UDim2.new(0.5, -25, 0.5, -25)
-    menuButton.BackgroundColor3 = CONFIG.accentColor
-    menuButton.Text = "⚽"
-    menuButton.TextSize = 24
-    menuButton.Font = Enum.Font.GothamBold
-    menuButton.TextColor3 = CONFIG.textColor
-    menuButton.BorderSizePixel = 0
-    menuButton.AutoButtonColor = false
-    menuButton.Parent = iconContainer
     
-    menuButton:SetAttribute("OriginalColor", CONFIG.accentColor)
-
-    -- CANTOS ARREDONDADOS
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0.5, 0)
-    corner.Parent = menuButton
-
-    -- SOMBRA
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "Shadow"
-    shadow.Size = UDim2.new(1, 20, 1, 20)
-    shadow.Position = UDim2.new(0, -10, 0, -10)
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxassetid://131296141"
-    shadow.ImageColor3 = Color3.new(0, 0, 0)
-    shadow.ImageTransparency = 0.7
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
-    shadow.ZIndex = menuButton.ZIndex - 1
-    shadow.Parent = menuButton
-
-    -- MENU PRINCIPAL
-    mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 280, 0, 200)
-    mainFrame.Position = UDim2.new(0.5, -140, 0.5, -100)
-    mainFrame.BackgroundColor3 = CONFIG.bgColor
-    mainFrame.BackgroundTransparency = 0.05
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Visible = false
-    mainFrame.ClipsDescendants = true
-    mainFrame.Parent = gui
-
-    -- CANTOS ARREDONDADOS DO MENU
-    local frameCorner = Instance.new("UICorner")
-    frameCorner.CornerRadius = UDim.new(0, 16)
-    frameCorner.Parent = mainFrame
-
-    -- SOMBRA DO MENU
-    local frameShadow = Instance.new("ImageLabel")
-    frameShadow.Size = UDim2.new(1, 30, 1, 30)
-    frameShadow.Position = UDim2.new(0, -15, 0, -15)
-    frameShadow.BackgroundTransparency = 1
-    frameShadow.Image = "rbxassetid://131296141"
-    frameShadow.ImageColor3 = Color3.new(0, 0, 0)
-    frameShadow.ImageTransparency = 0.6
-    frameShadow.ScaleType = Enum.ScaleType.Slice
-    frameShadow.SliceCenter = Rect.new(10, 10, 118, 118)
-    frameShadow.ZIndex = mainFrame.ZIndex - 1
-    frameShadow.Parent = mainFrame
-
-    -- CABEÇALHO
-    local header = Instance.new("Frame")
-    header.Name = "Header"
-    header.Size = UDim2.new(1, 0, 0, 40)
-    header.BackgroundColor3 = CONFIG.accentColor
-    header.BorderSizePixel = 0
-    header.Parent = mainFrame
-    header:SetAttribute("OriginalColor", CONFIG.accentColor)
-
-    local headerCorner = Instance.new("UICorner")
-    headerCorner.CornerRadius = UDim.new(0, 16)
-    headerCorner.Parent = header
-
-    -- CORREÇÃO DOS CANTOS INFERIORES DO HEADER
-    local headerFix = Instance.new("Frame")
-    headerFix.Size = UDim2.new(1, 0, 0.5, 0)
-    headerFix.Position = UDim2.new(0, 0, 0.5, 0)
-    headerFix.BackgroundColor3 = CONFIG.accentColor
-    headerFix.BorderSizePixel = 0
-    headerFix.Parent = header
-
-    -- TÍTULO
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -50, 1, 0)
-    title.Position = UDim2.new(0, 15, 0, 0)
-    title.BackgroundTransparency = 1
-    title.Text = "⚽ Cadu Hub"
-    title.TextSize = 18
-    title.Font = Enum.Font.GothamBold
-    title.TextColor3 = CONFIG.textColor
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Parent = header
-
-    -- BOTÃO FECHAR
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(1, -35, 0.5, -15)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
-    closeBtn.Text = "×"
-    closeBtn.TextSize = 20
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextColor3 = CONFIG.textColor
-    closeBtn.BorderSizePixel = 0
-    closeBtn.AutoButtonColor = false
-    closeBtn.Parent = header
-
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0.3, 0)
-    closeCorner.Parent = closeBtn
-
-    -- CONTEÚDO
-    local content = Instance.new("Frame")
-    content.Size = UDim2.new(1, 0, 1, -40)
-    content.Position = UDim2.new(0, 0, 0, 40)
-    content.BackgroundTransparency = 1
-    content.Parent = mainFrame
-
-    -- DISPLAY DO REACH
-    local reachFrame = Instance.new("Frame")
-    reachFrame.Size = UDim2.new(1, -30, 0, 50)
-    reachFrame.Position = UDim2.new(0, 15, 0, 15)
-    reachFrame.BackgroundColor3 = CONFIG.bgLight
-    reachFrame.BorderSizePixel = 0
-    reachFrame.Parent = content
-
-    local reachCorner = Instance.new("UICorner")
-    reachCorner.CornerRadius = UDim.new(0, 10)
-    reachCorner.Parent = reachFrame
-
-    local reachText = Instance.new("TextLabel")
-    reachText.Size = UDim2.new(0.4, 0, 1, 0)
-    reachText.Position = UDim2.new(0, 12, 0, 0)
-    reachText.BackgroundTransparency = 1
-    reachText.Text = "Alcance"
-    reachText.TextSize = 14
-    reachText.Font = Enum.Font.Gotham
-    reachText.TextColor3 = CONFIG.textDark
-    reachText.TextXAlignment = Enum.TextXAlignment.Left
-    reachText.Parent = reachFrame
-
-    reachLabel = Instance.new("TextLabel")
-    reachLabel.Size = UDim2.new(0.6, -10, 1, 0)
-    reachLabel.Position = UDim2.new(0.4, 0, 0, 0)
-    reachLabel.BackgroundTransparency = 1
-    reachLabel.Text = tostring(CONFIG.reach)
-    reachLabel.TextSize = 28
-    reachLabel.Font = Enum.Font.GothamBold
-    reachLabel.TextColor3 = CONFIG.accentColor
-    reachLabel.TextXAlignment = Enum.TextXAlignment.Right
-    reachLabel.Parent = reachFrame
-
-    -- BOTÕES DE CONTROLE
-    local btnFrame = Instance.new("Frame")
-    btnFrame.Size = UDim2.new(1, -30, 0, 45)
-    btnFrame.Position = UDim2.new(0, 15, 0, 75)
-    btnFrame.BackgroundTransparency = 1
-    btnFrame.Parent = content
-
-    -- BOTÃO MENOS
-    local minus = Instance.new("TextButton")
-    minus.Size = UDim2.new(0.48, 0, 1, 0)
-    minus.BackgroundColor3 = CONFIG.bgLight
-    minus.Text = "−"
-    minus.TextSize = 22
-    minus.Font = Enum.Font.GothamBold
-    minus.TextColor3 = CONFIG.textColor
-    minus.BorderSizePixel = 0
-    minus.AutoButtonColor = false
-    minus.Parent = btnFrame
-
-    local minusCorner = Instance.new("UICorner")
-    minusCorner.CornerRadius = UDim.new(0, 10)
-    minusCorner.Parent = minus
-
-    -- BOTÃO MAIS
-    local plus = Instance.new("TextButton")
-    plus.Size = UDim2.new(0.48, 0, 1, 0)
-    plus.Position = UDim2.new(0.52, 0, 0, 0)
-    plus.BackgroundColor3 = CONFIG.bgLight
-    plus.Text = "+"
-    plus.TextSize = 22
-    plus.Font = Enum.Font.GothamBold
-    plus.TextColor3 = CONFIG.textColor
-    plus.BorderSizePixel = 0
-    plus.AutoButtonColor = false
-    plus.Parent = btnFrame
-
-    local plusCorner = Instance.new("UICorner")
-    plusCorner.CornerRadius = UDim.new(0, 10)
-    plusCorner.Parent = plus
-
-    -- TOGGLE ESFERA
-    local toggleFrame = Instance.new("Frame")
-    toggleFrame.Size = UDim2.new(1, -30, 0, 35)
-    toggleFrame.Position = UDim2.new(0, 15, 0, 130)
-    toggleFrame.BackgroundTransparency = 1
-    toggleFrame.Parent = content
-
-    local toggleText = Instance.new("TextLabel")
-    toggleText.Size = UDim2.new(0.6, 0, 1, 0)
-    toggleText.BackgroundTransparency = 1
-    toggleText.Text = "Mostrar Esfera"
-    toggleText.TextSize = 14
-    toggleText.Font = Enum.Font.Gotham
-    toggleText.TextColor3 = CONFIG.textDark
-    toggleText.TextXAlignment = Enum.TextXAlignment.Left
-    toggleText.Parent = toggleFrame
-
-    -- SWITCH
-    local switch = Instance.new("TextButton")
-    switch.Size = UDim2.new(0, 50, 0, 26)
-    switch.Position = UDim2.new(1, -50, 0.5, -13)
-    switch.BackgroundColor3 = Color3.fromRGB(0, 180, 100)
-    switch.Text = ""
-    switch.BorderSizePixel = 0
-    switch.AutoButtonColor = false
-    switch.Parent = toggleFrame
-
-    local switchCorner = Instance.new("UICorner")
-    switchCorner.CornerRadius = UDim.new(0.5, 0)
-    switchCorner.Parent = switch
-
-    local circle = Instance.new("Frame")
-    circle.Size = UDim2.new(0, 22, 0, 22)
-    circle.Position = UDim2.new(0, 2, 0.5, -11)
-    circle.BackgroundColor3 = Color3.new(1, 1, 1)
-    circle.BorderSizePixel = 0
-    circle.Parent = switch
-
-    local circleCorner = Instance.new("UICorner")
-    circleCorner.CornerRadius = UDim.new(0.5, 0)
-    circleCorner.Parent = circle
-
-    -- EVENTOS DO ÍCONE (ABRIR MENU)
-    menuButton.MouseButton1Click:Connect(function()
-        CONFIG.menuOpen = not CONFIG.menuOpen
-        
-        if CONFIG.menuOpen then
-            -- ABRIR MENU
-            mainFrame.Visible = true
-            mainFrame.Size = UDim2.new(0, 0, 0, 0)
-            mainFrame.BackgroundTransparency = 1
-            
-            -- Animação de abertura
-            tween(mainFrame, {Size = UDim2.new(0, 280, 0, 200), BackgroundTransparency = 0.05}, 0.4, Enum.EasingStyle.Back)
-            tween(menuButton, {BackgroundColor3 = CONFIG.accentSecondary}, 0.3)
-            
-            -- Mostrar conteúdo com delay
-            for _, obj in ipairs(content:GetDescendants()) do
-                if obj:IsA("GuiObject") then
-                    obj.Visible = false
-                end
-            end
-            
-            task.delay(0.2, function()
-                for _, obj in ipairs(content:GetDescendants()) do
-                    if obj:IsA("GuiObject") then
-                        obj.Visible = true
-                        if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-                            obj.TextTransparency = 1
-                            tween(obj, {TextTransparency = 0}, 0.3)
-                        elseif obj:IsA("Frame") and obj.Name ~= "Shadow" then
-                            obj.BackgroundTransparency = 1
-                            tween(obj, {BackgroundTransparency = 0}, 0.3)
-                        end
-                    end
-                end
-            end)
-        else
-            -- FECHAR MENU
-            tween(mainFrame, {Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1}, 0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In).Completed:Connect(function()
-                mainFrame.Visible = false
-            end)
-            tween(menuButton, {BackgroundColor3 = CONFIG.accentColor}, 0.3)
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
         end
     end)
-
-    -- FECHAR PELO X
-    closeBtn.MouseButton1Click:Connect(function()
-        CONFIG.menuOpen = false
-        tween(mainFrame, {Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1}, 0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In).Completed:Connect(function()
-            mainFrame.Visible = false
-        end)
-        tween(menuButton, {BackgroundColor3 = CONFIG.accentColor}, 0.3)
-    end)
-
-    -- FUNÇÃO ATUALIZAR DISPLAY
-    local function updateReach()
-        reachLabel.Text = tostring(CONFIG.reach)
-        tween(reachLabel, {TextSize = 32}, 0.1).Completed:Connect(function()
-            tween(reachLabel, {TextSize = 28}, 0.2)
-        end)
-    end
-
-    -- BOTÃO MENOS
-    minus.MouseButton1Click:Connect(function()
-        if CONFIG.reach > 1 then
-            CONFIG.reach = CONFIG.reach - 1
-            updateReach()
-            updateReachSphere()
-            
-            tween(minus, {BackgroundColor3 = Color3.fromRGB(255, 100, 100)}, 0.1).Completed:Connect(function()
-                tween(minus, {BackgroundColor3 = CONFIG.bgLight}, 0.2)
-            end)
+    
+    RunService.RenderStepped:Connect(function()
+        if dragging and dragInput then
+            local delta = dragInput.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
-
-    -- BOTÃO MAIS
-    plus.MouseButton1Click:Connect(function()
-        CONFIG.reach = CONFIG.reach + 1
-        updateReach()
-        updateReachSphere()
-        
-        tween(plus, {BackgroundColor3 = Color3.fromRGB(100, 255, 150)}, 0.1).Completed:Connect(function()
-            tween(plus, {BackgroundColor3 = CONFIG.bgLight}, 0.2)
-        end)
-    end)
-
-    -- TOGGLE ESFERA
-    switch.MouseButton1Click:Connect(function()
-        CONFIG.showReachSphere = not CONFIG.showReachSphere
-        
-        if CONFIG.showReachSphere then
-            tween(switch, {BackgroundColor3 = Color3.fromRGB(0, 180, 100)}, 0.3)
-            tween(circle, {Position = UDim2.new(0, 2, 0.5, -11)}, 0.3)
-        else
-            tween(switch, {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}, 0.3)
-            tween(circle, {Position = UDim2.new(1, -24, 0.5, -11)}, 0.3)
-        end
-        
-        updateReachSphere()
-    end)
-
-    -- ARRASTAR (ÍCONE E MENU)
-    makeDraggable(iconContainer, iconContainer)
-    makeDraggable(mainFrame, header)
 end
 
--- AUTO TOUCH
-local function processTouch()
-    local char = player.Character
-    if not char then return end
-
-    for _, part in ipairs(getValidParts(char)) do
-        for _, ball in ipairs(balls) do
-            if ball and ball.Parent then
-                if (ball.Position - part.Position).Magnitude <= CONFIG.reach then
-                    pcall(function()
-                        firetouchinterest(ball, part, 0)
-                        firetouchinterest(ball, part, 1)
-                    end)
-                end
-            end
-        end
-    end
+function CaduHub:RoundNumber(num, decimals)
+    decimals = decimals or 0
+    local mult = 10 ^ decimals
+    return math.floor(num * mult + 0.5) / mult
 end
 
--- LOOPS
-RunService.RenderStepped:Connect(function()
-    updateReachSphere()
-    if CONFIG.autoSecondTouch then
-        processTouch()
-    end
-end)
+-- Interface Principal
+function CaduHub:InitUI()
+    -- ScreenGui principal
+    local ScreenGui = self:Create("ScreenGui", {
+        Name = "CaduHubReborn",
+        Parent = CoreGui,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        ResetOnSpawn = false
+    })
+    
+    -- Container principal (adaptativo para mobile)
+    local MainFrame = self:Create("Frame", {
+        Name = "MainFrame",
+        Size = self.Config.Mobile and UDim2.new(0, 280, 0, 400) or UDim2.new(0, 220, 0, 350),
+        Position = UDim2.new(0, 20, 0, 20),
+        BackgroundColor3 = self.Config.Theme.Primary,
+        BorderSizePixel = 0,
+        Parent = ScreenGui,
+        Active = true,
+        Draggable = false -- Usarei sistema customizado
+    })
+    
+    -- Cantos arredondados
+    local Corner = self:Create("UICorner", {
+        CornerRadius = UDim.new(0, 6),
+        Parent = MainFrame
+    })
+    
+    -- Sombra
+    local Shadow = self:Create("ImageLabel", {
+        Name = "Shadow",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(1, 20, 1, 20),
+        Image = "rbxassetid://1316045217",
+        ImageColor3 = Color3.fromRGB(0, 0, 0),
+        ImageTransparency = 0.6,
+        ScaleType = Enum.ScaleType.Slice,
+        SliceCenter = Rect.new(10, 10, 118, 118),
+        Parent = MainFrame,
+        ZIndex = -1
+    })
+    
+    -- Header
+    local Header = self:Create("Frame", {
+        Name = "Header",
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundColor3 = self.Config.Theme.Primary,
+        BorderSizePixel = 0,
+        Parent = MainFrame
+    })
+    
+    -- Underline colorida (Rainbow opcional)
+    local Underline = self:Create("Frame", {
+        Name = "Underline",
+        Size = UDim2.new(1, 0, 0, 2),
+        Position = UDim2.new(0, 0, 1, -2),
+        BackgroundColor3 = self.Config.Theme.Accent,
+        BorderSizePixel = 0,
+        Parent = Header,
+        ZIndex = 2
+    })
+    
+    -- Título
+    local Title = self:Create("TextLabel", {
+        Name = "Title",
+        Text = "⚡ CaduHub Reborn",
+        Size = UDim2.new(1, -40, 1, 0),
+        Position = UDim2.new(0, 10, 0, 0),
+        BackgroundTransparency = 1,
+        TextColor3 = self.Config.Theme.Text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 16,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = Header
+    })
+    
+    -- Botão Minimizar
+    local MinimizeBtn = self:Create("TextButton", {
+        Name = "Minimize",
+        Size = UDim2.new(0, 30, 0, 30),
+        Position = UDim2.new(1, -35, 0, 0),
+        BackgroundTransparency = 1,
+        Text = "-",
+        TextColor3 = self.Config.Theme.Text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 18,
+        Parent = Header
+    })
+    
+    -- Container de conteúdo
+    local Container = self:Create("ScrollingFrame", {
+        Name = "Container",
+        Size = UDim2.new(1, -10, 1, -40),
+        Position = UDim2.new(0, 5, 0, 35),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = self.Config.Theme.Accent,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        Parent = MainFrame
+    })
+    
+    -- Layout
+    local ListLayout = self:Create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 5),
+        Parent = Container
+    })
+    
+    -- Padding
+    local Padding = self:Create("UIPadding", {
+        PaddingTop = UDim.new(0, 5),
+        PaddingBottom = UDim.new(0, 5),
+        Parent = Container
+    })
+    
+    -- Créditos no rodapé
+    local Credits = self:Create("TextLabel", {
+        Name = "Credits",
+        Text = self.Config.Credits,
+        Size = UDim2.new(1, 0, 0, 15),
+        Position = UDim2.new(0, 0, 1, -15),
+        BackgroundTransparency = 1,
+        TextColor3 = Color3.fromRGB(150, 150, 150),
+        Font = Enum.Font.Gotham,
+        TextSize = 10,
+        Parent = MainFrame
+    })
+    
+    -- Tornar arrastável
+    self:MakeDraggable(MainFrame)
+    
+    -- Sistema de minimizar
+    local minimized = false
+    MinimizeBtn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        MinimizeBtn.Text = minimized and "+" or "-"
+        Container.Visible = not minimized
+        Credits.Visible = not minimized
+        
+        local targetSize = minimized and UDim2.new(0, MainFrame.Size.X.Offset, 0, 30) or (self.Config.Mobile and UDim2.new(0, 280, 0, 400) or UDim2.new(0, 220, 0, 350))
+        
+        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = targetSize
+        }):Play()
+    end)
+    
+    return {
+        ScreenGui = ScreenGui,
+        MainFrame = MainFrame,
+        Container = Container,
+        Underline = Underline
+    }
+end
 
-task.spawn(function()
-    while true do
-        refreshBalls(false)
-        task.wait(CONFIG.scanCooldown)
-    end
-end)
+-- Componentes da UI
+function CaduHub:CreateToggle(parent, text, default, callback)
+    local ToggleFrame = self:Create("Frame", {
+        Name = text .. "_Toggle",
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundColor3 = self.Config.Theme.Secondary,
+        BorderSizePixel = 0,
+        Parent = parent
+    })
+    
+    local Corner = self:Create("UICorner", {
+        CornerRadius = UDim.new(0, 4),
+        Parent = ToggleFrame
+    })
+    
+    local Label = self:Create("TextLabel", {
+        Text = text,
+        Size = UDim2.new(1, -50, 1, 0),
+        Position = UDim2.new(0, 10, 0, 0),
+        BackgroundTransparency = 1,
+        TextColor3 = self.Config.Theme.Text,
+        Font = Enum.Font.Gotham,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = ToggleFrame
+    })
+    
+    local ToggleBtn = self:Create("TextButton", {
+        Name = "ToggleBtn",
+        Size = UDim2.new(0, 40, 0, 20),
+        Position = UDim2.new(1, -45, 0.5, -10),
+        BackgroundColor3 = default and self.Config.Theme.Accent or self.Config.Theme.Dark,
+        Text = default and "ON" or "OFF",
+        TextColor3 = self.Config.Theme.Text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 10,
+        Parent = ToggleFrame
+    })
+    
+    local BtnCorner = self:Create("UICorner", {
+        CornerRadius = UDim.new(0, 10),
+        Parent = ToggleBtn
+    })
+    
+    local enabled = default
+    
+    ToggleBtn.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        ToggleBtn.Text = enabled and "ON" or "OFF"
+        
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {
+            BackgroundColor3 = enabled and self.Config.Theme.Accent or self.Config.Theme.Dark
+        }):Play()
+        
+        callback(enabled)
+    end)
+    
+    return {
+        Set = function(self, value)
+            enabled = value
+            ToggleBtn.Text = enabled and "ON" or "OFF"
+            ToggleBtn.BackgroundColor3 = enabled and self.Config.Theme.Accent or self.Config.Theme.Dark
+            callback(enabled)
+        end,
+        Get = function() return enabled end
+    }
+end
 
--- INICIALIZAR
-buildGUI()
-updateReachSphere()
-refreshBalls(true)
-notify("⚽ Cadu Hub Ativo!", 3)
-print("✅ Cadu Hub carregado!")
+function CaduHub:CreateSlider(parent, text, min, max, default, precise, callback)
+    local SliderFrame = self:Create("Frame", {
+        Name = text .. "_Slider",
+        Size = UDim2.new(1, 0, 0, 45),
+        BackgroundColor3 = self.Config.Theme.Secondary,
+        BorderSizePixel = 0,
+        Parent = parent
+    })
+    
+    local Corner = self:Create("UICorner", {
+        CornerRadius = UDim.new(0, 4),
+        Parent = SliderFrame
+    })
+    
+    local Label = self:Create("TextLabel", {
+        Text = text,
+        Size = UDim2.new(1, -10, 0, 20),
+        Position = UDim2.new(0, 10, 0, 0),
+        BackgroundTransparency = 1,
+        TextColor3 = self.Config.Theme.Text,
+        Font = Enum.Font.Gotham,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = SliderFrame
+    })
+    
+    local ValueLabel = self:Create("TextLabel", {
+        Text = tostring(default),
+        Size = UDim2.new(0, 40, 0, 20),
+        Position = UDim2.new(1, -45, 0, 0),
+        BackgroundTransparency = 1,
+        TextColor3 = self.Config.Theme.Accent,
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        Parent = SliderFrame
+    })
+    
+    -- Background da barra
+    local SliderBg = self:Create("Frame", {
+        Name = "SliderBg",
+        Size = UDim2.new(1, -20, 0, 6),
+        Position = UDim2.new(0, 10, 0, 30),
+        BackgroundColor3 = self.Config.Theme.Dark,
+        BorderSizePixel = 0,
+        Parent = SliderFrame
+    })
+    
+    local BgCorner = self:Create("UICorner", {
+        CornerRadius = UDim.new(0, 3),
+        Parent = SliderBg
+    })
+    
+    -- Fill da barra
+    local SliderFill = self:Create("Frame", {
+        Name = "SliderFill",
+        Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
+        BackgroundColor3 = self.Config.Theme.Accent,
+        BorderSizePixel = 0,
+        Parent = SliderBg
+    })
+    
+    local FillCorner = self:Create("UICorner", {
+        CornerRadius = UDim.new(0, 3),
+        Parent = SliderFill
+    })
+    
+    -- Botão do slider
+    local SliderBtn = self:Create("TextButton", {
+        Name = "SliderBtn",
+        Size = UDim2.new(0, 12, 0, 12),
+        Position = UDim2.new((default - min) / (max - min), -6, 0.5, -6),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        Text = "",
+        Parent = SliderBg
+    })
+    
+    local BtnCorner = self:Create("UICorner", {
+        CornerRadius = UDim.new(1, 0),
+        Parent = SliderBtn
+    })
+    
+    -- Lógica do slider
+    local dragging = false
+    local value = default
+    
+    local function update(input)
+        local pos = math.clamp((input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X, 0, 1)
+        value = min + (max - min) * pos
+        
+        if not precise then
+            value = math.floor(value)
+        else
+            value = self:RoundNumber(value, 2)
+        end
+        
+        SliderFill.Size = UDim2.new(pos, 0, 1, 0)
+        SliderBtn.Position = UDim2.new(pos, -6, 0.5, -6)
+        ValueLabel.Text = tostring(value)
+        callback(value)
+    end
+    
+    SliderBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+        end
+    end)
+    
+    SliderBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            update(input)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    
+    return {
+        Set = function(self, newValue)
+            value = math.clamp(newValue, min, max)
+            local pos = (value - min) / (max - min)
+            SliderFill.Size = UDim2.new(pos, 0, 1, 0)
+            SliderBtn.Position = UDim2.new(pos, -6, 0.5, -6)
+            ValueLabel.Text = tostring(value)
+            callback(value)
+        end,
+        Get = function() return value end
+    }
+end
+
+function CaduHub:CreateButton(parent, text, callback)
+    local Button = self:Create("TextButton", {
+        Name = text .. "_Btn",
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundColor3 = self.Config.Theme.Accent,
+        Text = text,
+        TextColor3 = self.Config.Theme.Text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        Parent = parent
+    })
+    
+    local Corner = self:Create("UICorner", {
+        CornerRadius = UDim.new(0, 4),
+        Parent = Button
+    })
+    
+    -- Efeito hover
+    Button.MouseEnter:Connect(function()
+        TweenService:Create(Button, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(0, 230, 126)
+        }):Play()
+    end)
+    
+    Button.MouseLeave:Connect(function()
+        TweenService:Create(Button, TweenInfo.new(0.2), {
+            BackgroundColor3 = self.Config.Theme.Accent
+        }):Play()
+    end)
+    
+    Button.MouseButton1Click:Connect(callback)
+    
+    return Button
+end
+
+function CaduHub:CreateSection(parent, text)
+    local Section = self:Create("Frame", {
+        Name = text .. "_Section",
+        Size = UDim2.new(1, 0, 0, 25),
+        BackgroundColor3 = self.Config.Theme.Dark,
+        BorderSizePixel = 0,
+        Parent = parent
+    })
+    
+    local Label = self:Create("TextLabel", {
+        Text = "  " .. text,
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        TextColor3 = self.Config.Theme.Accent,
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = Section
+    })
+    
+    return Section
+end
+
+-- Sistema de Football/Bola
+function CaduHub:InitFootballSystem()
+    local Football = self.Football
+    
+    -- Criar partícula de alcance visual
+    function Football:CreateReachVisual()
+        if self.ReachPart then self.ReachPart:Destroy() end
+        
+        self.ReachPart = Instance.new("Part")
+        self.ReachPart.Name = "CaduHub_Reach"
+        self.ReachPart.Anchored = true
+        self.ReachPart.CanCollide = false
+        self.ReachPart.Transparency = 0.9
+        self.ReachPart.BrickColor = BrickColor.new("Lime green")
+        self.ReachPart.Material = Enum.Material.ForceField
+        self.ReachPart.Shape = Enum.PartType.Ball
+        self.ReachPart.Size = Vector3.new(self.Reach * 2, self.Reach * 2, self.Reach * 2)
+        self.ReachPart.Parent = Workspace
+        
+        -- Billboard para mostrar distância
+        local Billboard = Instance.new("BillboardGui")
+        Billboard.Name = "ReachInfo"
+        Billboard.Size = UDim2.new(0, 100, 0, 50)
+        Billboard.StudsOffset = Vector3.new(0, self.Reach + 2, 0)
+        Billboard.AlwaysOnTop = true
+        
+        local Label = Instance.new("TextLabel")
+        Label.Size = UDim2.new(1, 0, 1, 0)
+        Label.BackgroundTransparency = 1
+        Label.Text = "REACH: " .. self.Reach
+        Label.TextColor3 = Color3.fromRGB(0, 255, 140)
+        Label.Font = Enum.Font.GothamBold
+        Label.TextSize = 14
+        Label.Parent = Billboard
+        
+        Billboard.Parent = self.ReachPart
+        
+        return self.ReachPart
+    end
+    
+    -- Atualizar visualização
+    function Football:UpdateReachVisual(position)
+        if self.ReachPart and self.VisualizeReach then
+            self.ReachPart.Size = Vector3.new(self.Reach * 2, self.Reach * 2, self.Reach * 2)
+            self.ReachPart.Position = position
+            
+            local Billboard = self.ReachPart:FindFirstChild("ReachInfo")
+            if Billboard then
+                Billboard.StudsOffset = Vector3.new(0, self.Reach + 2, 0)
+                local Label = Billboard:FindFirstChildOfClass("TextLabel")
+                if Label then
+                    Label.Text = "REACH: " .. self.Reach
+                end
+            end
+            self.ReachPart.Transparency = 0.85
+        elseif self.ReachPart then
+            self.ReachPart.Transparency = 1
+        end
+    end
+    
+    -- Encontrar bola mais próxima
+    function Football:FindNearestBall()
+        local nearestBall = nil
+        local shortestDistance = math.huge
+        local character = LocalPlayer.Character
+        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+        
+        if not rootPart then return nil end
+        
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and (obj.Name:lowe
