@@ -1,4 +1,4 @@
--- CADUXX137 v9.1 - Wide Edition (Otimizado)
+-- CADUXX137 v9.2 - Modern Glass Edition
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 local Players = game:GetService("Players")
@@ -7,12 +7,13 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
+local CoreGui = game:GetService("CoreGui")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 -- ============================================
--- CONFIGURAÇÕES (Dimensões Ajustadas)
+-- CONFIGURAÇÕES MODERNAS
 -- ============================================
 local CONFIG = {
     reach = 15,
@@ -24,27 +25,31 @@ local CONFIG = {
     menuOpen = true,
     scale = 1.0,
 
-    -- IDs DAS SUAS IMAGENS
-    iconImage = "rbxassetid://104616032736993",      -- Ícone principal
-    iconBackground = "rbxassetid://96755648876012",  -- Fundo do ícone
-    minimizeIcon = "rbxassetid://104616032736993",   -- Ícone do botão minimizar
+    -- IDs das imagens
+    iconImage = "rbxassetid://104616032736993",
+    iconBackground = "rbxassetid://96755648876012",
 
-    ballNames = {
-        "TPS", "TCS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ",
-        "Ball", "Soccer", "Football", "Basketball", "Baseball",
-        "BallTemplate", "GameBall", "Hitbox", "TouchPart", "GoalBall"
-    },
-
-    accentColor = Color3.fromRGB(0, 180, 255),
-    accentSecondary = Color3.fromRGB(138, 43, 226),
-    successColor = Color3.fromRGB(0, 255, 128),
-    dangerColor = Color3.fromRGB(255, 50, 100),
-    warningColor = Color3.fromRGB(255, 200, 0),
-    bgColor = Color3.fromRGB(10, 10, 15),
-    bgLight = Color3.fromRGB(25, 25, 35),
-    bgCard = Color3.fromRGB(35, 35, 50),
-    textColor = Color3.fromRGB(255, 255, 255),
-    textDark = Color3.fromRGB(150, 160, 180)
+    -- Cores Modernas (Glassmorphism)
+    primary = Color3.fromRGB(0, 170, 255),
+    secondary = Color3.fromRGB(138, 43, 226),
+    success = Color3.fromRGB(0, 230, 118),
+    danger = Color3.fromRGB(255, 71, 87),
+    warning = Color3.fromRGB(255, 193, 7),
+    
+    -- Cores de fundo escuro moderno
+    bgDark = Color3.fromRGB(15, 15, 25),
+    bgCard = Color3.fromRGB(25, 25, 40),
+    bgHover = Color3.fromRGB(35, 35, 55),
+    bgLight = Color3.fromRGB(45, 45, 70),
+    
+    textPrimary = Color3.fromRGB(255, 255, 255),
+    textSecondary = Color3.fromRGB(170, 180, 200),
+    textMuted = Color3.fromRGB(120, 130, 150),
+    
+    -- Cores do glass effect
+    glassBg = Color3.fromRGB(20, 20, 35),
+    glassTransparency = 0.15,
+    strokeColor = Color3.fromRGB(60, 60, 90)
 }
 
 local balls = {}
@@ -78,6 +83,9 @@ local function tween(obj, props, time, style, direction)
     return t
 end
 
+-- ============================================
+-- SISTEMA DE ARRASTAR
+-- ============================================
 local function makeDraggable(frame, handle)
     local dragging = false
     local dragInput, dragStart, startPos
@@ -87,7 +95,7 @@ local function makeDraggable(frame, handle)
             dragging = true
             dragStart = input.Position
             startPos = frame.Position
-            tween(handle, {Size = handle.Size * 0.95}, 0.1)
+            tween(handle, {BackgroundTransparency = 0.1}, 0.1)
         end
     end)
 
@@ -104,7 +112,7 @@ local function makeDraggable(frame, handle)
     local function endDrag()
         if dragging then
             dragging = false
-            tween(handle, {Size = handle.Size / 0.95}, 0.1)
+            tween(handle, {BackgroundTransparency = handle:GetAttribute("OriginalTransparency") or 0}, 0.1)
         end
     end
 
@@ -113,7 +121,7 @@ local function makeDraggable(frame, handle)
 end
 
 -- ============================================
--- ÍCONE FLUTUANTE (Melhorado)
+-- ÍCONE FLUTUANTE (Estilo Moderno)
 -- ============================================
 local function createIconButton()
     if iconGui then iconGui:Destroy() end
@@ -124,36 +132,48 @@ local function createIconButton()
     iconGui.DisplayOrder = 999999
     iconGui.Parent = playerGui
 
-    local iconSize = 70 * CONFIG.scale
+    local iconSize = 65 * CONFIG.scale
 
     local iconFrame = Instance.new("Frame")
     iconFrame.Name = "IconFrame"
     iconFrame.Size = UDim2.new(0, iconSize, 0, iconSize)
     iconFrame.Position = UDim2.new(0.5, -iconSize/2, 0.85, 0)
-    iconFrame.BackgroundTransparency = 1
+    iconFrame.BackgroundColor3 = CONFIG.bgCard
+    iconFrame.BackgroundTransparency = 0.2
     iconFrame.BorderSizePixel = 0
     iconFrame.Parent = iconGui
 
-    -- Fundo
-    local background = Instance.new("ImageLabel")
-    background.Name = "Background"
-    background.Size = UDim2.new(1, 0, 1, 0)
-    background.BackgroundTransparency = 1
-    background.Image = CONFIG.iconBackground
-    background.ImageColor3 = Color3.new(1, 1, 1)
-    background.ScaleType = Enum.ScaleType.Stretch
-    background.Parent = iconFrame
+    -- Corner radius moderno
+    Instance.new("UICorner", iconFrame).CornerRadius = UDim.new(0, 20 * CONFIG.scale)
+    
+    -- Stroke sutil
+    local stroke = Instance.new("UIStroke", iconFrame)
+    stroke.Color = CONFIG.primary
+    stroke.Thickness = 2 * CONFIG.scale
+    stroke.Transparency = 0.5
 
-    Instance.new("UICorner", background).CornerRadius = UDim.new(1, 0)
+    -- Glow effect
+    local glow = Instance.new("ImageLabel")
+    glow.Name = "Glow"
+    glow.Size = UDim2.new(1.5, 0, 1.5, 0)
+    glow.Position = UDim2.new(-0.25, 0, -0.25, 0)
+    glow.BackgroundTransparency = 1
+    glow.Image = "rbxassetid://5028857084"
+    glow.ImageColor3 = CONFIG.primary
+    glow.ImageTransparency = 0.9
+    glow.ScaleType = Enum.ScaleType.Slice
+    glow.SliceCenter = Rect.new(10, 10, 90, 90)
+    glow.ZIndex = -1
+    glow.Parent = iconFrame
 
     -- Ícone
     local iconImage = Instance.new("ImageLabel")
     iconImage.Name = "Icon"
-    iconImage.Size = UDim2.new(0.65, 0, 0.65, 0)
-    iconImage.Position = UDim2.new(0.175, 0, 0.175, 0)
+    iconImage.Size = UDim2.new(0.6, 0, 0.6, 0)
+    iconImage.Position = UDim2.new(0.2, 0, 0.2, 0)
     iconImage.BackgroundTransparency = 1
     iconImage.Image = CONFIG.iconImage
-    iconImage.ImageColor3 = Color3.new(1, 1, 1)
+    iconImage.ImageColor3 = CONFIG.textPrimary
     iconImage.ScaleType = Enum.ScaleType.Fit
     iconImage.Parent = iconFrame
 
@@ -165,15 +185,17 @@ local function createIconButton()
     clickButton.Text = ""
     clickButton.Parent = iconFrame
 
-    -- Efeitos hover
+    -- Animações hover
     clickButton.MouseEnter:Connect(function()
-        tween(background, {Size = UDim2.new(1.15, 0, 1.15, 0)}, 0.2)
-        tween(iconImage, {Rotation = 15}, 0.3, Enum.EasingStyle.Back)
+        tween(iconFrame, {Size = UDim2.new(0, iconSize * 1.1, 0, iconSize * 1.1)}, 0.2)
+        tween(stroke, {Transparency = 0}, 0.2)
+        tween(glow, {ImageTransparency = 0.7}, 0.2)
     end)
 
     clickButton.MouseLeave:Connect(function()
-        tween(background, {Size = UDim2.new(1, 0, 1, 0)}, 0.2)
-        tween(iconImage, {Rotation = 0}, 0.3, Enum.EasingStyle.Back)
+        tween(iconFrame, {Size = UDim2.new(0, iconSize, 0, iconSize)}, 0.2)
+        tween(stroke, {Transparency = 0.5}, 0.2)
+        tween(glow, {ImageTransparency = 0.9}, 0.2)
     end)
 
     clickButton.MouseButton1Click:Connect(function()
@@ -187,6 +209,7 @@ local function createIconButton()
 
     makeDraggable(iconFrame, clickButton)
 
+    -- Animação de entrada
     iconFrame.Size = UDim2.new(0, 0, 0, 0)
     tween(iconFrame, {Size = UDim2.new(0, iconSize, 0, iconSize)}, 0.4, Enum.EasingStyle.Back)
     
@@ -209,7 +232,9 @@ local function findBalls()
 
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Parent then
-            for _, name in ipairs(CONFIG.ballNames) do
+            for _, name in ipairs({"TPS", "TCS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ",
+                "Ball", "Soccer", "Football", "Basketball", "Baseball",
+                "BallTemplate", "GameBall", "Hitbox", "TouchPart", "GoalBall"}) do
                 if obj.Name == name or obj.Name:find(name) then
                     table.insert(balls, obj)
                     local conn = obj.AncestryChanged:Connect(function()
@@ -267,9 +292,9 @@ local function updateSphere()
         reachSphere.Shape = Enum.PartType.Ball
         reachSphere.Anchored = true
         reachSphere.CanCollide = false
-        reachSphere.Transparency = 0.88
+        reachSphere.Transparency = 0.9
         reachSphere.Material = Enum.Material.ForceField
-        reachSphere.Color = CONFIG.accentColor
+        reachSphere.Color = CONFIG.primary
         reachSphere.Parent = Workspace
     end
 
@@ -298,7 +323,7 @@ local function doTouch(ball, part)
 end
 
 -- ============================================
--- INTERFACE PRINCIPAL (WIDE EDITION)
+-- INTERFACE PRINCIPAL - MODERN GLASS STYLE
 -- ============================================
 function createMainGUI()
     pcall(function()
@@ -312,70 +337,92 @@ function createMainGUI()
     gui.ResetOnSpawn = false
     gui.Parent = playerGui
 
-    -- DIMENSÕES: Mais largo (420), menos alto (450)
-    local W, H = 420 * CONFIG.scale, 450 * CONFIG.scale
+    -- Dimensões: Wide e compacto
+    local W, H = 440 * CONFIG.scale, 380 * CONFIG.scale
 
+    -- Frame principal com glass effect
     local main = Instance.new("Frame")
     main.Name = "MainFrame"
     main.Size = UDim2.new(0, W, 0, H)
     main.Position = UDim2.new(0.5, -W/2, 0.5, -H/2)
-    main.BackgroundColor3 = CONFIG.bgColor
+    main.BackgroundColor3 = CONFIG.glassBg
+    main.BackgroundTransparency = CONFIG.glassTransparency
     main.BorderSizePixel = 0
     main.ClipsDescendants = true
     main.Parent = gui
 
-    local overlay = Instance.new("Frame")
-    overlay.Name = "Overlay"
-    overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.BackgroundColor3 = CONFIG.bgColor
-    overlay.BackgroundTransparency = 0.15
-    overlay.BorderSizePixel = 0
-    overlay.ZIndex = 0
-    overlay.Parent = main
+    -- Corner radius moderno
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 24 * CONFIG.scale)
 
-    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 16 * CONFIG.scale)
+    -- Stroke elegante
+    local mainStroke = Instance.new("UIStroke", main)
+    mainStroke.Color = CONFIG.strokeColor
+    mainStroke.Thickness = 1.5 * CONFIG.scale
+    mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-    local stroke = Instance.new("UIStroke", main)
-    stroke.Color = CONFIG.accentColor
-    stroke.Thickness = 2.5 * CONFIG.scale
-
-    -- Sombra
+    -- Sombra suave
     local shadow = Instance.new("ImageLabel")
     shadow.Name = "Shadow"
-    shadow.Size = UDim2.new(1, 40 * CONFIG.scale, 1, 40 * CONFIG.scale)
-    shadow.Position = UDim2.new(0, -20 * CONFIG.scale, 0, -20 * CONFIG.scale)
+    shadow.Size = UDim2.new(1, 60 * CONFIG.scale, 1, 60 * CONFIG.scale)
+    shadow.Position = UDim2.new(0, -30 * CONFIG.scale, 0, -30 * CONFIG.scale)
     shadow.BackgroundTransparency = 1
     shadow.Image = "rbxassetid://131296141"
     shadow.ImageColor3 = Color3.new(0, 0, 0)
-    shadow.ImageTransparency = 0.6
+    shadow.ImageTransparency = 0.75
     shadow.ScaleType = Enum.ScaleType.Slice
     shadow.SliceCenter = Rect.new(10, 10, 118, 118)
     shadow.ZIndex = -1
     shadow.Parent = main
 
-    -- HEADER
+    -- ============================================
+    -- HEADER MODERNO
+    -- ============================================
     local header = Instance.new("Frame")
-    header.Size = UDim2.new(1, 0, 0, 55 * CONFIG.scale)
-    header.BackgroundColor3 = CONFIG.accentColor
+    header.Name = "Header"
+    header.Size = UDim2.new(1, 0, 0, 70 * CONFIG.scale)
+    header.BackgroundColor3 = CONFIG.bgCard
+    header.BackgroundTransparency = 0.5
     header.BorderSizePixel = 0
     header.ZIndex = 2
     header.Parent = main
+    header:SetAttribute("OriginalTransparency", 0.5)
 
-    local headerCorner = Instance.new("UICorner", header)
-    headerCorner.CornerRadius = UDim.new(0, 16 * CONFIG.scale)
+    -- Gradiente sutil no header
+    local headerGradient = Instance.new("UIGradient", header)
+    headerGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, CONFIG.bgCard),
+        ColorSequenceKeypoint.new(1, CONFIG.bgDark)
+    })
+    headerGradient.Rotation = 90
 
+    Instance.new("UICorner", header).CornerRadius = UDim.new(0, 24 * CONFIG.scale)
+
+    -- Fix para cantos arredondados
     local headerFix = Instance.new("Frame", header)
     headerFix.Size = UDim2.new(1, 0, 0.5, 0)
     headerFix.Position = UDim2.new(0, 0, 0.5, 0)
-    headerFix.BackgroundColor3 = CONFIG.accentColor
+    headerFix.BackgroundColor3 = CONFIG.bgCard
     headerFix.BorderSizePixel = 0
+    headerFix.ZIndex = 1
+
+    -- Título com ícone
+    local titleIcon = Instance.new("TextLabel")
+    titleIcon.Size = UDim2.new(0, 40 * CONFIG.scale, 0, 40 * CONFIG.scale)
+    titleIcon.Position = UDim2.new(0, 20 * CONFIG.scale, 0.5, -20 * CONFIG.scale)
+    titleIcon.BackgroundTransparency = 1
+    titleIcon.Text = "⚡"
+    titleIcon.TextColor3 = CONFIG.primary
+    titleIcon.Font = Enum.Font.GothamBlack
+    titleIcon.TextSize = 28 * CONFIG.scale
+    titleIcon.ZIndex = 3
+    titleIcon.Parent = header
 
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(0.5, 0, 1, 0)
-    title.Position = UDim2.new(0, 15 * CONFIG.scale, 0, 0)
+    title.Size = UDim2.new(0.4, 0, 0.6, 0)
+    title.Position = UDim2.new(0, 65 * CONFIG.scale, 0.2, 0)
     title.BackgroundTransparency = 1
     title.Text = "CADUXX137"
-    title.TextColor3 = CONFIG.textColor
+    title.TextColor3 = CONFIG.textPrimary
     title.Font = Enum.Font.GothamBlack
     title.TextSize = 22 * CONFIG.scale
     title.TextXAlignment = Enum.TextXAlignment.Left
@@ -383,293 +430,302 @@ function createMainGUI()
     title.Parent = header
 
     local version = Instance.new("TextLabel")
-    version.Size = UDim2.new(0.3, 0, 0.4, 0)
-    version.Position = UDim2.new(0, 17 * CONFIG.scale, 0.6, 0)
+    version.Size = UDim2.new(0.3, 0, 0.35, 0)
+    version.Position = UDim2.new(0, 67 * CONFIG.scale, 0.65, 0)
     version.BackgroundTransparency = 1
-    version.Text = "v9.1 Wide"
-    version.TextColor3 = CONFIG.textDark
+    version.Text = "v9.2 Modern"
+    version.TextColor3 = CONFIG.primary
     version.Font = Enum.Font.GothamBold
-    version.TextSize = 10 * CONFIG.scale
+    version.TextSize = 11 * CONFIG.scale
     version.TextXAlignment = Enum.TextXAlignment.Left
     version.ZIndex = 3
     version.Parent = header
 
-    -- BOTÕES HEADER COM ÍCONE VISÍVEL
-    local btnSize = UDim2.new(0, 36 * CONFIG.scale, 0, 36 * CONFIG.scale)
+    -- ============================================
+    -- BOTÕES HEADER - MINIMIZAR COM EMOJI VISÍVEL
+    -- ============================================
+    local btnSize = UDim2.new(0, 42 * CONFIG.scale, 0, 42 * CONFIG.scale)
+    local btnCorner = UDim.new(0, 12 * CONFIG.scale)
 
-    -- BOTÃO MINIMIZAR COM IMAGEM
-    local minimizeBtn = Instance.new("ImageButton")
+    -- BOTÃO MINIMIZAR - EMOJI 🎯 VISÍVEL
+    local minimizeBtn = Instance.new("TextButton")
     minimizeBtn.Name = "Minimize"
     minimizeBtn.Size = btnSize
-    minimizeBtn.Position = UDim2.new(1, -82 * CONFIG.scale, 0.5, -18 * CONFIG.scale)
-    minimizeBtn.BackgroundColor3 = CONFIG.bgLight
-    minimizeBtn.Image = CONFIG.minimizeIcon
-    minimizeBtn.ImageColor3 = CONFIG.textColor
-    minimizeBtn.ScaleType = Enum.ScaleType.Fit
+    minimizeBtn.Position = UDim2.new(1, -95 * CONFIG.scale, 0.5, -21 * CONFIG.scale)
+    minimizeBtn.BackgroundColor3 = CONFIG.bgHover
+    minimizeBtn.Text = "🎯"
+    minimizeBtn.TextColor3 = CONFIG.textPrimary
+    minimizeBtn.Font = Enum.Font.GothamBold
+    minimizeBtn.TextSize = 20 * CONFIG.scale
     minimizeBtn.AutoButtonColor = false
     minimizeBtn.ZIndex = 3
     minimizeBtn.Parent = header
 
-    Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0, 10 * CONFIG.scale)
+    Instance.new("UICorner", minimizeBtn).CornerRadius = btnCorner
+    
+    -- Ícone de minimizar visível (adicionar imagem pequena ao lado do emoji)
+    local minimizeIcon = Instance.new("ImageLabel")
+    minimizeIcon.Size = UDim2.new(0.5, 0, 0.5, 0)
+    minimizeIcon.Position = UDim2.new(0.25, 0, 0.25, 0)
+    minimizeIcon.BackgroundTransparency = 1
+    minimizeIcon.Image = CONFIG.iconImage
+    minimizeIcon.ImageColor3 = CONFIG.textPrimary
+    minimizeIcon.ScaleType = Enum.ScaleType.Fit
+    minimizeIcon.ZIndex = 4
+    minimizeIcon.Parent = minimizeBtn
+    minimizeIcon.Visible = false  -- Começa invisível, mostra só o emoji
 
+    -- BOTÃO FECHAR
     local closeBtn = Instance.new("TextButton")
     closeBtn.Name = "Close"
     closeBtn.Size = btnSize
-    closeBtn.Position = UDim2.new(1, -42 * CONFIG.scale, 0.5, -18 * CONFIG.scale)
-    closeBtn.BackgroundColor3 = CONFIG.dangerColor
-    closeBtn.Text = "×"
-    closeBtn.TextColor3 = CONFIG.textColor
+    closeBtn.Position = UDim2.new(1, -50 * CONFIG.scale, 0.5, -21 * CONFIG.scale)
+    closeBtn.BackgroundColor3 = CONFIG.danger
+    closeBtn.BackgroundTransparency = 0.2
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = CONFIG.textPrimary
     closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextSize = 24 * CONFIG.scale
+    closeBtn.TextSize = 18 * CONFIG.scale
     closeBtn.AutoButtonColor = false
     closeBtn.ZIndex = 3
     closeBtn.Parent = header
 
-    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 10 * CONFIG.scale)
+    Instance.new("UICorner", closeBtn).CornerRadius = btnCorner
 
-    -- CONTEÚDO SCROLLÁVEL (Área maior horizontalmente)
+    -- ============================================
+    -- CONTEÚDO COM LAYOUT MODERNO
+    -- ============================================
     local content = Instance.new("ScrollingFrame")
     content.Name = "Content"
-    content.Size = UDim2.new(1, -20 * CONFIG.scale, 1, -120 * CONFIG.scale)
-    content.Position = UDim2.new(0, 10 * CONFIG.scale, 0, 65 * CONFIG.scale)
+    content.Size = UDim2.new(1, -30 * CONFIG.scale, 1, -90 * CONFIG.scale)
+    content.Position = UDim2.new(0, 15 * CONFIG.scale, 0, 80 * CONFIG.scale)
     content.BackgroundTransparency = 1
     content.ScrollBarThickness = 4 * CONFIG.scale
-    content.ScrollBarImageColor3 = CONFIG.accentColor
-    content.CanvasSize = UDim2.new(0, 0, 0, 600 * CONFIG.scale)
+    content.ScrollBarImageColor3 = CONFIG.primary
+    content.CanvasSize = UDim2.new(0, 0, 0, 500 * CONFIG.scale)
     content.ZIndex = 1
     content.Parent = main
 
-    -- FUNÇÃO CRIAR SEÇÃO
-    local function createSection(titleText, yPos, height)
-        local section = Instance.new("Frame")
-        section.Size = UDim2.new(1, 0, 0, height * CONFIG.scale)
-        section.Position = UDim2.new(0, 0, 0, yPos * CONFIG.scale)
-        section.BackgroundColor3 = CONFIG.bgCard
-        section.BorderSizePixel = 0
-        section.Parent = content
+    -- Função para criar cards modernos
+    local function createCard(titleText, yPos, height, icon)
+        local card = Instance.new("Frame")
+        card.Name = titleText .. "Card"
+        card.Size = UDim2.new(1, 0, 0, height * CONFIG.scale)
+        card.Position = UDim2.new(0, 0, 0, yPos * CONFIG.scale)
+        card.BackgroundColor3 = CONFIG.bgCard
+        card.BackgroundTransparency = 0.4
+        card.BorderSizePixel = 0
+        card.Parent = content
 
-        Instance.new("UICorner", section).CornerRadius = UDim.new(0, 12 * CONFIG.scale)
+        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 16 * CONFIG.scale)
 
-        local glow = Instance.new("ImageLabel", section)
-        glow.Size = UDim2.new(1, 20, 1, 20)
-        glow.Position = UDim2.new(0, -10, 0, -10)
-        glow.BackgroundTransparency = 1
-        glow.Image = "rbxassetid://5028857084"
-        glow.ImageColor3 = CONFIG.accentColor
-        glow.ImageTransparency = 0.95
-        glow.ScaleType = Enum.ScaleType.Slice
-        glow.SliceCenter = Rect.new(10, 10, 90, 90)
+        -- Stroke sutil
+        local cardStroke = Instance.new("UIStroke", card)
+        cardStroke.Color = CONFIG.strokeColor
+        cardStroke.Thickness = 1 * CONFIG.scale
+        cardStroke.Transparency = 0.5
 
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, -20, 0, 28 * CONFIG.scale)
-        lbl.Position = UDim2.new(0, 12 * CONFIG.scale, 0, 8 * CONFIG.scale)
-        lbl.BackgroundTransparency = 1
-        lbl.Text = titleText
-        lbl.TextColor3 = CONFIG.accentColor
-        lbl.Font = Enum.Font.GothamBlack
-        lbl.TextSize = 14 * CONFIG.scale
-        lbl.TextXAlignment = Enum.TextXAlignment.Left
-        lbl.Parent = section
+        -- Header do card
+        local cardHeader = Instance.new("Frame")
+        cardHeader.Size = UDim2.new(1, 0, 0, 35 * CONFIG.scale)
+        cardHeader.BackgroundTransparency = 1
+        cardHeader.Position = UDim2.new(0, 0, 0, 5 * CONFIG.scale)
+        cardHeader.Parent = card
 
-        local line = Instance.new("Frame", section)
-        line.Size = UDim2.new(0, 40 * CONFIG.scale, 0, 2 * CONFIG.scale)
-        line.Position = UDim2.new(0, 12 * CONFIG.scale, 0, 30 * CONFIG.scale)
-        line.BackgroundColor3 = CONFIG.accentSecondary
+        local iconLabel = Instance.new("TextLabel")
+        iconLabel.Size = UDim2.new(0, 30 * CONFIG.scale, 0, 30 * CONFIG.scale)
+        iconLabel.Position = UDim2.new(0, 15 * CONFIG.scale, 0, 2 * CONFIG.scale)
+        iconLabel.BackgroundTransparency = 1
+        iconLabel.Text = icon or "🔹"
+        iconLabel.Font = Enum.Font.GothamBold
+        iconLabel.TextSize = 18 * CONFIG.scale
+        iconLabel.Parent = cardHeader
+
+        local titleLabel = Instance.new("TextLabel")
+        titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+        titleLabel.Position = UDim2.new(0, 50 * CONFIG.scale, 0, 0)
+        titleLabel.BackgroundTransparency = 1
+        titleLabel.Text = titleText
+        titleLabel.TextColor3 = CONFIG.textPrimary
+        titleLabel.Font = Enum.Font.GothamBold
+        titleLabel.TextSize = 14 * CONFIG.scale
+        titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        titleLabel.Parent = cardHeader
+
+        -- Linha decorativa
+        local line = Instance.new("Frame", card)
+        line.Size = UDim2.new(0.9, 0, 0, 2 * CONFIG.scale)
+        line.Position = UDim2.new(0.05, 0, 0, 35 * CONFIG.scale)
+        line.BackgroundColor3 = CONFIG.primary
+        line.BackgroundTransparency = 0.6
         line.BorderSizePixel = 0
+        Instance.new("UICorner", line).CornerRadius = UDim.new(1, 0)
 
-        return section
+        return card
     end
 
-    -- SEÇÃO REACH (Layout horizontal otimizado)
-    local reachSection = createSection("⚡ ALCANCE", 0, 110)
+    -- ============================================
+    -- CARD DE ALCANCE (Reach)
+    -- ============================================
+    local reachCard = createCard("ALCANCE", 0, 130, "🎯")
+
+    -- Display de valor grande
+    local reachValueBg = Instance.new("Frame")
+    reachValueBg.Size = UDim2.new(0, 80 * CONFIG.scale, 0, 50 * CONFIG.scale)
+    reachValueBg.Position = UDim2.new(1, -95 * CONFIG.scale, 0, 45 * CONFIG.scale)
+    reachValueBg.BackgroundColor3 = CONFIG.bgDark
+    reachValueBg.BorderSizePixel = 0
+    reachValueBg.Parent = reachCard
+    Instance.new("UICorner", reachValueBg).CornerRadius = UDim.new(0, 12 * CONFIG.scale)
 
     local reachDisplay = Instance.new("TextLabel")
     reachDisplay.Name = "ReachValue"
-    reachDisplay.Size = UDim2.new(0.25, 0, 0, 40 * CONFIG.scale)
-    reachDisplay.Position = UDim2.new(0.7, 0, 0, 35 * CONFIG.scale)
+    reachDisplay.Size = UDim2.new(1, 0, 1, 0)
     reachDisplay.BackgroundTransparency = 1
     reachDisplay.Text = tostring(CONFIG.reach)
-    reachDisplay.TextColor3 = CONFIG.accentColor
+    reachDisplay.TextColor3 = CONFIG.primary
     reachDisplay.Font = Enum.Font.GothamBlack
-    reachDisplay.TextSize = 32 * CONFIG.scale
-    reachDisplay.TextXAlignment = Enum.TextXAlignment.Right
-    reachDisplay.Parent = reachSection
+    reachDisplay.TextSize = 28 * CONFIG.scale
+    reachDisplay.Parent = reachValueBg
 
     local reachUnit = Instance.new("TextLabel")
-    reachUnit.Size = UDim2.new(0.15, 0, 0, 18 * CONFIG.scale)
-    reachUnit.Position = UDim2.new(0.83, 0, 0, 48 * CONFIG.scale)
+    reachUnit.Size = UDim2.new(1, 0, 0, 20 * CONFIG.scale)
+    reachUnit.Position = UDim2.new(0, 0, 1, -5 * CONFIG.scale)
     reachUnit.BackgroundTransparency = 1
     reachUnit.Text = "studs"
-    reachUnit.TextColor3 = CONFIG.textDark
+    reachUnit.TextColor3 = CONFIG.textMuted
     reachUnit.Font = Enum.Font.Gotham
-    reachUnit.TextSize = 11 * CONFIG.scale
-    reachUnit.Parent = reachSection
+    reachUnit.TextSize = 10 * CONFIG.scale
+    reachUnit.Parent = reachValueBg
 
-    -- Controles lado a lado
+    -- Botões + e - modernos
+    local btnSizeSmall = UDim2.new(0, 50 * CONFIG.scale, 0, 40 * CONFIG.scale)
+    
     local minusBtn = Instance.new("TextButton")
     minusBtn.Name = "Minus"
-    minusBtn.Size = UDim2.new(0, 45 * CONFIG.scale, 0, 38 * CONFIG.scale)
-    minusBtn.Position = UDim2.new(0, 12 * CONFIG.scale, 0, 38 * CONFIG.scale)
-    minusBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+    minusBtn.Size = btnSizeSmall
+    minusBtn.Position = UDim2.new(0, 15 * CONFIG.scale, 0, 50 * CONFIG.scale)
+    minusBtn.BackgroundColor3 = CONFIG.bgHover
     minusBtn.Text = "−"
-    minusBtn.TextColor3 = CONFIG.textColor
+    minusBtn.TextColor3 = CONFIG.textPrimary
     minusBtn.Font = Enum.Font.GothamBlack
-    minusBtn.TextSize = 22 * CONFIG.scale
+    minusBtn.TextSize = 24 * CONFIG.scale
     minusBtn.AutoButtonColor = false
-    minusBtn.Parent = reachSection
+    minusBtn.Parent = reachCard
     Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 10 * CONFIG.scale)
 
     local plusBtn = Instance.new("TextButton")
     plusBtn.Name = "Plus"
-    plusBtn.Size = UDim2.new(0, 45 * CONFIG.scale, 0, 38 * CONFIG.scale)
-    plusBtn.Position = UDim2.new(0, 62 * CONFIG.scale, 0, 38 * CONFIG.scale)
-    plusBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+    plusBtn.Size = btnSizeSmall
+    plusBtn.Position = UDim2.new(0, 75 * CONFIG.scale, 0, 50 * CONFIG.scale)
+    plusBtn.BackgroundColor3 = CONFIG.primary
+    plusBtn.BackgroundTransparency = 0.3
     plusBtn.Text = "+"
-    plusBtn.TextColor3 = CONFIG.textColor
+    plusBtn.TextColor3 = CONFIG.textPrimary
     plusBtn.Font = Enum.Font.GothamBlack
-    plusBtn.TextSize = 22 * CONFIG.scale
+    plusBtn.TextSize = 24 * CONFIG.scale
     plusBtn.AutoButtonColor = false
-    plusBtn.Parent = reachSection
+    plusBtn.Parent = reachCard
     Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 10 * CONFIG.scale)
 
-    -- Slider mais largo
-    local sliderTrack = Instance.new("Frame")
-    sliderTrack.Size = UDim2.new(0.45, 0, 0, 8 * CONFIG.scale)
-    sliderTrack.Position = UDim2.new(0, 12 * CONFIG.scale, 0, 85 * CONFIG.scale)
-    sliderTrack.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-    sliderTrack.BorderSizePixel = 0
-    sliderTrack.Parent = reachSection
-    Instance.new("UICorner", sliderTrack).CornerRadius = UDim.new(0, 4 * CONFIG.scale)
+    -- Slider moderno
+    local sliderBg = Instance.new("Frame")
+    sliderBg.Size = UDim2.new(0.55, 0, 0, 10 * CONFIG.scale)
+    sliderBg.Position = UDim2.new(0, 15 * CONFIG.scale, 0, 105 * CONFIG.scale)
+    sliderBg.BackgroundColor3 = CONFIG.bgDark
+    sliderBg.BorderSizePixel = 0
+    sliderBg.Parent = reachCard
+    Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(1, 0)
 
     local sliderFill = Instance.new("Frame")
     sliderFill.Name = "SliderFill"
     sliderFill.Size = UDim2.new(CONFIG.reach / 50, 0, 1, 0)
-    sliderFill.BackgroundColor3 = CONFIG.accentColor
+    sliderFill.BackgroundColor3 = CONFIG.primary
     sliderFill.BorderSizePixel = 0
-    sliderFill.Parent = sliderTrack
-    Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(0, 4 * CONFIG.scale)
+    sliderFill.Parent = sliderBg
+    Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1, 0)
 
     local sliderKnob = Instance.new("Frame")
     sliderKnob.Name = "Knob"
-    sliderKnob.Size = UDim2.new(0, 16 * CONFIG.scale, 0, 16 * CONFIG.scale)
-    sliderKnob.Position = UDim2.new(CONFIG.reach / 50, -8 * CONFIG.scale, 0.5, -8 * CONFIG.scale)
-    sliderKnob.BackgroundColor3 = CONFIG.textColor
+    sliderKnob.Size = UDim2.new(0, 20 * CONFIG.scale, 0, 20 * CONFIG.scale)
+    sliderKnob.Position = UDim2.new(CONFIG.reach / 50, -10 * CONFIG.scale, 0.5, -10 * CONFIG.scale)
+    sliderKnob.BackgroundColor3 = CONFIG.textPrimary
     sliderKnob.BorderSizePixel = 0
-    sliderKnob.Parent = sliderTrack
+    sliderKnob.Parent = sliderBg
     Instance.new("UICorner", sliderKnob).CornerRadius = UDim.new(1, 0)
 
     -- Toggle Esfera
     local sphereToggle = Instance.new("TextButton")
-    sphereToggle.Size = UDim2.new(0, 55 * CONFIG.scale, 0, 28 * CONFIG.scale)
-    sphereToggle.Position = UDim2.new(1, -70 * CONFIG.scale, 0, 75 * CONFIG.scale)
-    sphereToggle.BackgroundColor3 = CONFIG.showReachSphere and CONFIG.successColor or Color3.fromRGB(60, 60, 75)
+    sphereToggle.Size = UDim2.new(0, 60 * CONFIG.scale, 0, 30 * CONFIG.scale)
+    sphereToggle.Position = UDim2.new(1, -75 * CONFIG.scale, 0, 100 * CONFIG.scale)
+    sphereToggle.BackgroundColor3 = CONFIG.showReachSphere and CONFIG.success or CONFIG.bgHover
     sphereToggle.Text = CONFIG.showReachSphere and "ON" or "OFF"
-    sphereToggle.TextColor3 = CONFIG.textColor
+    sphereToggle.TextColor3 = CONFIG.textPrimary
     sphereToggle.Font = Enum.Font.GothamBlack
-    sphereToggle.TextSize = 11 * CONFIG.scale
+    sphereToggle.TextSize = 12 * CONFIG.scale
     sphereToggle.AutoButtonColor = false
-    sphereToggle.Parent = reachSection
-    Instance.new("UICorner", sphereToggle).CornerRadius = UDim.new(0, 14 * CONFIG.scale)
+    sphereToggle.Parent = reachCard
+    Instance.new("UICorner", sphereToggle).CornerRadius = UDim.new(0, 15 * CONFIG.scale)
 
-    local sphereLbl = Instance.new("TextLabel")
-    sphereLbl.Size = UDim2.new(0.4, 0, 0, 28 * CONFIG.scale)
-    sphereLbl.Position = UDim2.new(0.52, 0, 0, 75 * CONFIG.scale)
-    sphereLbl.BackgroundTransparency = 1
-    sphereLbl.Text = "Mostrar Esfera"
-    sphereLbl.TextColor3 = CONFIG.textDark
-    sphereLbl.Font = Enum.Font.GothamBold
-    sphereLbl.TextSize = 11 * CONFIG.scale
-    sphereLbl.TextXAlignment = Enum.TextXAlignment.Right
-    sphereLbl.Parent = reachSection
+    -- ============================================
+    -- CARD DE CONTROLES (Grid 2x2)
+    -- ============================================
+    local controlCard = createCard("CONTROLES", 145, 160, "🎮")
 
-    -- SEÇÃO BOLAS (Compacta)
-    local ballsSection = createSection("🔮 BOLAS", 120, 80)
+    local function createModernToggle(y, x, configKey, label, defaultState)
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(0.45, 0, 0, 50 * CONFIG.scale)
+        container.Position = UDim2.new(x, 15 * CONFIG.scale, 0, y)
+        container.BackgroundTransparency = 1
+        container.Parent = controlCard
 
-    local ballsCount = Instance.new("TextLabel")
-    ballsCount.Name = "BallsCount"
-    ballsCount.Size = UDim2.new(1, -24, 0, 22 * CONFIG.scale)
-    ballsCount.Position = UDim2.new(0, 12 * CONFIG.scale, 0, 38 * CONFIG.scale)
-    ballsCount.BackgroundTransparency = 1
-    ballsCount.Text = "Buscando..."
-    ballsCount.TextColor3 = CONFIG.textDark
-    ballsCount.Font = Enum.Font.GothamBold
-    ballsCount.TextSize = 12 * CONFIG.scale
-    ballsCount.Parent = ballsSection
+        local toggleBtn = Instance.new("TextButton")
+        toggleBtn.Size = UDim2.new(0, 55 * CONFIG.scale, 0, 28 * CONFIG.scale)
+        toggleBtn.Position = UDim2.new(1, -60 * CONFIG.scale, 0.5, -14 * CONFIG.scale)
+        toggleBtn.BackgroundColor3 = defaultState and CONFIG.success or CONFIG.bgHover
+        toggleBtn.Text = defaultState and "ON" or "OFF"
+        toggleBtn.TextColor3 = CONFIG.textPrimary
+        toggleBtn.Font = Enum.Font.GothamBlack
+        toggleBtn.TextSize = 11 * CONFIG.scale
+        toggleBtn.AutoButtonColor = false
+        toggleBtn.Parent = container
+        Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 14 * CONFIG.scale)
 
-    -- SEÇÃO CONTROLES (Layout em grid horizontal)
-    local controlSection = createSection("🎮 CONTROLES", 210, 140)
+        local labelText = Instance.new("TextLabel")
+        labelText.Size = UDim2.new(1, -65 * CONFIG.scale, 1, 0)
+        labelText.BackgroundTransparency = 1
+        labelText.Text = label
+        labelText.TextColor3 = CONFIG.textSecondary
+        labelText.Font = Enum.Font.GothamBold
+        labelText.TextSize = 12 * CONFIG.scale
+        labelText.TextXAlignment = Enum.TextXAlignment.Left
+        labelText.Parent = container
 
-    -- Grid 2x2 para economizar espaço vertical
-    local function createToggle(y, x, configKey, labelText)
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 55 * CONFIG.scale, 0, 26 * CONFIG.scale)
-        btn.Position = UDim2.new(x, 0, 0, y)
-        btn.BackgroundColor3 = CONFIG[configKey] and CONFIG.successColor or Color3.fromRGB(60, 60, 75)
-        btn.Text = CONFIG[configKey] and "ON" or "OFF"
-        btn.TextColor3 = CONFIG.textColor
-        btn.Font = Enum.Font.GothamBlack
-        btn.TextSize = 10 * CONFIG.scale
-        btn.AutoButtonColor = false
-        btn.Parent = controlSection
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 13 * CONFIG.scale)
-
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(0.35, 0, 0, 26 * CONFIG.scale)
-        lbl.Position = UDim2.new(x - 0.38, 5 * CONFIG.scale, 0, y)
-        lbl.BackgroundTransparency = 1
-        lbl.Text = labelText
-        lbl.TextColor3 = CONFIG.textDark
-        lbl.Font = Enum.Font.GothamBold
-        lbl.TextSize = 11 * CONFIG.scale
-        lbl.TextXAlignment = Enum.TextXAlignment.Left
-        lbl.Parent = controlSection
-
-        return btn, lbl
+        return toggleBtn
     end
 
-    local autoBtn, autoLbl = createToggle(40, 0.55, "autoTouch", "Auto Touch")
-    local bodyBtn, bodyLbl = createToggle(40, 1.05, "fullBodyTouch", "Full Body")
-    local secondBtn, secondLbl = createToggle(85, 0.55, "autoSecondTouch", "Double Touch")
-    
-    -- Auto Skills (sempre ativo)
-    local skillsBtn = Instance.new("TextButton")
-    skillsBtn.Size = UDim2.new(0, 55 * CONFIG.scale, 0, 26 * CONFIG.scale)
-    skillsBtn.Position = UDim2.new(1.05, 0, 0, 85)
-    skillsBtn.BackgroundColor3 = CONFIG.successColor
-    skillsBtn.Text = "ON"
-    skillsBtn.TextColor3 = CONFIG.textColor
-    skillsBtn.Font = Enum.Font.GothamBlack
-    skillsBtn.TextSize = 10 * CONFIG.scale
-    skillsBtn.AutoButtonColor = false
-    skillsBtn.Parent = controlSection
-    Instance.new("UICorner", skillsBtn).CornerRadius = UDim.new(0, 13 * CONFIG.scale)
+    local autoBtn = createModernToggle(45, 0, "autoTouch", "Auto Touch", CONFIG.autoTouch)
+    local bodyBtn = createModernToggle(45, 0.5, "fullBodyTouch", "Full Body", CONFIG.fullBodyTouch)
+    local secondBtn = createModernToggle(95, 0, "autoSecondTouch", "Double Touch", CONFIG.autoSecondTouch)
+    local skillsBtn = createModernToggle(95, 0.5, "autoSkills", "Auto Skills", true)
 
-    local skillsLbl = Instance.new("TextLabel")
-    skillsLbl.Size = UDim2.new(0.35, 0, 0, 26 * CONFIG.scale)
-    skillsLbl.Position = UDim2.new(0.67, 5 * CONFIG.scale, 0, 85)
-    skillsLbl.BackgroundTransparency = 1
-    skillsLbl.Text = "Auto Skills"
-    skillsLbl.TextColor3 = CONFIG.textDark
-    skillsLbl.Font = Enum.Font.GothamBold
-    skillsLbl.TextSize = 11 * CONFIG.scale
-    skillsLbl.TextXAlignment = Enum.TextXAlignment.Left
-    skillsLbl.Parent = controlSection
-
-    -- SEÇÃO STATUS
-    local statusSection = createSection("📊 STATUS", 360, 70)
+    -- ============================================
+    -- CARD DE STATUS
+    -- ============================================
+    local statusCard = createCard("STATUS", 315, 80, "📊")
 
     local statusText = Instance.new("TextLabel")
     statusText.Name = "StatusText"
-    statusText.Size = UDim2.new(1, -24, 0, 40 * CONFIG.scale)
-    statusText.Position = UDim2.new(0, 12 * CONFIG.scale, 0, 32 * CONFIG.scale)
+    statusText.Size = UDim2.new(1, -30 * CONFIG.scale, 0, 40 * CONFIG.scale)
+    statusText.Position = UDim2.new(0, 15 * CONFIG.scale, 0, 40 * CONFIG.scale)
     statusText.BackgroundTransparency = 1
-    statusText.Text = "🟢 Sistema Ativo\nAguardando..."
-    statusText.TextColor3 = CONFIG.successColor
+    statusText.Text = "🟢 Sistema Ativo e Operacional"
+    statusText.TextColor3 = CONFIG.success
     statusText.Font = Enum.Font.GothamBold
-    statusText.TextSize = 11 * CONFIG.scale
+    statusText.TextSize = 13 * CONFIG.scale
     statusText.TextWrapped = true
     statusText.TextXAlignment = Enum.TextXAlignment.Left
-    statusText.Parent = statusSection
+    statusText.Parent = statusCard
 
     -- ============================================
     -- FUNÇÕES DE ATUALIZAÇÃO
@@ -678,21 +734,43 @@ function createMainGUI()
         reachDisplay.Text = tostring(CONFIG.reach)
         local fillScale = math.clamp(CONFIG.reach / 50, 0, 1)
         tween(sliderFill, {Size = UDim2.new(fillScale, 0, 1, 0)}, 0.2)
-        tween(sliderKnob, {Position = UDim2.new(fillScale, -8 * CONFIG.scale, 0.5, -8 * CONFIG.scale)}, 0.2)
-    end
-
-    local function updateBallsList()
-        ballsCount.Text = #balls .. " bolas detectadas no mapa"
+        tween(sliderKnob, {Position = UDim2.new(fillScale, -10 * CONFIG.scale, 0.5, -10 * CONFIG.scale)}, 0.2)
     end
 
     local function updateStatus(text, isError)
         statusText.Text = text
-        statusText.TextColor3 = isError and CONFIG.dangerColor or CONFIG.successColor
+        statusText.TextColor3 = isError and CONFIG.danger or CONFIG.success
     end
 
     -- ============================================
-    -- EVENTOS
+    -- EVENTOS E INTERAÇÕES
     -- ============================================
+    
+    -- Hover effects modernos
+    local function addModernHover(btn, normalColor, hoverColor)
+        btn.MouseEnter:Connect(function()
+            tween(btn, {BackgroundColor3 = hoverColor}, 0.2)
+        end)
+        btn.MouseLeave:Connect(function()
+            tween(btn, {BackgroundColor3 = normalColor}, 0.2)
+        end)
+    end
+
+    addModernHover(minusBtn, CONFIG.bgHover, CONFIG.bgLight)
+    addModernHover(plusBtn, CONFIG.primary, Color3.fromRGB(50, 190, 255))
+    addModernHover(closeBtn, CONFIG.danger, Color3.fromRGB(255, 100, 120))
+
+    -- Minimize hover especial
+    minimizeBtn.MouseEnter:Connect(function()
+        tween(minimizeBtn, {BackgroundColor3 = CONFIG.primary}, 0.2)
+        tween(minimizeBtn, {Rotation = 180}, 0.3)
+    end)
+    minimizeBtn.MouseLeave:Connect(function()
+        tween(minimizeBtn, {BackgroundColor3 = CONFIG.bgHover}, 0.2)
+        tween(minimizeBtn, {Rotation = 0}, 0.3)
+    end)
+
+    -- Cliques
     minusBtn.MouseButton1Click:Connect(function()
         CONFIG.reach = math.max(1, CONFIG.reach - 1)
         updateReachDisplay()
@@ -703,11 +781,12 @@ function createMainGUI()
         updateReachDisplay()
     end)
 
+    -- Slider drag
     local draggingSlider = false
-    sliderTrack.InputBegan:Connect(function(input)
+    sliderBg.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             draggingSlider = true
-            local relativeX = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
+            local relativeX = math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
             CONFIG.reach = math.floor(relativeX * 50)
             updateReachDisplay()
         end
@@ -715,7 +794,7 @@ function createMainGUI()
 
     UserInputService.InputChanged:Connect(function(input)
         if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local relativeX = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
+            local relativeX = math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
             CONFIG.reach = math.floor(relativeX * 50)
             updateReachDisplay()
         end
@@ -727,42 +806,40 @@ function createMainGUI()
         end
     end)
 
+    -- Toggles
     sphereToggle.MouseButton1Click:Connect(function()
         CONFIG.showReachSphere = not CONFIG.showReachSphere
         sphereToggle.Text = CONFIG.showReachSphere and "ON" or "OFF"
-        tween(sphereToggle, {BackgroundColor3 = CONFIG.showReachSphere and CONFIG.successColor or Color3.fromRGB(60, 60, 75)}, 0.2)
-        notify("CADUXX137", "Esfera: " .. (CONFIG.showReachSphere and "ATIVADA" or "DESATIVADA"), 2)
+        tween(sphereToggle, {BackgroundColor3 = CONFIG.showReachSphere and CONFIG.success or CONFIG.bgHover}, 0.2)
+        notify("CADUXX137", "Esfera " .. (CONFIG.showReachSphere and "ativada" or "desativada"), 2)
     end)
 
     autoBtn.MouseButton1Click:Connect(function()
         CONFIG.autoTouch = not CONFIG.autoTouch
         autoBtn.Text = CONFIG.autoTouch and "ON" or "OFF"
-        tween(autoBtn, {BackgroundColor3 = CONFIG.autoTouch and CONFIG.successColor or Color3.fromRGB(60, 60, 75)}, 0.2)
-        notify("CADUXX137", "Auto Touch: " .. (CONFIG.autoTouch and "ATIVADO" or "DESATIVADO"), 2)
+        tween(autoBtn, {BackgroundColor3 = CONFIG.autoTouch and CONFIG.success or CONFIG.bgHover}, 0.2)
     end)
 
     bodyBtn.MouseButton1Click:Connect(function()
         CONFIG.fullBodyTouch = not CONFIG.fullBodyTouch
         bodyBtn.Text = CONFIG.fullBodyTouch and "ON" or "OFF"
-        tween(bodyBtn, {BackgroundColor3 = CONFIG.fullBodyTouch and CONFIG.successColor or Color3.fromRGB(60, 60, 75)}, 0.2)
-        notify("CADUXX137", "Full Body: " .. (CONFIG.fullBodyTouch and "ATIVADO" or "DESATIVADO"), 2)
+        tween(bodyBtn, {BackgroundColor3 = CONFIG.fullBodyTouch and CONFIG.success or CONFIG.bgHover}, 0.2)
     end)
 
     secondBtn.MouseButton1Click:Connect(function()
         CONFIG.autoSecondTouch = not CONFIG.autoSecondTouch
         secondBtn.Text = CONFIG.autoSecondTouch and "ON" or "OFF"
-        tween(secondBtn, {BackgroundColor3 = CONFIG.autoSecondTouch and CONFIG.successColor or Color3.fromRGB(60, 60, 75)}, 0.2)
-        notify("CADUXX137", "Double Touch: " .. (CONFIG.autoSecondTouch and "ATIVADO" or "DESATIVADO"), 2)
+        tween(secondBtn, {BackgroundColor3 = CONFIG.autoSecondTouch and CONFIG.success or CONFIG.bgHover}, 0.2)
     end)
 
+    local autoSkills = true
     skillsBtn.MouseButton1Click:Connect(function()
         autoSkills = not autoSkills
         skillsBtn.Text = autoSkills and "ON" or "OFF"
-        tween(skillsBtn, {BackgroundColor3 = autoSkills and CONFIG.successColor or Color3.fromRGB(60, 60, 75)}, 0.2)
-        notify("CADUXX137", "Auto Skills: " .. (autoSkills and "ATIVADO" or "DESATIVADO"), 2)
+        tween(skillsBtn, {BackgroundColor3 = autoSkills and CONFIG.success or CONFIG.bgHover}, 0.2)
     end)
 
-    -- Minimizar com animação
+    -- Minimizar com animação suave
     minimizeBtn.MouseButton1Click:Connect(function()
         isMinimized = true
         tween(main, {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)}, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In)
@@ -781,38 +858,15 @@ function createMainGUI()
         end
     end)
 
-    -- Hover effects
-    local function addHoverEffect(btn, normalColor, hoverColor)
-        btn.MouseEnter:Connect(function()
-            tween(btn, {BackgroundColor3 = hoverColor}, 0.2)
-        end)
-        btn.MouseLeave:Connect(function()
-            tween(btn, {BackgroundColor3 = normalColor}, 0.2)
-        end)
-    end
-
-    addHoverEffect(minusBtn, Color3.fromRGB(60, 60, 75), Color3.fromRGB(80, 80, 95))
-    addHoverEffect(plusBtn, Color3.fromRGB(60, 60, 75), Color3.fromRGB(80, 80, 95))
-    addHoverEffect(closeBtn, CONFIG.dangerColor, Color3.fromRGB(255, 80, 120))
-    
-    minimizeBtn.MouseEnter:Connect(function()
-        tween(minimizeBtn, {BackgroundColor3 = Color3.fromRGB(50, 50, 60)}, 0.2)
-        tween(minimizeBtn, {ImageColor3 = CONFIG.accentColor}, 0.2)
-    end)
-    minimizeBtn.MouseLeave:Connect(function()
-        tween(minimizeBtn, {BackgroundColor3 = CONFIG.bgLight}, 0.2)
-        tween(minimizeBtn, {ImageColor3 = CONFIG.textColor}, 0.2)
-    end)
-
+    -- Draggable
     makeDraggable(main, header)
 
-    -- Animação de entrada
+    -- Animação de entrada suave
     main.Size = UDim2.new(0, 0, 0, 0)
     main.Position = UDim2.new(0.5, 0, 0.5, 0)
     tween(main, {Size = UDim2.new(0, W, 0, H), Position = UDim2.new(0.5, -W/2, 0.5, -H/2)}, 0.5, Enum.EasingStyle.Back)
 
-    notify("⚡ CADUXX137 v9.1", "Wide Edition carregada!", 3)
-    updateStatus("🟢 Sistema Iniciado\nPronto para uso", false)
+    notify("⚡ CADUXX137 v9.2", "Modern Edition carregada!", 3)
 end
 
 -- ============================================
@@ -836,12 +890,11 @@ local skillButtonNames = {
 local function findSkillButtons()
     local buttons = {}
     for _, gui in ipairs(playerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Name ~= "CADU_Main_v9" and gui.Name ~= "CADU_Icon_v9" then
+        if gui:IsA("ScreenGui") and not gui.Name:find("CADU") then
             for _, obj in ipairs(gui:GetDescendants()) do
                 if obj:IsA("TextButton") or obj:IsA("ImageButton") then
                     for _, skillName in ipairs(skillButtonNames) do
-                        if obj.Name == skillName or obj.Text == skillName or
-                           (obj.Name:lower():find(skillName:lower()) and #obj.Name < 30) then
+                        if obj.Name == skillName or obj.Text == skillName then
                             table.insert(buttons, obj)
                             break
                         end
@@ -860,31 +913,12 @@ local function activateSkillButton(button)
     activatedSkills[key] = tick()
 
     pcall(function()
-        if button:IsA("GuiButton") then
-            for _, conn in ipairs(getconnections(button.MouseButton1Click)) do conn:Fire() end
-            for _, conn in ipairs(getconnections(button.Activated)) do conn:Fire() end
-            if button.MouseButton1Click then button.MouseButton1Click:Fire() end
-            if button.Activated then button.Activated:Fire() end
-            
-            local originalSize = button.Size
-            tween(button, {Size = UDim2.new(originalSize.X.Scale * 0.95, originalSize.X.Offset * 0.95,
-                originalSize.Y.Scale * 0.95, originalSize.Y.Offset * 0.95)}, 0.05)
-            task.delay(0.05, function()
-                if button and button.Parent then tween(button, {Size = originalSize}, 0.05) end
-            end)
-        end
+        for _, conn in ipairs(getconnections(button.MouseButton1Click)) do conn:Fire() end
+        for _, conn in ipairs(getconnections(button.Activated)) do conn:Fire() end
+        if button.MouseButton1Click then button.MouseButton1Click:Fire() end
+        if button.Activated then button.Activated:Fire() end
     end)
 end
-
-task.spawn(function()
-    while true do
-        task.wait(5)
-        local now = tick()
-        for key, time in pairs(activatedSkills) do
-            if now - time > 10 then activatedSkills[key] = nil end
-        end
-    end
-end)
 
 -- ============================================
 -- LOOP PRINCIPAL
@@ -927,13 +961,9 @@ RunService.Heartbeat:Connect(function()
     if autoSkills and ballInRange and (now - lastSkillActivation > skillCooldown) then
         lastSkillActivation = now
         local skillButtons = findSkillButtons()
-        local mainSkills = {"Shoot", "Pass", "Dribble", "Control"}
         for _, button in ipairs(skillButtons) do
-            for _, mainSkill in ipairs(mainSkills) do
-                if button.Name == mainSkill or button.Text == mainSkill then
-                    activateSkillButton(button)
-                    break
-                end
+            if button.Name == "Shoot" or button.Name == "Pass" or button.Name == "Dribble" then
+                activateSkillButton(button)
             end
         end
     end
@@ -941,4 +971,4 @@ end)
 
 -- Inicialização
 createMainGUI()
-print("[CADUXX137] v9.1 Wide Edition carregada - Icon visível no botão minimizar")
+print("[CADUXX137] v9.2 Modern Edition - Botão minimizar visível com emoji 🎯")
