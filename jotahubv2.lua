@@ -1,97 +1,74 @@
+-- ============================================
+-- CADUXX137 v11.0 GLASS EDITION
+-- Design inspirado em WindUI + Glassmorphism
+-- ============================================
+
 if not game:IsLoaded() then game.Loaded:Wait() end
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
+local Lighting = game:GetService("Lighting")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+
+-- ============================================
+-- CONFIGURAÇÕES GLASS EDITION
+-- ============================================
 local CONFIG = {
-    version = "v10.0 ULTIMATE",
-    build = "Final Release",
+    version = "v11.0 GLASS",
+    build = "WindUI Edition",
+    
+    -- Glassmorphism Settings
+    glassTransparency = 0.15,
+    glassBlur = 0.05,
+    acrylicTint = Color3.fromRGB(20, 20, 30),
+    borderLight = Color3.fromRGB(255, 255, 255),
+    
+    -- Cores WindUI Inspired
+    primary = Color3.fromRGB(99, 102, 241),      -- Indigo vibrante
+    secondary = Color3.fromRGB(139, 92, 246),    -- Violeta
+    accent = Color3.fromRGB(14, 165, 233),       -- Sky blue
+    success = Color3.fromRGB(34, 197, 94),       -- Emerald
+    warning = Color3.fromRGB(245, 158, 11),      -- Amber
+    danger = Color3.fromRGB(239, 68, 68),        -- Red
+    
+    -- Cores de fundo glass
+    bgDark = Color3.fromRGB(10, 10, 15),
+    bgGlass = Color3.fromRGB(25, 25, 35),
+    bgCard = Color3.fromRGB(30, 30, 45),
+    bgElevated = Color3.fromRGB(40, 40, 60),
+    
+    -- Texto
+    textPrimary = Color3.fromRGB(250, 250, 250),
+    textSecondary = Color3.fromRGB(160, 160, 180),
+    textMuted = Color3.fromRGB(120, 120, 140),
+    
+    -- Funcionalidades
     reach = 15,
     showReachSphere = true,
     autoTouch = true,
+    fullBodyTouch = true,
     autoSecondTouch = true,
     scanCooldown = 1.5,
     scale = 1.0,
-    currentTab = "intro",
+    
+    -- Imagens
     iconImage = "rbxassetid://104616032736993",
     iconBackground = "rbxassetid://96755648876012",
-    logoImage = "rbxassetid://104616032736993",
-    primary = Color3.fromRGB(0, 240, 255),
-    secondary = Color3.fromRGB(180, 0, 255),
-    accent = Color3.fromRGB(255, 0, 128),
-    success = Color3.fromRGB(0, 255, 136),
-    warning = Color3.fromRGB(255, 200, 0),
-    danger = Color3.fromRGB(255, 50, 80),
-    info = Color3.fromRGB(0, 150, 255),
-    bgDark = Color3.fromRGB(5, 5, 10),
-    bgDarker = Color3.fromRGB(2, 2, 5),
-    bgCard = Color3.fromRGB(15, 15, 25),
-    bgElevated = Color3.fromRGB(25, 25, 40),
-    bgHover = Color3.fromRGB(35, 35, 55),
-    bgLight = Color3.fromRGB(45, 45, 70),
-    textPrimary = Color3.fromRGB(255, 255, 255),
-    textSecondary = Color3.fromRGB(190, 190, 210),
-    textMuted = Color3.fromRGB(130, 130, 150),
-    textDark = Color3.fromRGB(80, 80, 100),
-    gradientPrimary = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 240, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 0, 255))
-    }),
-    animSpeed = 0.3,
-    animStyle = Enum.EasingStyle.Quint,
-}
-local UPDATES = {
-    {
-        version = "v10.0 ULTIMATE",
-        date = "05/03/2026",
-        type = "major",
-        changes = {
-            "Sistema completo de abas (Intro, Main, Stats)",
-            "Tela de loading animada premium",
-            "Reach otimizado no centro do personagem",
-            "Interface redesenhada do zero",
-            "Sistema de estatísticas em tempo real",
-            "Otimização de performance",
-            "Efeitos visuais aprimorados",
-            "Suporte total a mobile"
-        }
+    
+    -- Ball names
+    ballNames = { 
+        "TPS", "TCS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ",
+        "Ball", "Soccer", "Football", "Basketball", "Baseball", 
+        "BallTemplate", "GameBall", "Hitbox", "TouchPart", "GoalBall"
     },
-    {
-        version = "v9.2",
-        date = "04/03/2026",
-        type = "minor",
-        changes = {
-            "Correções de bugs críticos",
-            "Melhorias visuais no hub",
-            "Suporte mobile aprimorado",
-            "Otimizações de código"
-        }
-    },
-    {
-        version = "v9.0",
-        date = "01/03/2026",
-        type = "major",
-        changes = {
-            "Lançamento inicial do CADUXX137",
-            "Sistema de reach para bolas",
-            "Auto skills integrado",
-            "Sistema de detecção inteligente"
-        }
-    }
 }
-local STATS = {
-    totalTouches = 0,
-    ballsDetected = 0,
-    sessionTime = 0,
-    startTime = tick(),
-    fps = 0,
-    ping = 0,
-    memoryUsage = 0
-}
+
+-- Variáveis globais
 local balls = {}
 local ballConnections = {}
 local reachSphere = nil
@@ -101,106 +78,134 @@ local touchDebounce = {}
 local lastBallUpdate = 0
 local lastTouch = 0
 local isMinimized = false
-local isLoading = true
 local iconGui = nil
 local mainGui = nil
-local loadingGui = nil
-local currentTabFrame = nil
-local tabButtons = {}
+local currentTab = "reach"
+local autoSkills = true
+local lastSkillActivation = 0
+local skillCooldown = 0.5
+local activatedSkills = {}
+
+-- Skill names
+local skillButtonNames = {
+    "Shoot", "Pass", "Long", "Tackle", "Dribble", "GK", "Throw",
+    "Control", "Left", "Right", "High", "Low", "Rainbow",
+    "Chip", "Heel", "Volley", "Back Right", "Back Left",
+    "Carry", "Fake Shot", "Drag Back", "Header", "Bicycle",
+    "Shot", "Slide", "Goalkeeper", "Catch", "Punch",
+    "Short Pass", "Through Ball", "Cross", "Curve",
+    "Power Shot", "Precision", "First Touch"
+}
+
+-- ============================================
+-- SISTEMA DE UTILITÁRIOS PREMIUM
+-- ============================================
+
 local function notify(title, text, duration, type)
     duration = duration or 3
     type = type or "info"
-    local color = CONFIG.info
+    
+    local color = CONFIG.accent
     if type == "success" then color = CONFIG.success
     elseif type == "warning" then color = CONFIG.warning
     elseif type == "error" then color = CONFIG.danger
     elseif type == "premium" then color = CONFIG.primary end
+    
     pcall(function()
         StarterGui:SetCore("SendNotification", {
             Title = title or "CADUXX137",
             Text = text or "",
             Duration = duration,
-            Icon = "rbxassetid://104616032736993"
+            Icon = CONFIG.iconImage
         })
     end)
 end
+
 local function tween(obj, props, time, style, direction, callback)
-    time = time or CONFIG.animSpeed
-    style = style or CONFIG.animStyle
+    time = time or 0.35
+    style = style or Enum.EasingStyle.Quint
     direction = direction or Enum.EasingDirection.Out
+    
     local tweenInfo = TweenInfo.new(time, style, direction)
     local t = TweenService:Create(obj, tweenInfo, props)
+    
     if callback then
         t.Completed:Connect(callback)
     end
+    
     t:Play()
     return t
 end
-local function delay(seconds, callback)
-    task.delay(seconds, callback)
+
+local function createGlassEffect(parent, intensity)
+    intensity = intensity or CONFIG.glassTransparency
+    
+    -- Camada de glass base
+    local glass = Instance.new("Frame")
+    glass.Name = "GlassLayer"
+    glass.Size = UDim2.new(1, 0, 1, 0)
+    glass.BackgroundColor3 = CONFIG.acrylicTint
+    glass.BackgroundTransparency = intensity
+    glass.BorderSizePixel = 0
+    glass.ZIndex = -1
+    glass.Parent = parent
+    
+    -- Borda luminosa sutil (simulação de acrylic)
+    local border = Instance.new("UIStroke")
+    border.Color = CONFIG.borderLight
+    border.Transparency = 0.9
+    border.Thickness = 1
+    border.Parent = parent
+    
+    -- Gradient overlay para efeito de profundidade
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+        ColorSequenceKeypoint.new(1, Color3.new(0.8, 0.8, 0.9))
+    })
+    gradient.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.95),
+        NumberSequenceKeypoint.new(1, 0.98)
+    })
+    gradient.Rotation = 45
+    gradient.Parent = glass
+    
+    return glass
 end
-local function spawn(callback)
-    task.spawn(callback)
-end
-local function formatNumber(num)
-    if num >= 1000000 then
-        return string.format("%.1fM", num / 1000000)
-    elseif num >= 1000 then
-        return string.format("%.1fK", num / 1000)
-    else
-        return tostring(math.floor(num))
-    end
-end
-local function formatTime(seconds)
-    local mins = math.floor(seconds / 60)
-    local secs = math.floor(seconds % 60)
-    return string.format("%02d:%02d", mins, secs)
-end
-local function createGradient(parent, colorSeq, rotation)
-    rotation = rotation or 90
-    local grad = Instance.new("UIGradient")
-    grad.Color = colorSeq or CONFIG.gradientPrimary
-    grad.Rotation = rotation
-    grad.Parent = parent
-    return grad
-end
+
 local function createCorner(parent, radius)
-    radius = radius or 12
+    radius = radius or 16
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, radius * CONFIG.scale)
     corner.Parent = parent
     return corner
 end
-local function createStroke(parent, color, thickness, transparency)
-    color = color or CONFIG.primary
-    thickness = thickness or 1.5
-    transparency = transparency or 0
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = color
-    stroke.Thickness = thickness * CONFIG.scale
-    stroke.Transparency = transparency
-    stroke.Parent = parent
-    return stroke
-end
-local function createShadow(parent, intensity)
-    intensity = intensity or 0.7
+
+local function createShadow(parent, intensity, offset)
+    intensity = intensity or 0.6
+    offset = offset or 20
+    
     local shadow = Instance.new("ImageLabel")
     shadow.Name = "Shadow"
-    shadow.Size = UDim2.new(1, 60 * CONFIG.scale, 1, 60 * CONFIG.scale)
-    shadow.Position = UDim2.new(0, -30 * CONFIG.scale, 0, -30 * CONFIG.scale)
+    shadow.Size = UDim2.new(1, offset * 2 * CONFIG.scale, 1, offset * 2 * CONFIG.scale)
+    shadow.Position = UDim2.new(0, -offset * CONFIG.scale, 0, -offset * CONFIG.scale)
     shadow.BackgroundTransparency = 1
     shadow.Image = "rbxassetid://131296141"
     shadow.ImageColor3 = Color3.new(0, 0, 0)
     shadow.ImageTransparency = intensity
     shadow.ScaleType = Enum.ScaleType.Slice
     shadow.SliceCenter = Rect.new(10, 10, 118, 118)
-    shadow.ZIndex = -1
+    shadow.ZIndex = -2
     shadow.Parent = parent
+    
     return shadow
 end
-local function createGlow(parent, color, size)
+
+local function createGlow(parent, color, size, transparency)
     color = color or CONFIG.primary
-    size = size or 1.4
+    size = size or 1.2
+    transparency = transparency or 0.85
+    
     local glow = Instance.new("ImageLabel")
     glow.Name = "Glow"
     glow.Size = UDim2.new(size, 0, size, 0)
@@ -208,26 +213,31 @@ local function createGlow(parent, color, size)
     glow.BackgroundTransparency = 1
     glow.Image = "rbxassetid://5028857084"
     glow.ImageColor3 = color
-    glow.ImageTransparency = 0.85
+    glow.ImageTransparency = transparency
     glow.ScaleType = Enum.ScaleType.Slice
     glow.SliceCenter = Rect.new(10, 10, 90, 90)
     glow.ZIndex = -1
     glow.Parent = parent
+    
     return glow
 end
-local function makeDraggable(frame, handle, onDragStart, onDragEnd)
+
+local function makeDraggable(frame, handle)
     local dragging = false
     local dragInput, dragStart, startPos
+    
     handle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or 
            input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = frame.Position
-            if onDragStart then onDragStart() end
-            tween(frame, {BackgroundTransparency = frame.BackgroundTransparency + 0.1}, 0.1)
+            
+            -- Efeito de pressão glass
+            tween(frame, {BackgroundTransparency = frame.BackgroundTransparency - 0.05}, 0.1)
         end
     end)
+    
     handle.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
                         input.UserInputType == Enum.UserInputType.Touch) then
@@ -238,627 +248,404 @@ local function makeDraggable(frame, handle, onDragStart, onDragEnd)
             )
         end
     end)
+    
     local function endDrag()
         if dragging then
             dragging = false
-            if onDragEnd then onDragEnd() end
-            tween(frame, {BackgroundTransparency = frame.BackgroundTransparency - 0.1}, 0.1)
+            tween(frame, {BackgroundTransparency = frame.BackgroundTransparency + 0.05}, 0.2)
         end
     end
+    
     handle.InputEnded:Connect(endDrag)
     UserInputService.InputEnded:Connect(endDrag)
 end
-local function addHoverEffect(btn, normalColor, hoverColor, clickColor)
-    normalColor = normalColor or btn.BackgroundColor3
-    hoverColor = hoverColor or CONFIG.bgHover
-    clickColor = clickColor or CONFIG.bgLight
-    local originalColor = normalColor
-    btn.MouseEnter:Connect(function()
-        tween(btn, {BackgroundColor3 = hoverColor}, 0.2)
-    end)
-    btn.MouseLeave:Connect(function()
-        tween(btn, {BackgroundColor3 = originalColor}, 0.2)
-    end)
-    btn.MouseButton1Down:Connect(function()
-        tween(btn, {BackgroundColor3 = clickColor}, 0.1)
-    end)
-    btn.MouseButton1Up:Connect(function()
-        tween(btn, {BackgroundColor3 = hoverColor}, 0.1)
-    end)
-end
-local function addRippleEffect(btn, color)
+
+local function addRippleEffect(button, color)
     color = color or Color3.new(1, 1, 1)
-    btn.MouseButton1Click:Connect(function()
+    
+    button.MouseButton1Click:Connect(function()
         local ripple = Instance.new("Frame")
         ripple.Size = UDim2.new(0, 0, 0, 0)
         ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
         ripple.BackgroundColor3 = color
         ripple.BackgroundTransparency = 0.7
         ripple.BorderSizePixel = 0
-        ripple.ZIndex = btn.ZIndex + 1
-        ripple.Parent = btn
+        ripple.ZIndex = button.ZIndex + 10
+        ripple.Parent = button
+        
         createCorner(ripple, 50)
-        local targetSize = math.max(btn.AbsoluteSize.X, btn.AbsoluteSize.Y) * 2
+        
+        local targetSize = math.max(button.AbsoluteSize.X, button.AbsoluteSize.Y) * 2.5
+        
         tween(ripple, {
             Size = UDim2.new(0, targetSize, 0, targetSize),
             Position = UDim2.new(0.5, -targetSize/2, 0.5, -targetSize/2),
             BackgroundTransparency = 1
-        }, 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, function()
+        }, 0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, function()
             ripple:Destroy()
         end)
     end)
 end
-local function createLoadingScreen()
-    if loadingGui then loadingGui:Destroy() end
-    loadingGui = Instance.new("ScreenGui")
-    loadingGui.Name = "CADU_Loading_v10"
-    loadingGui.ResetOnSpawn = false
-    loadingGui.DisplayOrder = 999999
-    loadingGui.Parent = playerGui
-    local bg = Instance.new("Frame")
-    bg.Name = "Background"
-    bg.Size = UDim2.new(1, 0, 1, 0)
-    bg.BackgroundColor3 = CONFIG.bgDarker
-    bg.BackgroundTransparency = 0.1
-    bg.BorderSizePixel = 0
-    bg.Parent = loadingGui
-    for i = 1, 20 do
-        local particle = Instance.new("ImageLabel")
-        particle.Size = UDim2.new(0, math.random(2, 6), 0, math.random(2, 6))
-        particle.Position = UDim2.new(math.random(), 0, math.random(), 0)
-        particle.BackgroundTransparency = 1
-        particle.Image = "rbxassetid://96755648876012"
-        particle.ImageColor3 = CONFIG.primary
-        particle.ImageTransparency = math.random(3, 8) / 10
-        particle.ZIndex = 1
-        particle.Parent = bg
-        spawn(function()
-            while particle and particle.Parent do
-                local newY = particle.Position.Y.Scale + math.random(-10, 10) / 1000
-                if newY < 0 then newY = 1 elseif newY > 1 then newY = 0 end
-                tween(particle, {
-                    Position = UDim2.new(particle.Position.X.Scale, 0, newY, 0),
-                    Rotation = math.random(0, 360)
-                }, math.random(3, 6))
-                wait(math.random(3, 6))
-            end
-        end)
-    end
-    local container = Instance.new("Frame")
-    container.Name = "Container"
-    container.Size = UDim2.new(0, 400 * CONFIG.scale, 0, 300 * CONFIG.scale)
-    container.Position = UDim2.new(0.5, -200 * CONFIG.scale, 0.5, -150 * CONFIG.scale)
-    container.BackgroundColor3 = CONFIG.bgCard
-    container.BackgroundTransparency = 0.2
-    container.BorderSizePixel = 0
-    container.ZIndex = 10
-    container.Parent = bg
-    createCorner(container, 24)
-    createStroke(container, CONFIG.primary, 2, 0.5)
-    createGlow(container, CONFIG.primary, 1.6)
-    local logoContainer = Instance.new("Frame")
-    logoContainer.Size = UDim2.new(0, 120 * CONFIG.scale, 0, 120 * CONFIG.scale)
-    logoContainer.Position = UDim2.new(0.5, -60 * CONFIG.scale, 0, 30 * CONFIG.scale)
-    logoContainer.BackgroundColor3 = CONFIG.bgElevated
-    logoContainer.BorderSizePixel = 0
-    logoContainer.ZIndex = 11
-    logoContainer.Parent = container
-    createCorner(logoContainer, 60)
-    createStroke(logoContainer, CONFIG.primary, 3, 0.3)
-    local outerRing = Instance.new("Frame")
-    outerRing.Size = UDim2.new(1.3, 0, 1.3, 0)
-    outerRing.Position = UDim2.new(-0.15, 0, -0.15, 0)
-    outerRing.BackgroundTransparency = 1
-    outerRing.ZIndex = 10
-    outerRing.Parent = logoContainer
-    local outerCircle = Instance.new("ImageLabel")
-    outerCircle.Size = UDim2.new(1, 0, 1, 0)
-    outerCircle.BackgroundTransparency = 1
-    outerCircle.Image = "rbxassetid://96755648876012"
-    outerCircle.ImageColor3 = CONFIG.primary
-    outerCircle.ImageTransparency = 0.5
-    outerCircle.ZIndex = 10
-    outerCircle.Parent = outerRing
-    spawn(function()
-        while outerRing and outerRing.Parent do
-            tween(outerRing, {Rotation = outerRing.Rotation + 360}, 8, Enum.EasingStyle.Linear)
-            wait(8)
-        end
-    end)
-    local logo = Instance.new("ImageLabel")
-    logo.Size = UDim2.new(0.7, 0, 0.7, 0)
-    logo.Position = UDim2.new(0.15, 0, 0.15, 0)
-    logo.BackgroundTransparency = 1
-    logo.Image = CONFIG.logoImage
-    logo.ImageColor3 = CONFIG.textPrimary
-    logo.ZIndex = 12
-    logo.Parent = logoContainer
-    spawn(function()
-        while logoContainer and logoContainer.Parent do
-            tween(logoContainer, {Size = UDim2.new(0, 130 * CONFIG.scale, 0, 130 * CONFIG.scale)}, 1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-            wait(1)
-            tween(logoContainer, {Size = UDim2.new(0, 120 * CONFIG.scale, 0, 120 * CONFIG.scale)}, 1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-            wait(1)
-        end
-    end)
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 40 * CONFIG.scale)
-    title.Position = UDim2.new(0, 0, 0, 160 * CONFIG.scale)
-    title.BackgroundTransparency = 1
-    title.Text = "CADUXX137"
-    title.TextColor3 = CONFIG.textPrimary
-    title.Font = Enum.Font.GothamBlack
-    title.TextSize = 32 * CONFIG.scale
-    title.ZIndex = 11
-    title.Parent = container
-    local subtitle = Instance.new("TextLabel")
-    subtitle.Size = UDim2.new(1, 0, 0, 25 * CONFIG.scale)
-    subtitle.Position = UDim2.new(0, 0, 0, 195 * CONFIG.scale)
-    subtitle.BackgroundTransparency = 1
-    subtitle.Text = CONFIG.version .. " - " .. CONFIG.build
-    subtitle.TextColor3 = CONFIG.primary
-    subtitle.Font = Enum.Font.GothamBold
-    subtitle.TextSize = 14 * CONFIG.scale
-    subtitle.ZIndex = 11
-    subtitle.Parent = container
-    local progressBg = Instance.new("Frame")
-    progressBg.Size = UDim2.new(0.8, 0, 0, 8 * CONFIG.scale)
-    progressBg.Position = UDim2.new(0.1, 0, 0, 240 * CONFIG.scale)
-    progressBg.BackgroundColor3 = CONFIG.bgDark
-    progressBg.BorderSizePixel = 0
-    progressBg.ZIndex = 11
-    progressBg.Parent = container
-    createCorner(progressBg, 4)
-    local progressFill = Instance.new("Frame")
-    progressFill.Size = UDim2.new(0, 0, 1, 0)
-    progressFill.BackgroundColor3 = CONFIG.primary
-    progressFill.BorderSizePixel = 0
-    progressFill.ZIndex = 12
-    progressFill.Parent = progressBg
-    createCorner(progressFill, 4)
-    createGradient(progressFill, CONFIG.gradientPrimary, 0)
-    local statusText = Instance.new("TextLabel")
-    statusText.Size = UDim2.new(1, 0, 0, 20 * CONFIG.scale)
-    statusText.Position = UDim2.new(0, 0, 0, 255 * CONFIG.scale)
-    statusText.BackgroundTransparency = 1
-    statusText.Text = "Inicializando sistema..."
-    statusText.TextColor3 = CONFIG.textMuted
-    statusText.Font = Enum.Font.Gotham
-    statusText.TextSize = 12 * CONFIG.scale
-    statusText.ZIndex = 11
-    statusText.Parent = container
-    local loadingSteps = {
-        {text = "Inicializando sistema...", progress = 0.1, delay = 0.5},
-        {text = "Carregando configuracoes...", progress = 0.25, delay = 0.4},
-        {text = "Detectando personagem...", progress = 0.4, delay = 0.6},
-        {text = "Configurando reach...", progress = 0.6, delay = 0.5},
-        {text = "Inicializando interface...", progress = 0.8, delay = 0.4},
-        {text = "Pronto!", progress = 1, delay = 0.3}
-    }
-    spawn(function()
-        for _, step in ipairs(loadingSteps) do
-            statusText.Text = step.text
-            tween(progressFill, {Size = UDim2.new(step.progress, 0, 1, 0)}, step.delay)
-            wait(step.delay)
-        end
-        tween(bg, {BackgroundTransparency = 1}, 0.5)
-        tween(container, {Size = UDim2.new(0, 0, 0, 0)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-        wait(0.5)
-        loadingGui:Destroy()
-        loadingGui = nil
-        isLoading = false
-        createMainGUI()
-    end)
-    container.Size = UDim2.new(0, 0, 0, 0)
-    tween(container, {Size = UDim2.new(0, 400 * CONFIG.scale, 0, 300 * CONFIG.scale)}, 0.6, Enum.EasingStyle.Back)
-end
+
+-- ============================================
+-- SISTEMA DE ÍCONE FLUTUANTE (Glass Edition)
+-- ============================================
+
 local function createIconButton()
     if iconGui then iconGui:Destroy() end
+    
     iconGui = Instance.new("ScreenGui")
-    iconGui.Name = "CADU_Icon_v10"
+    iconGui.Name = "CADU_Icon_Glass"
     iconGui.ResetOnSpawn = false
     iconGui.DisplayOrder = 999999
     iconGui.Parent = playerGui
-    local iconSize = 75 * CONFIG.scale
+    
+    local iconSize = 70 * CONFIG.scale
+    
+    -- Frame principal glass
     local iconFrame = Instance.new("Frame")
     iconFrame.Name = "IconFrame"
     iconFrame.Size = UDim2.new(0, iconSize, 0, iconSize)
     iconFrame.Position = UDim2.new(0.5, -iconSize/2, 0.85, 0)
-    iconFrame.BackgroundColor3 = CONFIG.bgCard
+    iconFrame.BackgroundColor3 = CONFIG.bgGlass
+    iconFrame.BackgroundTransparency = 0.2
     iconFrame.BorderSizePixel = 0
     iconFrame.Parent = iconGui
-    createCorner(iconFrame, 22)
-    local glow = createGlow(iconFrame, CONFIG.primary, 1.5)
-    local stroke = createStroke(iconFrame, CONFIG.primary, 2.5, 0.3)
+    
+    createCorner(iconFrame, 24)
+    createGlassEffect(iconFrame, 0.25)
+    createGlow(iconFrame, CONFIG.primary, 1.4, 0.8)
+    createShadow(iconFrame, 0.5, 15)
+    
+    -- Anel de energia rotativo
     local energyRing = Instance.new("ImageLabel")
-    energyRing.Size = UDim2.new(1.4, 0, 1.4, 0)
-    energyRing.Position = UDim2.new(-0.2, 0, -0.2, 0)
+    energyRing.Size = UDim2.new(1.3, 0, 1.3, 0)
+    energyRing.Position = UDim2.new(-0.15, 0, -0.15, 0)
     energyRing.BackgroundTransparency = 1
     energyRing.Image = "rbxassetid://96755648876012"
-    energyRing.ImageColor3 = CONFIG.secondary
-    energyRing.ImageTransparency = 0.7
+    energyRing.ImageColor3 = CONFIG.primary
+    energyRing.ImageTransparency = 0.6
     energyRing.ZIndex = -1
     energyRing.Parent = iconFrame
-    spawn(function()
+    
+    task.spawn(function()
         while energyRing and energyRing.Parent do
-            tween(energyRing, {Rotation = energyRing.Rotation + 360}, 10, Enum.EasingStyle.Linear)
-            wait(10)
+            tween(energyRing, {Rotation = energyRing.Rotation + 360}, 12, Enum.EasingStyle.Linear)
+            task.wait(12)
         end
     end)
+    
+    -- Ícone central
     local iconImage = Instance.new("ImageLabel")
-    iconImage.Size = UDim2.new(0.65, 0, 0.65, 0)
-    iconImage.Position = UDim2.new(0.175, 0, 0.175, 0)
+    iconImage.Size = UDim2.new(0.55, 0, 0.55, 0)
+    iconImage.Position = UDim2.new(0.225, 0, 0.225, 0)
     iconImage.BackgroundTransparency = 1
     iconImage.Image = CONFIG.iconImage
     iconImage.ImageColor3 = CONFIG.textPrimary
     iconImage.ScaleType = Enum.ScaleType.Fit
     iconImage.Parent = iconFrame
+    
+    -- Botão invisível
     local clickBtn = Instance.new("TextButton")
     clickBtn.Size = UDim2.new(1, 0, 1, 0)
     clickBtn.BackgroundTransparency = 1
     clickBtn.Text = ""
     clickBtn.Parent = iconFrame
+    
+    -- Hover effects premium
     clickBtn.MouseEnter:Connect(function()
-        tween(iconFrame, {Size = UDim2.new(0, iconSize * 1.15, 0, iconSize * 1.15)}, 0.3, Enum.EasingStyle.Back)
-        tween(stroke, {Color = CONFIG.secondary, Transparency = 0}, 0.3)
-        tween(glow, {ImageTransparency = 0.5}, 0.3)
-        tween(iconImage, {Rotation = 15}, 0.3, Enum.EasingStyle.Back)
+        tween(iconFrame, {Size = UDim2.new(0, iconSize * 1.1, 0, iconSize * 1.1)}, 0.3, Enum.EasingStyle.Back)
+        tween(iconImage, {Rotation = 15}, 0.4, Enum.EasingStyle.Back)
+        tween(energyRing, {ImageTransparency = 0.3}, 0.3)
     end)
+    
     clickBtn.MouseLeave:Connect(function()
         tween(iconFrame, {Size = UDim2.new(0, iconSize, 0, iconSize)}, 0.3, Enum.EasingStyle.Back)
-        tween(stroke, {Color = CONFIG.primary, Transparency = 0.3}, 0.3)
-        tween(glow, {ImageTransparency = 0.85}, 0.3)
-        tween(iconImage, {Rotation = 0}, 0.3, Enum.EasingStyle.Back)
+        tween(iconImage, {Rotation = 0}, 0.4, Enum.EasingStyle.Back)
+        tween(energyRing, {ImageTransparency = 0.6}, 0.3)
     end)
+    
     clickBtn.MouseButton1Click:Connect(function()
         tween(iconFrame, {Size = UDim2.new(0, 0, 0, 0), Rotation = 360}, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-        wait(0.4)
+        task.wait(0.4)
         iconGui:Destroy()
         iconGui = nil
         isMinimized = false
         createMainGUI()
     end)
+    
     makeDraggable(iconFrame, clickBtn)
+    
+    -- Animação de entrada elástica
     iconFrame.Size = UDim2.new(0, 0, 0, 0)
-    tween(iconFrame, {Size = UDim2.new(0, iconSize, 0, iconSize)}, 0.5, Enum.EasingStyle.Back)
-    notify("CADUXX137", "Clique no icone para abrir o hub", 3, "info")
+    tween(iconFrame, {Size = UDim2.new(0, iconSize, 0, iconSize)}, 0.6, Enum.EasingStyle.Back)
+    
+    notify("CADUXX137 Glass", "Clique no ícone para abrir o hub", 3, "premium")
 end
-local function findBalls()
-    local now = tick()
-    if now - lastBallUpdate < CONFIG.scanCooldown then return #balls end
-    lastBallUpdate = now
-    table.clear(balls)
-    for _, conn in ipairs(ballConnections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    table.clear(ballConnections)
-    local ballNames = {
-        "TPS", "TCS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ",
-        "Ball", "Soccer", "Football", "Basketball", "Baseball", "Volleyball",
-        "BallTemplate", "GameBall", "MatchBall", "SportsBall",
-        "Hitbox", "TouchPart", "GoalBall", "ScoreBall", "HitBox",
-        "CollisionBox", "TriggerBox", "InteractPart",
-        "Ball", "ball", "BALL", "Sphere", "Part"
-    }
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Parent then
-            local objName = obj.Name
-            for _, name in ipairs(ballNames) do
-                if objName == name or objName:find(name) then
-                    local size = obj.Size.Magnitude
-                    if size > 0.5 and size < 50 then
-                        table.insert(balls, obj)
-                        local conn = obj.AncestryChanged:Connect(function(_, parent)
-                            if not parent then
-                                findBalls()
-                            end
-                        end)
-                        table.insert(ballConnections, conn)
-                        break
-                    end
-                end
-            end
-        end
-    end
-    STATS.ballsDetected = #balls
-    return #balls
-end
-local function updateCharacter()
-    local newChar = player.Character
-    if newChar ~= char then
-        char = newChar
-        if char then
-            HRP = char:WaitForChild("HumanoidRootPart", 3)
-            if HRP then
-                notify("CADUXX137", "Personagem conectado!", 2, "success")
-            else
-                notify("CADUXX137", "Aguardando personagem...", 2, "warning")
-            end
-        else
-            HRP = nil
-        end
-    end
-end
-local function updateSphere()
-    if not CONFIG.showReachSphere then
-        if reachSphere then
-            reachSphere:Destroy()
-            reachSphere = nil
-        end
-        return
-    end
-    if not reachSphere or not reachSphere.Parent then
-        reachSphere = Instance.new("Part")
-        reachSphere.Name = "CADU_ReachSphere_v10"
-        reachSphere.Shape = Enum.PartType.Ball
-        reachSphere.Anchored = true
-        reachSphere.CanCollide = false
-        reachSphere.Transparency = 0.93
-        reachSphere.Material = Enum.Material.ForceField
-        reachSphere.Color = CONFIG.primary
-        reachSphere.CastShadow = false
-        reachSphere.Parent = Workspace
-    end
-    if HRP and HRP.Parent then
-        reachSphere.Position = HRP.Position
-        reachSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
-    end
-end
-local function doTouch(ball, part)
-    if not ball or not ball.Parent or not part or not part.Parent then return end
-    local key = ball.Name .. "_" .. part.Name .. "_" .. tostring(ball:GetFullName())
-    local now = tick()
-    if touchDebounce[key] and (now - touchDebounce[key]) < 0.08 then return end
-    touchDebounce[key] = now
-    pcall(function()
-        firetouchinterest(ball, part, 0)
-        task.wait(0.01)
-        firetouchinterest(ball, part, 1)
-        if CONFIG.autoSecondTouch then
-            task.wait(0.04)
-            firetouchinterest(ball, part, 0)
-            firetouchinterest(ball, part, 1)
-        end
-        STATS.totalTouches = STATS.totalTouches + 1
-    end)
-end
+
+-- ============================================
+-- INTERFACE PRINCIPAL GLASS
+-- ============================================
+
 function createMainGUI()
     pcall(function()
         for _, v in pairs(playerGui:GetChildren()) do
             if v.Name:find("CADU") then v:Destroy() end
         end
     end)
+    
     mainGui = Instance.new("ScreenGui")
-    mainGui.Name = "CADU_Main_v10_Ultimate"
+    mainGui.Name = "CADU_Main_Glass"
     mainGui.ResetOnSpawn = false
     mainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     mainGui.Parent = playerGui
-    local W, H = 550 * CONFIG.scale, 520 * CONFIG.scale
+    
+    local W, H = 420 * CONFIG.scale, 580 * CONFIG.scale
+    
+    -- Frame principal com glassmorphism
     local main = Instance.new("Frame")
     main.Name = "MainFrame"
     main.Size = UDim2.new(0, W, 0, H)
     main.Position = UDim2.new(0.5, -W/2, 0.5, -H/2)
-    main.BackgroundColor3 = CONFIG.bgDark
-    main.BackgroundTransparency = 0.05
+    main.BackgroundColor3 = CONFIG.bgGlass
+    main.BackgroundTransparency = 0.15
     main.BorderSizePixel = 0
     main.ClipsDescendants = true
     main.Parent = mainGui
+    
     createCorner(main, 28)
-    createShadow(main, 0.65)
-    local bgGradient = Instance.new("Frame")
-    bgGradient.Size = UDim2.new(1, 0, 1, 0)
-    bgGradient.BackgroundTransparency = 0.9
-    bgGradient.BorderSizePixel = 0
-    bgGradient.ZIndex = 0
-    bgGradient.Parent = main
-    createGradient(bgGradient, ColorSequence.new({
-        ColorSequenceKeypoint.new(0, CONFIG.bgDark),
-        ColorSequenceKeypoint.new(0.5, CONFIG.bgCard),
-        ColorSequenceKeypoint.new(1, CONFIG.bgDark)
-    }), 45)
+    createGlassEffect(main, 0.2)
+    createShadow(main, 0.4, 30)
+    
+    -- Header Glass
     local header = Instance.new("Frame")
     header.Name = "Header"
-    header.Size = UDim2.new(1, 0, 0, 95 * CONFIG.scale)
-    header.BackgroundColor3 = CONFIG.bgCard
-    header.BackgroundTransparency = 0.3
+    header.Size = UDim2.new(1, 0, 0, 90 * CONFIG.scale)
+    header.BackgroundColor3 = CONFIG.bgElevated
+    header.BackgroundTransparency = 0.1
     header.BorderSizePixel = 0
-    header.ZIndex = 100
+    header.ZIndex = 10
     header.Parent = main
+    
     createCorner(header, 28)
-    local headerFix = Instance.new("Frame")
-    headerFix.Size = UDim2.new(1, 0, 0.5, 0)
-    headerFix.Position = UDim2.new(0, 0, 0.5, 0)
-    headerFix.BackgroundColor3 = CONFIG.bgCard
-    headerFix.BackgroundTransparency = 0.3
-    headerFix.BorderSizePixel = 0
-    headerFix.ZIndex = 99
-    headerFix.Parent = header
+    
+    -- Gradiente de fundo do header
+    local headerGradient = Instance.new("UIGradient")
+    headerGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, CONFIG.primary),
+        ColorSequenceKeypoint.new(0.5, CONFIG.secondary),
+        ColorSequenceKeypoint.new(1, CONFIG.accent)
+    })
+    headerGradient.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.85),
+        NumberSequenceKeypoint.new(0.5, 0.9),
+        NumberSequenceKeypoint.new(1, 0.85)
+    })
+    headerGradient.Rotation = 45
+    headerGradient.Parent = header
+    
+    -- Logo container
     local logoContainer = Instance.new("Frame")
-    logoContainer.Size = UDim2.new(0, 55 * CONFIG.scale, 0, 55 * CONFIG.scale)
-    logoContainer.Position = UDim2.new(0, 25 * CONFIG.scale, 0, 20 * CONFIG.scale)
-    logoContainer.BackgroundColor3 = CONFIG.bgElevated
+    logoContainer.Size = UDim2.new(0, 60 * CONFIG.scale, 0, 60 * CONFIG.scale)
+    logoContainer.Position = UDim2.new(0, 25 * CONFIG.scale, 0, 15 * CONFIG.scale)
+    logoContainer.BackgroundColor3 = CONFIG.bgCard
+    logoContainer.BackgroundTransparency = 0.3
     logoContainer.BorderSizePixel = 0
-    logoContainer.ZIndex = 101
+    logoContainer.ZIndex = 11
     logoContainer.Parent = header
-    createCorner(logoContainer, 16)
-    createStroke(logoContainer, CONFIG.primary, 2, 0.4)
+    
+    createCorner(logoContainer, 20)
+    
+    -- Glow no logo
+    createGlow(logoContainer, CONFIG.primary, 1.3, 0.7)
+    
     local logoIcon = Instance.new("ImageLabel")
     logoIcon.Size = UDim2.new(0.6, 0, 0.6, 0)
     logoIcon.Position = UDim2.new(0.2, 0, 0.2, 0)
     logoIcon.BackgroundTransparency = 1
-    logoIcon.Image = CONFIG.logoImage
-    logoIcon.ImageColor3 = CONFIG.primary
-    logoIcon.ZIndex = 102
+    logoIcon.Image = CONFIG.iconImage
+    logoIcon.ImageColor3 = CONFIG.textPrimary
+    logoIcon.ZIndex = 12
     logoIcon.Parent = logoContainer
+    
+    -- Títulos
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(0, 200 * CONFIG.scale, 0, 35 * CONFIG.scale)
-    title.Position = UDim2.new(0, 90 * CONFIG.scale, 0, 22 * CONFIG.scale)
+    title.Position = UDim2.new(0, 100 * CONFIG.scale, 0, 18 * CONFIG.scale)
     title.BackgroundTransparency = 1
     title.Text = "CADUXX137"
     title.TextColor3 = CONFIG.textPrimary
     title.Font = Enum.Font.GothamBlack
-    title.TextSize = 28 * CONFIG.scale
+    title.TextSize = 26 * CONFIG.scale
     title.TextXAlignment = Enum.TextXAlignment.Left
-    title.ZIndex = 101
+    title.ZIndex = 11
     title.Parent = header
-    local version = Instance.new("TextLabel")
-    version.Size = UDim2.new(0, 150 * CONFIG.scale, 0, 20 * CONFIG.scale)
-    version.Position = UDim2.new(0, 92 * CONFIG.scale, 0, 55 * CONFIG.scale)
-    version.BackgroundTransparency = 1
-    version.Text = CONFIG.version .. " | " .. CONFIG.build
-    version.TextColor3 = CONFIG.primary
-    version.Font = Enum.Font.GothamBold
-    version.TextSize = 13 * CONFIG.scale
-    version.TextXAlignment = Enum.TextXAlignment.Left
-    version.ZIndex = 101
-    version.Parent = header
-    local btnSize = UDim2.new(0, 45 * CONFIG.scale, 0, 45 * CONFIG.scale)
-    local btnCorner = 14
+    
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Size = UDim2.new(0, 200 * CONFIG.scale, 0, 20 * CONFIG.scale)
+    subtitle.Position = UDim2.new(0, 102 * CONFIG.scale, 0, 52 * CONFIG.scale)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = CONFIG.version .. " • " .. CONFIG.build
+    subtitle.TextColor3 = CONFIG.accent
+    subtitle.Font = Enum.Font.GothamBold
+    subtitle.TextSize = 12 * CONFIG.scale
+    subtitle.TextXAlignment = Enum.TextXAlignment.Left
+    subtitle.ZIndex = 11
+    subtitle.Parent = header
+    
+    -- Botões de controle
+    local btnSize = UDim2.new(0, 42 * CONFIG.scale, 0, 42 * CONFIG.scale)
+    
     local minimizeBtn = Instance.new("TextButton")
-    minimizeBtn.Name = "MinimizeBtn"
+    minimizeBtn.Name = "Minimize"
     minimizeBtn.Size = btnSize
-    minimizeBtn.Position = UDim2.new(1, -105 * CONFIG.scale, 0, 25 * CONFIG.scale)
-    minimizeBtn.BackgroundColor3 = CONFIG.bgElevated
-    minimizeBtn.Text = ""
+    minimizeBtn.Position = UDim2.new(1, -100 * CONFIG.scale, 0, 24 * CONFIG.scale)
+    minimizeBtn.BackgroundColor3 = CONFIG.bgCard
+    minimizeBtn.BackgroundTransparency = 0.3
+    minimizeBtn.Text = "−"
     minimizeBtn.TextColor3 = CONFIG.textPrimary
-    minimizeBtn.Font = Enum.Font.GothamBold
-    minimizeBtn.TextSize = 22 * CONFIG.scale
+    minimizeBtn.Font = Enum.Font.GothamBlack
+    minimizeBtn.TextSize = 24 * CONFIG.scale
     minimizeBtn.AutoButtonColor = false
-    minimizeBtn.ZIndex = 101
+    minimizeBtn.ZIndex = 11
     minimizeBtn.Parent = header
-    createCorner(minimizeBtn, btnCorner)
-    addHoverEffect(minimizeBtn, CONFIG.bgElevated, CONFIG.bgHover, CONFIG.bgLight)
-    addRippleEffect(minimizeBtn, Color3.new(1, 1, 1))
+    
+    createCorner(minimizeBtn, 14)
+    addRippleEffect(minimizeBtn, CONFIG.textPrimary)
+    
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Name = "CloseBtn"
+    closeBtn.Name = "Close"
     closeBtn.Size = btnSize
-    closeBtn.Position = UDim2.new(1, -55 * CONFIG.scale, 0, 25 * CONFIG.scale)
+    closeBtn.Position = UDim2.new(1, -52 * CONFIG.scale, 0, 24 * CONFIG.scale)
     closeBtn.BackgroundColor3 = CONFIG.danger
     closeBtn.BackgroundTransparency = 0.2
-    closeBtn.Text = ""
+    closeBtn.Text = "×"
     closeBtn.TextColor3 = CONFIG.textPrimary
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextSize = 20 * CONFIG.scale
+    closeBtn.Font = Enum.Font.GothamBlack
+    closeBtn.TextSize = 24 * CONFIG.scale
     closeBtn.AutoButtonColor = false
-    closeBtn.ZIndex = 101
+    closeBtn.ZIndex = 11
     closeBtn.Parent = header
-    createCorner(closeBtn, btnCorner)
-    addHoverEffect(closeBtn, 
-        Color3.new(CONFIG.danger.R, CONFIG.danger.G, CONFIG.danger.B), 
-        Color3.fromRGB(255, 80, 100), 
-        Color3.fromRGB(255, 100, 120)
-    )
+    
+    createCorner(closeBtn, 14)
+    addRippleEffect(closeBtn, CONFIG.textPrimary)
+    
+    -- Navegação por Tabs (Estilo WindUI)
     local tabContainer = Instance.new("Frame")
     tabContainer.Name = "TabContainer"
-    tabContainer.Size = UDim2.new(1, -50 * CONFIG.scale, 0, 60 * CONFIG.scale)
-    tabContainer.Position = UDim2.new(0, 25 * CONFIG.scale, 0, 100 * CONFIG.scale)
-    tabContainer.BackgroundColor3 = CONFIG.bgElevated
+    tabContainer.Size = UDim2.new(1, -40 * CONFIG.scale, 0, 55 * CONFIG.scale)
+    tabContainer.Position = UDim2.new(0, 20 * CONFIG.scale, 0, 100 * CONFIG.scale)
+    tabContainer.BackgroundColor3 = CONFIG.bgCard
     tabContainer.BackgroundTransparency = 0.4
     tabContainer.BorderSizePixel = 0
-    tabContainer.ZIndex = 100
+    tabContainer.ZIndex = 10
     tabContainer.Parent = main
-    createCorner(tabContainer, 18)
+    
+    createCorner(tabContainer, 16)
+    
     local tabs = {
-        {id = "intro", name = "Intro", icon = "", color = CONFIG.info},
-        {id = "main", name = "Main", icon = "", color = CONFIG.primary},
-        {id = "stats", name = "Stats", icon = "", color = CONFIG.warning}
+        {id = "reach", name = "Alcance", icon = "⚡", color = CONFIG.primary},
+        {id = "balls", name = "Bolas", icon = "🔮", color = CONFIG.secondary},
+        {id = "controls", name = "Controles", icon = "🎮", color = CONFIG.accent},
+        {id = "settings", name = "Ajustes", icon = "⚙️", color = CONFIG.textSecondary}
     }
+    
     local tabWidth = 1 / #tabs
-    local tabButtonList = {}
+    local tabButtons = {}
+    
     for i, tab in ipairs(tabs) do
         local tabBtn = Instance.new("TextButton")
         tabBtn.Name = tab.id .. "Tab"
-        tabBtn.Size = UDim2.new(tabWidth, -12 * CONFIG.scale, 1, -12 * CONFIG.scale)
-        tabBtn.Position = UDim2.new((i-1) * tabWidth, 6 * CONFIG.scale, 0, 6 * CONFIG.scale)
-        tabBtn.BackgroundColor3 = (tab.id == CONFIG.currentTab) and tab.color or CONFIG.bgCard
-        tabBtn.Text = tab.name
-        tabBtn.TextColor3 = (tab.id == CONFIG.currentTab) and CONFIG.bgDark or CONFIG.textPrimary
+        tabBtn.Size = UDim2.new(tabWidth, -8 * CONFIG.scale, 1, -8 * CONFIG.scale)
+        tabBtn.Position = UDim2.new((i-1) * tabWidth, 4 * CONFIG.scale, 0, 4 * CONFIG.scale)
+        tabBtn.BackgroundColor3 = (tab.id == currentTab) and tab.color or Color3.new(0, 0, 0)
+        tabBtn.BackgroundTransparency = (tab.id == currentTab) and 0.2 or 0.9
+        tabBtn.Text = tab.icon .. " " .. tab.name
+        tabBtn.TextColor3 = (tab.id == currentTab) and CONFIG.textPrimary or CONFIG.textMuted
         tabBtn.Font = Enum.Font.GothamBold
-        tabBtn.TextSize = 14 * CONFIG.scale
+        tabBtn.TextSize = 13 * CONFIG.scale
         tabBtn.AutoButtonColor = false
-        tabBtn.ZIndex = 101
+        tabBtn.ZIndex = 11
         tabBtn.Parent = tabContainer
-        createCorner(tabBtn, 14)
-        tabButtons[tab.id] = {
-            button = tabBtn,
-            color = tab.color,
-            defaultBg = CONFIG.bgCard
-        }
+        
+        createCorner(tabBtn, 12)
+        
+        tabButtons[tab.id] = tabBtn
+        
+        -- Animação de seleção
         tabBtn.MouseButton1Click:Connect(function()
-            if CONFIG.currentTab ~= tab.id then
-                switchTab(tab.id)
+            if currentTab == tab.id then return end
+            
+            -- Deselecionar anterior
+            local prevBtn = tabButtons[currentTab]
+            if prevBtn then
+                tween(prevBtn, {BackgroundColor3 = Color3.new(0, 0, 0)}, 0.3)
+                tween(prevBtn, {BackgroundTransparency = 0.9}, 0.3)
+                tween(prevBtn, {TextColor3 = CONFIG.textMuted}, 0.3)
             end
+            
+            -- Selecionar novo
+            currentTab = tab.id
+            tween(tabBtn, {BackgroundColor3 = tab.color}, 0.3)
+            tween(tabBtn, {BackgroundTransparency = 0.2}, 0.3)
+            tween(tabBtn, {TextColor3 = CONFIG.textPrimary}, 0.3)
+            
+            -- Atualizar conteúdo
+            updateContent()
         end)
-        if tab.id ~= CONFIG.currentTab then
+        
+        -- Hover
+        if tab.id ~= currentTab then
             tabBtn.MouseEnter:Connect(function()
-                tween(tabBtn, {BackgroundColor3 = CONFIG.bgHover}, 0.2)
+                tween(tabBtn, {BackgroundTransparency = 0.7}, 0.2)
             end)
             tabBtn.MouseLeave:Connect(function()
-                tween(tabBtn, {BackgroundColor3 = CONFIG.bgCard}, 0.2)
+                tween(tabBtn, {BackgroundTransparency = 0.9}, 0.2)
             end)
         end
-        table.insert(tabButtonList, tabBtn)
     end
+    
+    -- Container de conteúdo
     local contentContainer = Instance.new("Frame")
-    contentContainer.Name = "ContentContainer"
-    contentContainer.Size = UDim2.new(1, -50 * CONFIG.scale, 1, -180 * CONFIG.scale)
-    contentContainer.Position = UDim2.new(0, 25 * CONFIG.scale, 0, 170 * CONFIG.scale)
+    contentContainer.Name = "Content"
+    contentContainer.Size = UDim2.new(1, -40 * CONFIG.scale, 1, -175 * CONFIG.scale)
+    contentContainer.Position = UDim2.new(0, 20 * CONFIG.scale, 0, 165 * CONFIG.scale)
     contentContainer.BackgroundTransparency = 1
     contentContainer.ClipsDescendants = true
-    contentContainer.ZIndex = 50
+    contentContainer.ZIndex = 5
     contentContainer.Parent = main
-    function switchTab(newTabId)
-        local oldTabId = CONFIG.currentTab
-        CONFIG.currentTab = newTabId
-        for id, tabData in pairs(tabButtons) do
-            local btn = tabData.button
-            if id == newTabId then
-                tween(btn, {BackgroundColor3 = tabData.color}, 0.3)
-                tween(btn, {TextColor3 = CONFIG.bgDark}, 0.3)
-                btn.MouseEnter:Connect(function() end)
-                btn.MouseLeave:Connect(function() end)
-            else
-                tween(btn, {BackgroundColor3 = CONFIG.bgCard}, 0.3)
-                tween(btn, {TextColor3 = CONFIG.textPrimary}, 0.3)
-                btn.MouseEnter:Connect(function()
-                    tween(btn, {BackgroundColor3 = CONFIG.bgHover}, 0.2)
-                end)
-                btn.MouseLeave:Connect(function()
-                    tween(btn, {BackgroundColor3 = CONFIG.bgCard}, 0.2)
-                end)
-            end
-        end
-        if currentTabFrame then
-            local direction = (newTabId == "intro") and -1 or 1
-            tween(currentTabFrame, {
-                Position = UDim2.new(direction * 0.2, 0, 0, 0),
-                Transparency = 1
-            }, 0.2)
-            wait(0.2)
-            currentTabFrame:Destroy()
-        end
-        if newTabId == "intro" then
-            createIntroTab(contentContainer)
-        elseif newTabId == "main" then
-            createMainTab(contentContainer)
-        elseif newTabId == "stats" then
-            createStatsTab(contentContainer)
-        end
-    end
-    function createCard(parent, y, height, title, bgColor)
+    
+    -- Função para criar cards glass
+    local function createGlassCard(parent, y, height, title, accentColor)
+        accentColor = accentColor or CONFIG.primary
+        
         local card = Instance.new("Frame")
-        card.Name = (title or "Card") .. "_Card"
+        card.Name = (title or "Card") .. "_Glass"
         card.Size = UDim2.new(1, 0, 0, height * CONFIG.scale)
         card.Position = UDim2.new(0, 0, 0, y * CONFIG.scale)
-        card.BackgroundColor3 = bgColor or CONFIG.bgCard
-        card.BackgroundTransparency = 0.3
+        card.BackgroundColor3 = CONFIG.bgCard
+        card.BackgroundTransparency = 0.2
         card.BorderSizePixel = 0
         card.Parent = parent
-        createCorner(card, 18)
-        if title and title ~= "" then
+        
+        createCorner(card, 20)
+        createGlassEffect(card, 0.3)
+        createShadow(card, 0.5, 10)
+        
+        if title then
+            -- Indicador de cor
+            local indicator = Instance.new("Frame")
+            indicator.Size = UDim2.new(0, 4 * CONFIG.scale, 0, 24 * CONFIG.scale)
+            indicator.Position = UDim2.new(0, 16 * CONFIG.scale, 0, 18 * CONFIG.scale)
+            indicator.BackgroundColor3 = accentColor
+            indicator.BorderSizePixel = 0
+            indicator.Parent = card
+            
+            createCorner(indicator, 2)
+            
             local titleLabel = Instance.new("TextLabel")
-            titleLabel.Size = UDim2.new(1, -30 * CONFIG.scale, 0, 35 * CONFIG.scale)
-            titleLabel.Position = UDim2.new(0, 15 * CONFIG.scale, 0, 8 * CONFIG.scale)
+            titleLabel.Size = UDim2.new(1, -40 * CONFIG.scale, 0, 30 * CONFIG.scale)
+            titleLabel.Position = UDim2.new(0, 28 * CONFIG.scale, 0, 15 * CONFIG.scale)
             titleLabel.BackgroundTransparency = 1
             titleLabel.Text = title
             titleLabel.TextColor3 = CONFIG.textPrimary
@@ -866,153 +653,186 @@ function createMainGUI()
             titleLabel.TextSize = 16 * CONFIG.scale
             titleLabel.TextXAlignment = Enum.TextXAlignment.Left
             titleLabel.Parent = card
-            local line = Instance.new("Frame")
-            line.Size = UDim2.new(0.25, 0, 0, 2 * CONFIG.scale)
-            line.Position = UDim2.new(0, 15 * CONFIG.scale, 0, 35 * CONFIG.scale)
-            line.BackgroundColor3 = CONFIG.primary
-            line.BorderSizePixel = 0
-            line.Parent = card
-            createCorner(line, 1)
         end
+        
         return card
     end
-    function createToggle(parent, x, y, state, label)
+    
+    -- Função para criar toggle moderno
+    local function createModernToggle(parent, x, y, state, label, accent)
+        accent = accent or CONFIG.success
+        
         local container = Instance.new("Frame")
-                container.Size = UDim2.new(0, 50 * CONFIG.scale, 0, 26 * CONFIG.scale)
+        container.Size = UDim2.new(0, 52 * CONFIG.scale, 0, 28 * CONFIG.scale)
         container.Position = UDim2.new(0, x * CONFIG.scale, 0, y * CONFIG.scale)
-        container.BackgroundColor3 = state and CONFIG.success or CONFIG.bgLight
+        container.BackgroundColor3 = state and accent or CONFIG.bgLight
+        container.BackgroundTransparency = state and 0.2 or 0.5
         container.BorderSizePixel = 0
         container.Parent = parent
-        createCorner(container, 13)
         
+        createCorner(container, 14)
+        
+        -- Círculo deslizante
         local circle = Instance.new("Frame")
         circle.Size = UDim2.new(0, 22 * CONFIG.scale, 0, 22 * CONFIG.scale)
-        circle.Position = state and UDim2.new(1, -24 * CONFIG.scale, 0, 2 * CONFIG.scale) or UDim2.new(0, 2 * CONFIG.scale, 0, 2 * CONFIG.scale)
+        circle.Position = state and UDim2.new(1, -25 * CONFIG.scale, 0, 3 * CONFIG.scale) or UDim2.new(0, 3 * CONFIG.scale, 0, 3 * CONFIG.scale)
         circle.BackgroundColor3 = CONFIG.textPrimary
         circle.BorderSizePixel = 0
         circle.Parent = container
+        
         createCorner(circle, 11)
         
+        -- Label
         local labelText = Instance.new("TextLabel")
-        labelText.Size = UDim2.new(0, 200 * CONFIG.scale, 0, 26 * CONFIG.scale)
-        labelText.Position = UDim2.new(0, (x + 55) * CONFIG.scale, 0, y * CONFIG.scale)
+        labelText.Size = UDim2.new(0, 200 * CONFIG.scale, 0, 28 * CONFIG.scale)
+        labelText.Position = UDim2.new(0, (x + 60) * CONFIG.scale, 0, y * CONFIG.scale)
         labelText.BackgroundTransparency = 1
-        labelText.Text = label or ""
-        labelText.TextColor3 = CONFIG.textPrimary
+        labelText.Text = label
+        labelText.TextColor3 = CONFIG.textSecondary
         labelText.Font = Enum.Font.GothamBold
         labelText.TextSize = 14 * CONFIG.scale
         labelText.TextXAlignment = Enum.TextXAlignment.Left
         labelText.Parent = parent
         
         local clickArea = Instance.new("TextButton")
-        clickArea.Size = UDim2.new(0, 255 * CONFIG.scale, 0, 26 * CONFIG.scale)
+        clickArea.Size = UDim2.new(0, 260 * CONFIG.scale, 0, 28 * CONFIG.scale)
         clickArea.Position = UDim2.new(0, x * CONFIG.scale, 0, y * CONFIG.scale)
         clickArea.BackgroundTransparency = 1
         clickArea.Text = ""
         clickArea.Parent = parent
         
         local currentState = state
+        
+        local function updateVisuals()
+            local targetPos = currentState and UDim2.new(1, -25 * CONFIG.scale, 0, 3 * CONFIG.scale) or UDim2.new(0, 3 * CONFIG.scale, 0, 3 * CONFIG.scale)
+            local targetColor = currentState and accent or CONFIG.bgLight
+            local targetTrans = currentState and 0.2 or 0.5
+            
+            tween(circle, {Position = targetPos}, 0.3, Enum.EasingStyle.Back)
+            tween(container, {BackgroundColor3 = targetColor}, 0.3)
+            tween(container, {BackgroundTransparency = targetTrans}, 0.3)
+        end
+        
         clickArea.MouseButton1Click:Connect(function()
             currentState = not currentState
-            tween(container, {BackgroundColor3 = currentState and CONFIG.success or CONFIG.bgLight}, 0.2)
-            tween(circle, {Position = currentState and UDim2.new(1, -24 * CONFIG.scale, 0, 2 * CONFIG.scale) or UDim2.new(0, 2 * CONFIG.scale, 0, 2 * CONFIG.scale)}, 0.2)
+            updateVisuals()
             return currentState
         end)
         
         return {
-            container = container,
-            circle = circle,
             getState = function() return currentState end,
             setState = function(newState)
                 currentState = newState
-                tween(container, {BackgroundColor3 = currentState and CONFIG.success or CONFIG.bgLight}, 0.2)
-                tween(circle, {Position = currentState and UDim2.new(1, -24 * CONFIG.scale, 0, 2 * CONFIG.scale) or UDim2.new(0, 2 * CONFIG.scale, 0, 2 * CONFIG.scale)}, 0.2)
-            end
+                updateVisuals()
+            end,
+            container = container
         }
     end
     
-    function createSlider(parent, x, y, min, max, current, label)
-        local width = 200 * CONFIG.scale
+    -- Função para criar slider premium
+    local function createPremiumSlider(parent, x, y, min, max, current, label, accent)
+        accent = accent or CONFIG.primary
+        
+        local width = 220 * CONFIG.scale
+        
         local container = Instance.new("Frame")
-        container.Size = UDim2.new(0, width, 0, 40 * CONFIG.scale)
+        container.Size = UDim2.new(0, width, 0, 50 * CONFIG.scale)
         container.Position = UDim2.new(0, x * CONFIG.scale, 0, y * CONFIG.scale)
         container.BackgroundTransparency = 1
         container.Parent = parent
         
+        -- Label
         local labelText = Instance.new("TextLabel")
         labelText.Size = UDim2.new(1, 0, 0, 20 * CONFIG.scale)
         labelText.BackgroundTransparency = 1
-        labelText.Text = label or ""
-        labelText.TextColor3 = CONFIG.textSecondary
+        labelText.Text = label
+        labelText.TextColor3 = CONFIG.textMuted
         labelText.Font = Enum.Font.GothamBold
         labelText.TextSize = 12 * CONFIG.scale
         labelText.TextXAlignment = Enum.TextXAlignment.Left
         labelText.Parent = container
         
+        -- Valor
+        local valueLabel = Instance.new("TextLabel")
+        valueLabel.Size = UDim2.new(0, 50 * CONFIG.scale, 0, 20 * CONFIG.scale)
+        valueLabel.Position = UDim2.new(1, -50 * CONFIG.scale, 0, 0)
+        valueLabel.BackgroundTransparency = 1
+        valueLabel.Text = tostring(current)
+        valueLabel.TextColor3 = accent
+        valueLabel.Font = Enum.Font.GothamBlack
+        valueLabel.TextSize = 14 * CONFIG.scale
+        valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+        valueLabel.Parent = container
+        
+        -- Track
         local track = Instance.new("Frame")
         track.Size = UDim2.new(1, 0, 0, 6 * CONFIG.scale)
-        track.Position = UDim2.new(0, 0, 0, 25 * CONFIG.scale)
+        track.Position = UDim2.new(0, 0, 0, 30 * CONFIG.scale)
         track.BackgroundColor3 = CONFIG.bgLight
+        track.BackgroundTransparency = 0.5
         track.BorderSizePixel = 0
         track.Parent = container
+        
         createCorner(track, 3)
         
-        local fill = Instance.new("Frame")
+        -- Fill com gradiente
         local percent = (current - min) / (max - min)
+        local fill = Instance.new("Frame")
         fill.Size = UDim2.new(percent, 0, 1, 0)
-        fill.BackgroundColor3 = CONFIG.primary
+        fill.BackgroundColor3 = accent
+        fill.BackgroundTransparency = 0.1
         fill.BorderSizePixel = 0
         fill.Parent = track
-        createCorner(fill, 3)
-        createGradient(fill, CONFIG.gradientPrimary, 0)
         
+        createCorner(fill, 3)
+        
+        local fillGradient = Instance.new("UIGradient")
+        fillGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, accent),
+            ColorSequenceKeypoint.new(1, CONFIG.secondary)
+        })
+        fillGradient.Parent = fill
+        
+        -- Knob com glow
         local knob = Instance.new("Frame")
-        knob.Size = UDim2.new(0, 16 * CONFIG.scale, 0, 16 * CONFIG.scale)
-        knob.Position = UDim2.new(percent, -8 * CONFIG.scale, 0.5, -8 * CONFIG.scale)
+        knob.Size = UDim2.new(0, 18 * CONFIG.scale, 0, 18 * CONFIG.scale)
+        knob.Position = UDim2.new(percent, -9 * CONFIG.scale, 0.5, -9 * CONFIG.scale)
         knob.BackgroundColor3 = CONFIG.textPrimary
         knob.BorderSizePixel = 0
         knob.ZIndex = 2
         knob.Parent = track
-        createCorner(knob, 8)
-        createStroke(knob, CONFIG.primary, 2, 0)
         
-        local valueLabel = Instance.new("TextLabel")
-        valueLabel.Size = UDim2.new(0, 50 * CONFIG.scale, 0, 20 * CONFIG.scale)
-        valueLabel.Position = UDim2.new(1, 10 * CONFIG.scale, 0, 20 * CONFIG.scale)
-        valueLabel.BackgroundTransparency = 1
-        valueLabel.Text = tostring(math.floor(current))
-        valueLabel.TextColor3 = CONFIG.primary
-        valueLabel.Font = Enum.Font.GothamBlack
-        valueLabel.TextSize = 14 * CONFIG.scale
-        valueLabel.TextXAlignment = Enum.TextXAlignment.Left
-        valueLabel.Parent = container
+        createCorner(knob, 9)
         
+        local knobGlow = createGlow(knob, accent, 1.5, 0.6)
+        knobGlow.ZIndex = 1
+        
+        -- Interação
         local dragging = false
+        
         local function updateSlider(input)
-            local pos = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-            local value = min + (max - min) * pos
-            tween(fill, {Size = UDim2.new(pos, 0, 1, 0)}, 0.1)
-            tween(knob, {Position = UDim2.new(pos, -8 * CONFIG.scale, 0.5, -8 * CONFIG.scale)}, 0.1)
-            valueLabel.Text = tostring(math.floor(value))
+            local relativeX = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+            local value = math.floor(min + (max - min) * relativeX)
+            
+            tween(fill, {Size = UDim2.new(relativeX, 0, 1, 0)}, 0.1)
+            tween(knob, {Position = UDim2.new(relativeX, -9 * CONFIG.scale, 0.5, -9 * CONFIG.scale)}, 0.1)
+            valueLabel.Text = tostring(value)
+            
             return value
         end
         
-        knob.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-            end
-        end)
-        
         track.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                updateSlider(input)
                 dragging = true
+                local val = updateSlider(input)
+                current = val
             end
         end)
         
         UserInputService.InputChanged:Connect(function(input)
             if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                updateSlider(input)
+                local val = updateSlider(input)
+                current = val
             end
         end)
         
@@ -1023,361 +843,281 @@ function createMainGUI()
         end)
         
         return {
-            container = container,
-            getValue = function() return tonumber(valueLabel.Text) end,
+            getValue = function() return current end,
             setValue = function(val)
-                local clamped = math.clamp(val, min, max)
-                local pos = (clamped - min) / (max - min)
-                tween(fill, {Size = UDim2.new(pos, 0, 1, 0)}, 0.2)
-                tween(knob, {Position = UDim2.new(pos, -8 * CONFIG.scale, 0.5, -8 * CONFIG.scale)}, 0.2)
-                valueLabel.Text = tostring(math.floor(clamped))
+                current = math.clamp(val, min, max)
+                local relativeX = (current - min) / (max - min)
+                tween(fill, {Size = UDim2.new(relativeX, 0, 1, 0)}, 0.2)
+                tween(knob, {Position = UDim2.new(relativeX, -9 * CONFIG.scale, 0.5, -9 * CONFIG.scale)}, 0.2)
+                valueLabel.Text = tostring(current)
             end
         }
     end
     
-    function createIntroTab(parent)
-        local tab = Instance.new("ScrollingFrame")
-        tab.Name = "IntroTab"
-        tab.Size = UDim2.new(1, 0, 1, 0)
-        tab.BackgroundTransparency = 1
-        tab.BorderSizePixel = 0
-        tab.ScrollBarThickness = 4
-        tab.ScrollBarImageColor3 = CONFIG.primary
-        tab.CanvasSize = UDim2.new(0, 0, 0, 600 * CONFIG.scale)
-        tab.Parent = parent
-        currentTabFrame = tab
-        
-        local welcomeCard = createCard(tab, 0, 120, "Bem-vindo ao CADUXX137", CONFIG.bgCard)
-        local welcomeText = Instance.new("TextLabel")
-        welcomeText.Size = UDim2.new(1, -40 * CONFIG.scale, 0, 60 * CONFIG.scale)
-        welcomeText.Position = UDim2.new(0, 20 * CONFIG.scale, 0, 50 * CONFIG.scale)
-        welcomeText.BackgroundTransparency = 1
-        welcomeText.Text = "O sistema mais avançado de automação para jogos de bola do Roblox. Desenvolvido para máxima performance e precisão."
-        welcomeText.TextColor3 = CONFIG.textSecondary
-        welcomeText.Font = Enum.Font.Gotham
-        welcomeText.TextSize = 14 * CONFIG.scale
-        welcomeText.TextWrapped = true
-        welcomeText.TextXAlignment = Enum.TextXAlignment.Left
-        welcomeText.Parent = welcomeCard
-        
-        local updatesCard = createCard(tab, 130, 280, "Últimas Atualizações", CONFIG.bgCard)
-        local yOffset = 50 * CONFIG.scale
-        for i, update in ipairs(UPDATES) do
-            if i > 3 then break end
-            local updateFrame = Instance.new("Frame")
-            updateFrame.Size = UDim2.new(1, -30 * CONFIG.scale, 0, 70 * CONFIG.scale)
-            updateFrame.Position = UDim2.new(0, 15 * CONFIG.scale, 0, yOffset)
-            updateFrame.BackgroundColor3 = CONFIG.bgElevated
-            updateFrame.BackgroundTransparency = 0.5
-            updateFrame.BorderSizePixel = 0
-            updateFrame.Parent = updatesCard
-            createCorner(updateFrame, 12)
-            
-            local versionLabel = Instance.new("TextLabel")
-            versionLabel.Size = UDim2.new(0, 120 * CONFIG.scale, 0, 25 * CONFIG.scale)
-            versionLabel.Position = UDim2.new(0, 15 * CONFIG.scale, 0, 10 * CONFIG.scale)
-            versionLabel.BackgroundTransparency = 1
-            versionLabel.Text = update.version
-            versionLabel.TextColor3 = update.type == "major" and CONFIG.accent or CONFIG.primary
-            versionLabel.Font = Enum.Font.GothamBlack
-            versionLabel.TextSize = 16 * CONFIG.scale
-            versionLabel.TextXAlignment = Enum.TextXAlignment.Left
-            versionLabel.Parent = updateFrame
-            
-            local dateLabel = Instance.new("TextLabel")
-            dateLabel.Size = UDim2.new(0, 100 * CONFIG.scale, 0, 20 * CONFIG.scale)
-            dateLabel.Position = UDim2.new(1, -115 * CONFIG.scale, 0, 12 * CONFIG.scale)
-            dateLabel.BackgroundTransparency = 1
-            dateLabel.Text = update.date
-            dateLabel.TextColor3 = CONFIG.textMuted
-            dateLabel.Font = Enum.Font.Gotham
-            dateLabel.TextSize = 12 * CONFIG.scale
-            dateLabel.TextXAlignment = Enum.TextXAlignment.Right
-            dateLabel.Parent = updateFrame
-            
-            local changeText = Instance.new("TextLabel")
-            changeText.Size = UDim2.new(1, -30 * CONFIG.scale, 0, 30 * CONFIG.scale)
-            changeText.Position = UDim2.new(0, 15 * CONFIG.scale, 0, 35 * CONFIG.scale)
-            changeText.BackgroundTransparency = 1
-            changeText.Text = update.changes[1]
-            changeText.TextColor3 = CONFIG.textSecondary
-            changeText.Font = Enum.Font.Gotham
-            changeText.TextSize = 12 * CONFIG.scale
-            changeText.TextWrapped = true
-            changeText.TextXAlignment = Enum.TextXAlignment.Left
-            changeText.Parent = updateFrame
-            
-            yOffset = yOffset + 80 * CONFIG.scale
-        end
-        
-        local infoCard = createCard(tab, 420, 150, "Informações", CONFIG.bgCard)
-        local infoItems = {
-            "• Desenvolvido por: CADUXX137 Team",
-            "• Versão: " .. CONFIG.version,
-            "• Build: " .. CONFIG.build,
-            "• Sistema: WindUI + CADUXX137 Core"
-        }
-        local infoY = 50 * CONFIG.scale
-        for _, item in ipairs(infoItems) do
-            local infoLabel = Instance.new("TextLabel")
-            infoLabel.Size = UDim2.new(1, -30 * CONFIG.scale, 0, 25 * CONFIG.scale)
-            infoLabel.Position = UDim2.new(0, 15 * CONFIG.scale, 0, infoY)
-            infoLabel.BackgroundTransparency = 1
-            infoLabel.Text = item
-            infoLabel.TextColor3 = CONFIG.textSecondary
-            infoLabel.Font = Enum.Font.Gotham
-            infoLabel.TextSize = 13 * CONFIG.scale
-            infoLabel.TextXAlignment = Enum.TextXAlignment.Left
-            infoLabel.Parent = infoCard
-            infoY = infoY + 25 * CONFIG.scale
-        end
-        
-        tween(tab, {Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 0}, 0.3)
-    end
+    -- Variáveis para armazenar referências
+    local reachSlider, sphereToggle, autoToggle, bodyToggle, secondToggle
     
-    function createMainTab(parent)
-        local tab = Instance.new("ScrollingFrame")
-        tab.Name = "MainTab"
-        tab.Size = UDim2.new(1, 0, 1, 0)
-        tab.BackgroundTransparency = 1
-        tab.BorderSizePixel = 0
-        tab.ScrollBarThickness = 4
-        tab.ScrollBarImageColor3 = CONFIG.primary
-        tab.CanvasSize = UDim2.new(0, 0, 0, 700 * CONFIG.scale)
-        tab.Parent = parent
-        currentTabFrame = tab
+    -- Função de atualização de conteúdo
+    function updateContent()
+        -- Limpar conteúdo anterior
+        for _, child in ipairs(contentContainer:GetChildren()) do
+            tween(child, {Position = UDim2.new(-0.2, 0, child.Position.Y.Scale, child.Position.Y.Offset)}, 0.2)
+            task.delay(0.2, function() child:Destroy() end)
+        end
         
-        local reachCard = createCard(tab, 0, 180, "Configurações de Reach", CONFIG.bgCard)
-        local reachToggle = createToggle(reachCard, 20, 55, CONFIG.autoTouch, "Auto Touch")
-        local sphereToggle = createToggle(reachCard, 20, 95, CONFIG.showReachSphere, "Mostrar Esfera")
-        local secondTouchToggle = createToggle(reachCard, 20, 135, CONFIG.autoSecondTouch, "Toque Duplo")
-        
-        local reachSlider = createSlider(reachCard, 20, 180, 5, 50, CONFIG.reach, "Distância do Reach")
-        
-        local applyBtn = Instance.new("TextButton")
-        applyBtn.Size = UDim2.new(0, 120 * CONFIG.scale, 0, 35 * CONFIG.scale)
-        applyBtn.Position = UDim2.new(1, -140 * CONFIG.scale, 0, 140 * CONFIG.scale)
-        applyBtn.BackgroundColor3 = CONFIG.success
-        applyBtn.Text = "APLICAR"
-        applyBtn.TextColor3 = CONFIG.bgDark
-        applyBtn.Font = Enum.Font.GothamBlack
-        applyBtn.TextSize = 14 * CONFIG.scale
-        applyBtn.AutoButtonColor = false
-        applyBtn.Parent = reachCard
-        createCorner(applyBtn, 10)
-        addHoverEffect(applyBtn, CONFIG.success, Color3.fromRGB(0, 230, 120), Color3.fromRGB(0, 200, 100))
-        addRippleEffect(applyBtn, Color3.new(0, 0, 0))
-        
-        applyBtn.MouseButton1Click:Connect(function()
-            CONFIG.autoTouch = reachToggle.getState()
-            CONFIG.showReachSphere = sphereToggle.getState()
-            CONFIG.autoSecondTouch = secondTouchToggle.getState()
-            CONFIG.reach = reachSlider.getValue()
-            
-            notify("CADUXX137", "Configurações aplicadas!", 2, "success")
-            
-            if CONFIG.showReachSphere then
-                updateSphere()
-            else
-                if reachSphere then
-                    reachSphere:Destroy()
-                    reachSphere = nil
+        task.delay(0.25, function()
+            if currentTab == "reach" then
+                -- Card de alcance
+                local reachCard = createGlassCard(contentContainer, 0, 180, "⚡ Alcance de Toque", CONFIG.primary)
+                
+                -- Display grande do valor
+                local reachValue = Instance.new("TextLabel")
+                reachValue.Name = "ReachValue"
+                reachValue.Size = UDim2.new(0.4, 0, 0, 60 * CONFIG.scale)
+                reachValue.Position = UDim2.new(0.6, 0, 0, 50 * CONFIG.scale)
+                reachValue.BackgroundTransparency = 1
+                reachValue.Text = tostring(CONFIG.reach)
+                reachValue.TextColor3 = CONFIG.primary
+                reachValue.Font = Enum.Font.GothamBlack
+                reachValue.TextSize = 48 * CONFIG.scale
+                reachValue.TextXAlignment = Enum.TextXAlignment.Right
+                reachValue.Parent = reachCard
+                
+                local reachUnit = Instance.new("TextLabel")
+                reachUnit.Size = UDim2.new(0.15, 0, 0, 20 * CONFIG.scale)
+                reachUnit.Position = UDim2.new(0.85, 0, 0, 75 * CONFIG.scale)
+                reachUnit.BackgroundTransparency = 1
+                reachUnit.Text = "studs"
+                reachUnit.TextColor3 = CONFIG.textMuted
+                reachUnit.Font = Enum.Font.Gotham
+                reachUnit.TextSize = 12 * CONFIG.scale
+                reachUnit.Parent = reachCard
+                
+                -- Slider premium
+                reachSlider = createPremiumSlider(reachCard, 20, 110, 1, 50, CONFIG.reach, "Distância de Interação", CONFIG.primary)
+                
+                -- Botões rápidos
+                local quickBtns = {"−", "+", "MAX"}
+                for i, btnText in ipairs(quickBtns) do
+                    local btn = Instance.new("TextButton")
+                    btn.Size = UDim2.new(0, 45 * CONFIG.scale, 0, 40 * CONFIG.scale)
+                    btn.Position = UDim2.new(0, 20 + (i-1) * 55 * CONFIG.scale, 0, 55 * CONFIG.scale)
+                    btn.BackgroundColor3 = CONFIG.bgElevated
+                    btn.BackgroundTransparency = 0.3
+                    btn.Text = btnText
+                    btn.TextColor3 = CONFIG.textPrimary
+                    btn.Font = Enum.Font.GothamBlack
+                    btn.TextSize = 20 * CONFIG.scale
+                    btn.AutoButtonColor = false
+                    btn.Parent = reachCard
+                    
+                    createCorner(btn, 12)
+                    addRippleEffect(btn, CONFIG.textPrimary)
+                    
+                    btn.MouseButton1Click:Connect(function()
+                        if btnText == "−" then
+                            CONFIG.reach = math.max(1, CONFIG.reach - 1)
+                        elseif btnText == "+" then
+                            CONFIG.reach = math.min(50, CONFIG.reach + 1)
+                        elseif btnText == "MAX" then
+                            CONFIG.reach = 50
+                        end
+                        reachSlider.setValue(CONFIG.reach)
+                        reachValue.Text = tostring(CONFIG.reach)
+                    end)
                 end
+                
+                -- Card de visualização
+                local visualCard = createGlassCard(contentContainer, 190, 100, "👁️ Visualização", CONFIG.secondary)
+                sphereToggle = createModernToggle(visualCard, 20, 50, CONFIG.showReachSphere, "Mostrar Esfera de Alcance", CONFIG.secondary)
+                
+            elseif currentTab == "balls" then
+                -- Card de detecção
+                local detectCard = createGlassCard(contentContainer, 0, 120, "🔮 Detecção de Bolas", CONFIG.secondary)
+                
+                local scanBtn = Instance.new("TextButton")
+                scanBtn.Size = UDim2.new(0, 180 * CONFIG.scale, 0, 45 * CONFIG.scale)
+                scanBtn.Position = UDim2.new(0.5, -90 * CONFIG.scale, 0, 50 * CONFIG.scale)
+                scanBtn.BackgroundColor3 = CONFIG.secondary
+                scanBtn.BackgroundTransparency = 0.2
+                scanBtn.Text = "⟳ ESCANEAR AGORA"
+                scanBtn.TextColor3 = CONFIG.textPrimary
+                scanBtn.Font = Enum.Font.GothamBlack
+                scanBtn.TextSize = 14 * CONFIG.scale
+                scanBtn.AutoButtonColor = false
+                scanBtn.Parent = detectCard
+                
+                createCorner(scanBtn, 14)
+                addRippleEffect(scanBtn, CONFIG.textPrimary)
+                
+                local countLabel = Instance.new("TextLabel")
+                countLabel.Size = UDim2.new(1, 0, 0, 30 * CONFIG.scale)
+                countLabel.Position = UDim2.new(0, 0, 0, 100 * CONFIG.scale)
+                countLabel.BackgroundTransparency = 1
+                countLabel.Text = #balls .. " bolas ativas"
+                countLabel.TextColor3 = #balls > 0 and CONFIG.success or CONFIG.textMuted
+                countLabel.Font = Enum.Font.GothamBold
+                countLabel.TextSize = 14 * CONFIG.scale
+                countLabel.Parent = detectCard
+                
+                scanBtn.MouseButton1Click:Connect(function()
+                    findBalls()
+                    countLabel.Text = #balls .. " bolas detectadas"
+                    countLabel.TextColor3 = #balls > 0 and CONFIG.success or CONFIG.warning
+                    tween(scanBtn, {Rotation = 360}, 0.5, Enum.EasingStyle.Back)
+                    scanBtn.Rotation = 0
+                end)
+                
+                -- Lista de bolas
+                local listCard = createGlassCard(contentContainer, 130, 250, "📋 Bolas Encontradas", CONFIG.accent)
+                
+                local scrollFrame = Instance.new("ScrollingFrame")
+                scrollFrame.Size = UDim2.new(1, -30 * CONFIG.scale, 0, 190 * CONFIG.scale)
+                scrollFrame.Position = UDim2.new(0, 15 * CONFIG.scale, 0, 45 * CONFIG.scale)
+                scrollFrame.BackgroundColor3 = CONFIG.bgDark
+                scrollFrame.BackgroundTransparency = 0.5
+                scrollFrame.BorderSizePixel = 0
+                scrollFrame.ScrollBarThickness = 4
+                scrollBarThickness = 4
+                scrollFrame.ScrollBarImageColor3 = CONFIG.accent
+                scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+                scrollFrame.Parent = listCard
+                
+                createCorner(scrollFrame, 12)
+                
+                -- Popular lista
+                local yOffset = 10
+                local uniqueBalls = {}
+                for _, ball in ipairs(balls) do
+                    if ball and ball.Parent then
+                        uniqueBalls[ball.Name] = (uniqueBalls[ball.Name] or 0) + 1
+                    end
+                end
+                
+                for name, count in pairs(uniqueBalls) do
+                    local item = Instance.new("Frame")
+                    item.Size = UDim2.new(1, -20 * CONFIG.scale, 0, 35 * CONFIG.scale)
+                    item.Position = UDim2.new(0, 10 * CONFIG.scale, 0, yOffset)
+                    item.BackgroundColor3 = CONFIG.bgCard
+                    item.BackgroundTransparency = 0.5
+                    item.BorderSizePixel = 0
+                    item.Parent = scrollFrame
+                    
+                    createCorner(item, 8)
+                    
+                    local nameLbl = Instance.new("TextLabel")
+                    nameLbl.Size = UDim2.new(0.7, 0, 1, 0)
+                    nameLbl.Position = UDim2.new(0, 10 * CONFIG.scale, 0, 0)
+                    nameLbl.BackgroundTransparency = 1
+                    nameLbl.Text = name
+                    nameLbl.TextColor3 = CONFIG.accent
+                    nameLbl.Font = Enum.Font.GothamBold
+                    nameLbl.TextSize = 12 * CONFIG.scale
+                    nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+                    nameLbl.Parent = item
+                    
+                    local countLbl = Instance.new("TextLabel")
+                    countLbl.Size = UDim2.new(0.3, -10 * CONFIG.scale, 1, 0)
+                    countLbl.Position = UDim2.new(0.7, 0, 0, 0)
+                    countLbl.BackgroundTransparency = 1
+                    countLbl.Text = "x" .. count
+                    countLbl.TextColor3 = CONFIG.textMuted
+                    countLbl.Font = Enum.Font.GothamBold
+                    countLbl.TextSize = 12 * CONFIG.scale
+                    countLbl.TextXAlignment = Enum.TextXAlignment.Right
+                    countLbl.Parent = item
+                    
+                    yOffset = yOffset + 40
+                end
+                
+                scrollFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(yOffset, 190))
+                
+            elseif currentTab == "controls" then
+                -- Card de auto-touch
+                local autoCard = createGlassCard(contentContainer, 0, 140, "🤖 Automação", CONFIG.success)
+                autoToggle = createModernToggle(autoCard, 20, 50, CONFIG.autoTouch, "Auto Touch Automático", CONFIG.success)
+                bodyToggle = createModernToggle(autoCard, 20, 90, CONFIG.fullBodyTouch, "Full Body Touch", CONFIG.success)
+                secondToggle = createModernToggle(autoCard, 20, 130, CONFIG.autoSecondTouch, "Double Touch (2x)", CONFIG.success)
+                
+                -- Card de skills
+                local skillsCard = createGlassCard(contentContainer, 150, 100, "⚡ Auto Skills", CONFIG.warning)
+                local skillsToggle = createModernToggle(skillsCard, 20, 50, autoSkills, "Ativar Skills Automáticas", CONFIG.warning)
+                
+                skillsToggle.container.MouseButton1Click:Connect(function()
+                    autoSkills = skillsToggle.getState()
+                end)
+                
+            elseif currentTab == "settings" then
+                -- Card de escala
+                local scaleCard = createGlassCard(contentContainer, 0, 120, "📐 Escala da Interface", CONFIG.textSecondary)
+                local scaleSlider = createPremiumSlider(scaleCard, 20, 50, 0.5, 1.5, CONFIG.scale, "Tamanho do Hub", CONFIG.textSecondary)
+                
+                local applyBtn = Instance.new("TextButton")
+                applyBtn.Size = UDim2.new(0, 150 * CONFIG.scale, 0, 40 * CONFIG.scale)
+                applyBtn.Position = UDim2.new(0.5, -75 * CONFIG.scale, 0, 70 * CONFIG.scale)
+                applyBtn.BackgroundColor3 = CONFIG.success
+                applyBtn.BackgroundTransparency = 0.2
+                applyBtn.Text = "APLICAR ESCALA"
+                applyBtn.TextColor3 = CONFIG.textPrimary
+                applyBtn.Font = Enum.Font.GothamBlack
+                applyBtn.TextSize = 14 * CONFIG.scale
+                applyBtn.AutoButtonColor = false
+                applyBtn.Parent = scaleCard
+                
+                createCorner(applyBtn, 12)
+                addRippleEffect(applyBtn, CONFIG.textPrimary)
+                
+                applyBtn.MouseButton1Click:Connect(function()
+                    CONFIG.scale = scaleSlider.getValue()
+                    notify("CADUXX137", "Reiniciando com nova escala...", 2, "warning")
+                    task.delay(0.5, function()
+                        createMainGUI()
+                    end)
+                end)
+                
+                -- Card de reset
+                local resetCard = createGlassCard(contentContainer, 130, 100, "🔄 Resetar", CONFIG.danger)
+                local resetBtn = Instance.new("TextButton")
+                resetBtn.Size = UDim2.new(0, 160 * CONFIG.scale, 0, 45 * CONFIG.scale)
+                resetBtn.Position = UDim2.new(0.5, -80 * CONFIG.scale, 0, 45 * CONFIG.scale)
+                resetBtn.BackgroundColor3 = CONFIG.danger
+                resetBtn.BackgroundTransparency = 0.2
+                resetBtn.Text = "RESETAR TUDO"
+                resetBtn.TextColor3 = CONFIG.textPrimary
+                resetBtn.Font = Enum.Font.GothamBlack
+                resetBtn.TextSize = 14 * CONFIG.scale
+                resetBtn.AutoButtonColor = false
+                resetBtn.Parent = resetCard
+                
+                createCorner(resetBtn, 12)
+                addRippleEffect(resetBtn, CONFIG.textPrimary)
+                
+                resetBtn.MouseButton1Click:Connect(function()
+                    CONFIG.reach = 15
+                    CONFIG.showReachSphere = true
+                    CONFIG.autoTouch = true
+                    CONFIG.fullBodyTouch = true
+                    CONFIG.autoSecondTouch = true
+                    CONFIG.scale = 1.0
+                    notify("CADUXX137", "Configurações resetadas!", 2, "warning")
+                    createMainGUI()
+                end)
+            end
+            
+            -- Animação de entrada
+            for _, child in ipairs(contentContainer:GetChildren()) do
+                child.Position = UDim2.new(0.2, 0, child.Position.Y.Scale, child.Position.Y.Offset)
+                child.BackgroundTransparency = 1
+                tween(child, {Position = UDim2.new(0, 0, child.Position.Y.Scale, child.Position.Y.Offset)}, 0.3, Enum.EasingStyle.Quint)
+                tween(child, {BackgroundTransparency = 0.2}, 0.3)
             end
         end)
-        
-        local detectionCard = createCard(tab, 190, 150, "Detecção de Bolas", CONFIG.bgCard)
-        local scanBtn = Instance.new("TextButton")
-        scanBtn.Size = UDim2.new(0, 150 * CONFIG.scale, 0, 40 * CONFIG.scale)
-        scanBtn.Position = UDim2.new(0.5, -75 * CONFIG.scale, 0, 60 * CONFIG.scale)
-        scanBtn.BackgroundColor3 = CONFIG.primary
-        scanBtn.Text = "SCANEAR BOLAS"
-        scanBtn.TextColor3 = CONFIG.bgDark
-        scanBtn.Font = Enum.Font.GothamBlack
-        scanBtn.TextSize = 14 * CONFIG.scale
-        scanBtn.AutoButtonColor = false
-        scanBtn.Parent = detectionCard
-        createCorner(scanBtn, 12)
-        addHoverEffect(scanBtn, CONFIG.primary, Color3.fromRGB(0, 220, 240), Color3.fromRGB(0, 200, 220))
-        addRippleEffect(scanBtn, Color3.new(0, 0, 0))
-        
-        local ballCountLabel = Instance.new("TextLabel")
-        ballCountLabel.Size = UDim2.new(1, 0, 0, 30 * CONFIG.scale)
-        ballCountLabel.Position = UDim2.new(0, 0, 0, 110 * CONFIG.scale)
-        ballCountLabel.BackgroundTransparency = 1
-        ballCountLabel.Text = "Bolas detectadas: 0"
-        ballCountLabel.TextColor3 = CONFIG.textSecondary
-        ballCountLabel.Font = Enum.Font.GothamBold
-        ballCountLabel.TextSize = 14 * CONFIG.scale
-        ballCountLabel.Parent = detectionCard
-        
-        scanBtn.MouseButton1Click:Connect(function()
-            local count = findBalls()
-            ballCountLabel.Text = "Bolas detectadas: " .. count
-            ballCountLabel.TextColor3 = count > 0 and CONFIG.success or CONFIG.warning
-            notify("CADUXX137", count .. " bolas encontradas!", 2, count > 0 and "success" or "warning")
-        end)
-        
-        local miscCard = createCard(tab, 350, 200, "Miscelânea", CONFIG.bgCard)
-        local scaleSlider = createSlider(miscCard, 20, 50, 0.5, 2.0, CONFIG.scale, "Escala da Interface")
-        
-        local resetBtn = Instance.new("TextButton")
-        resetBtn.Size = UDim2.new(0, 140 * CONFIG.scale, 0, 35 * CONFIG.scale)
-        resetBtn.Position = UDim2.new(0.5, -70 * CONFIG.scale, 0, 130 * CONFIG.scale)
-        resetBtn.BackgroundColor3 = CONFIG.danger
-        resetBtn.Text = "RESETAR CONFIGS"
-        resetBtn.TextColor3 = CONFIG.textPrimary
-        resetBtn.Font = Enum.Font.GothamBlack
-        resetBtn.TextSize = 13 * CONFIG.scale
-        resetBtn.AutoButtonColor = false
-        resetBtn.Parent = miscCard
-        createCorner(resetBtn, 10)
-        addHoverEffect(resetBtn, CONFIG.danger, Color3.fromRGB(255, 80, 100), Color3.fromRGB(255, 100, 120))
-        
-        resetBtn.MouseButton1Click:Connect(function()
-            CONFIG.reach = 15
-            CONFIG.showReachSphere = true
-            CONFIG.autoTouch = true
-            CONFIG.autoSecondTouch = true
-            CONFIG.scale = 1.0
-            
-            notify("CADUXX137", "Configurações resetadas!", 2, "warning")
-            createMainGUI()
-        end)
-        
-        tween(tab, {Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 0}, 0.3)
     end
     
-    function createStatsTab(parent)
-        local tab = Instance.new("Frame")
-        tab.Name = "StatsTab"
-        tab.Size = UDim2.new(1, 0, 1, 0)
-        tab.BackgroundTransparency = 1
-        tab.BorderSizePixel = 0
-        tab.Parent = parent
-        currentTabFrame = tab
-        
-        local stats = {
-            {label = "Toques Totais", value = function() return formatNumber(STATS.totalTouches) end, color = CONFIG.success, icon = "rbxassetid://104616032736993"},
-            {label = "Bolas Detectadas", value = function() return tostring(STATS.ballsDetected) end, color = CONFIG.primary, icon = "rbxassetid://104616032736993"},
-            {label = "Tempo de Sessão", value = function() return formatTime(tick() - STATS.startTime) end, color = CONFIG.warning, icon = "rbxassetid://104616032736993"},
-            {label = "FPS", value = function() return tostring(math.floor(STATS.fps)) end, color = CONFIG.info, icon = "rbxassetid://104616032736993"}
-        }
-        
-        local yPos = 0
-        for i, stat in ipairs(stats) do
-            local statCard = Instance.new("Frame")
-            statCard.Size = UDim2.new(1, 0, 0, 90 * CONFIG.scale)
-            statCard.Position = UDim2.new(0, 0, 0, yPos)
-            statCard.BackgroundColor3 = CONFIG.bgCard
-            statCard.BackgroundTransparency = 0.3
-            statCard.BorderSizePixel = 0
-            statCard.Parent = tab
-            createCorner(statCard, 16)
-            
-            local iconBg = Instance.new("Frame")
-            iconBg.Size = UDim2.new(0, 50 * CONFIG.scale, 0, 50 * CONFIG.scale)
-            iconBg.Position = UDim2.new(0, 20 * CONFIG.scale, 0, 20 * CONFIG.scale)
-            iconBg.BackgroundColor3 = stat.color
-            iconBg.BackgroundTransparency = 0.8
-            iconBg.BorderSizePixel = 0
-            iconBg.Parent = statCard
-            createCorner(iconBg, 12)
-            
-            local iconImg = Instance.new("ImageLabel")
-            iconImg.Size = UDim2.new(0.6, 0, 0.6, 0)
-            iconImg.Position = UDim2.new(0.2, 0, 0.2, 0)
-            iconImg.BackgroundTransparency = 1
-            iconImg.Image = stat.icon
-            iconImg.ImageColor3 = stat.color
-            iconImg.Parent = iconBg
-            
-            local labelText = Instance.new("TextLabel")
-            labelText.Size = UDim2.new(0, 200 * CONFIG.scale, 0, 25 * CONFIG.scale)
-            labelText.Position = UDim2.new(0, 85 * CONFIG.scale, 0, 20 * CONFIG.scale)
-            labelText.BackgroundTransparency = 1
-            labelText.Text = stat.label
-            labelText.TextColor3 = CONFIG.textMuted
-            labelText.Font = Enum.Font.GothamBold
-            labelText.TextSize = 14 * CONFIG.scale
-            labelText.TextXAlignment = Enum.TextXAlignment.Left
-            labelText.Parent = statCard
-            
-            local valueText = Instance.new("TextLabel")
-            valueText.Size = UDim2.new(0, 200 * CONFIG.scale, 0, 35 * CONFIG.scale)
-            valueText.Position = UDim2.new(0, 85 * CONFIG.scale, 0, 42 * CONFIG.scale)
-            valueText.BackgroundTransparency = 1
-            valueText.Text = stat.value()
-            valueText.TextColor3 = stat.color
-            valueText.Font = Enum.Font.GothamBlack
-            valueText.TextSize = 24 * CONFIG.scale
-            valueText.TextXAlignment = Enum.TextXAlignment.Left
-            valueText.Parent = statCard
-            
-            spawn(function()
-                while valueText and valueText.Parent do
-                    valueText.Text = stat.value()
-                    wait(0.5)
-                end
-            end)
-            
-            yPos = yPos + 100 * CONFIG.scale
-        end
-        
-        local systemCard = createCard(tab, 420, 150, "Status do Sistema", CONFIG.bgCard)
-        local statusLabels = {
-            {name = "Reach Ativo", check = function() return CONFIG.autoTouch end},
-            {name = "Esfera Visível", check = function() return CONFIG.showReachSphere end},
-            {name = "Toque Duplo", check = function() return CONFIG.autoSecondTouch end},
-            {name = "Personagem", check = function() return HRP ~= nil end}
-        }
-        
-        local statusY = 50 * CONFIG.scale
-        for _, status in ipairs(statusLabels) do
-            local statusFrame = Instance.new("Frame")
-            statusFrame.Size = UDim2.new(1, -30 * CONFIG.scale, 0, 30 * CONFIG.scale)
-            statusFrame.Position = UDim2.new(0, 15 * CONFIG.scale, 0, statusY)
-            statusFrame.BackgroundTransparency = 1
-            statusFrame.Parent = systemCard
-            
-            local dot = Instance.new("Frame")
-            dot.Size = UDim2.new(0, 10 * CONFIG.scale, 0, 10 * CONFIG.scale)
-            dot.Position = UDim2.new(0, 0, 0.5, -5 * CONFIG.scale)
-            dot.BackgroundColor3 = status.check() and CONFIG.success or CONFIG.danger
-            dot.BorderSizePixel = 0
-            dot.Parent = statusFrame
-            createCorner(dot, 5)
-            
-            local nameLabel = Instance.new("TextLabel")
-            nameLabel.Size = UDim2.new(1, -20 * CONFIG.scale, 1, 0)
-            nameLabel.Position = UDim2.new(0, 20 * CONFIG.scale, 0, 0)
-            nameLabel.BackgroundTransparency = 1
-            nameLabel.Text = status.name
-            nameLabel.TextColor3 = CONFIG.textSecondary
-            nameLabel.Font = Enum.Font.GothamBold
-            nameLabel.TextSize = 13 * CONFIG.scale
-            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-            nameLabel.Parent = statusFrame
-            
-            spawn(function()
-                while dot and dot.Parent do
-                    local isActive = status.check()
-                    dot.BackgroundColor3 = isActive and CONFIG.success or CONFIG.danger
-                    wait(1)
-                end
-            end)
-            
-            statusY = statusY + 30 * CONFIG.scale
-        end
-        
-        tween(tab, {Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 0}, 0.3)
-    end
-    
-    makeDraggable(main, header)
-    
+    -- Eventos dos botões principais
     minimizeBtn.MouseButton1Click:Connect(function()
         tween(main, {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)}, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-        wait(0.4)
+        task.wait(0.4)
         mainGui:Destroy()
         mainGui = nil
         isMinimized = true
@@ -1385,61 +1125,227 @@ function createMainGUI()
     end)
     
     closeBtn.MouseButton1Click:Connect(function()
-        tween(main, {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)}, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-        wait(0.4)
+        tween(main, {Size = UDim2.new(0, 0, 0, 0)}, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+        task.wait(0.3)
         mainGui:Destroy()
-        mainGui = nil
-        notify("CADUXX137", "Hub fechado. Use o comando para reabrir.", 3, "info")
+        if reachSphere then reachSphere:Destroy() end
+        for _, conn in ipairs(ballConnections) do
+            pcall(function() conn:Disconnect() end)
+        end
     end)
     
+    -- Draggable
+    makeDraggable(main, header)
+    
+    -- Animação de entrada
     main.Size = UDim2.new(0, 0, 0, 0)
-    tween(main, {Size = UDim2.new(0, W, 0, H)}, 0.5, Enum.EasingStyle.Back)
+    tween(main, {Size = UDim2.new(0, W, 0, H)}, 0.6, Enum.EasingStyle.Back)
     
-    switchTab(CONFIG.currentTab)
+    -- Inicializar conteúdo
+    updateContent()
     
-    spawn(function()
-        while mainGui and mainGui.Parent do
-            local fps = math.floor(1 / RunService.Heartbeat:Wait())
-            STATS.fps = fps
-            wait(0.5)
+    notify("CADUXX137 Glass", "Hub inicializado com sucesso!", 3, "premium")
+end
+
+-- ============================================
+-- SISTEMA DE FUNCIONALIDADES (Mantido da sua lógica)
+-- ============================================
+
+local function findBalls()
+    local now = tick()
+    if now - lastBallUpdate < CONFIG.scanCooldown then return #balls end
+    lastBallUpdate = now
+    
+    table.clear(balls)
+    for _, conn in ipairs(ballConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    table.clear(ballConnections)
+    
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Parent then
+            for _, name in ipairs(CONFIG.ballNames) do
+                if obj.Name == name or obj.Name:find(name) then
+                    table.insert(balls, obj)
+                    local conn = obj.AncestryChanged:Connect(function()
+                        if not obj.Parent then findBalls() end
+                    end)
+                    table.insert(ballConnections, conn)
+                    break
+                end
+            end
+        end
+    end
+    
+    return #balls
+end
+
+local function updateCharacter()
+    local newChar = player.Character
+    if newChar ~= char then
+        char = newChar
+        if char then
+            HRP = char:WaitForChild("HumanoidRootPart", 2)
+            if HRP then
+                notify("CADUXX137", "Personagem conectado!", 2, "success")
+            end
+        else
+            HRP = nil
+        end
+    end
+end
+
+local function getBodyParts()
+    if not char then return {} end
+    local parts = {}
+    for _, part in ipairs(char:GetChildren()) do
+        if part:IsA("BasePart") then
+            if CONFIG.fullBodyTouch then
+                table.insert(parts, part)
+            elseif part.Name == "HumanoidRootPart" then
+                table.insert(parts, part)
+            end
+        end
+    end
+    return parts
+end
+
+local function updateSphere()
+    if not CONFIG.showReachSphere then
+        if reachSphere then
+            reachSphere:Destroy()
+            reachSphere = nil
+        end
+        return
+    end
+    
+    if not reachSphere or not reachSphere.Parent then
+        reachSphere = Instance.new("Part")
+        reachSphere.Name = "CADU_ReachSphere"
+        reachSphere.Shape = Enum.PartType.Ball
+        reachSphere.Anchored = true
+        reachSphere.CanCollide = false
+        reachSphere.Transparency = 0.9
+        reachSphere.Material = Enum.Material.ForceField
+        reachSphere.Color = CONFIG.primary
+        reachSphere.Parent = Workspace
+    end
+    
+    if HRP and HRP.Parent then
+        reachSphere.Position = HRP.Position
+        reachSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
+    end
+end
+
+local function doTouch(ball, part)
+    if not ball or not ball.Parent or not part or not part.Parent then return end
+    
+    local key = ball.Name .. "_" .. part.Name .. "_" .. tostring(ball)
+    if touchDebounce[key] and tick() - touchDebounce[key] < 0.1 then return end
+    touchDebounce[key] = tick()
+    
+    pcall(function()
+        firetouchinterest(ball, part, 0)
+        task.wait(0.01)
+        firetouchinterest(ball, part, 1)
+        
+        if CONFIG.autoSecondTouch then
+            task.wait(0.05)
+            firetouchinterest(ball, part, 0)
+            firetouchinterest(ball, part, 1)
         end
     end)
 end
 
-local function autoTouchLoop()
-    while true do
-        if CONFIG.autoTouch and HRP and #balls > 0 then
-            local hrpPos = HRP.Position
-            for _, ball in ipairs(balls) do
-                if ball and ball.Parent then
-                    local distance = (ball.Position - hrpPos).Magnitude
-                    if distance <= CONFIG.reach then
-                        doTouch(ball, HRP)
+local function findSkillButtons()
+    local buttons = {}
+    for _, gui in ipairs(playerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and not gui.Name:find("CADU") then
+            for _, obj in ipairs(gui:GetDescendants()) do
+                if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+                    for _, skillName in ipairs(skillButtonNames) do
+                        if obj.Name == skillName or obj.Text == skillName then
+                            table.insert(buttons, obj)
+                            break
+                        end
                     end
                 end
             end
         end
-        RunService.Heartbeat:Wait()
     end
+    return buttons
 end
 
-local function updateLoop()
-    while true do
-        updateCharacter()
-        if not isLoading then
-            updateSphere()
+local function activateSkillButton(button)
+    if not button or not button.Parent then return end
+    
+    local key = tostring(button)
+    if activatedSkills[key] and tick() - activatedSkills[key] < skillCooldown then return end
+    activatedSkills[key] = tick()
+    
+    pcall(function()
+        if button:IsA("GuiButton") then
+            for _, conn in ipairs(getconnections(button.MouseButton1Click)) do
+                conn:Fire()
+            end
+            for _, conn in ipairs(getconnections(button.Activated)) do
+                conn:Fire()
+            end
         end
-        wait(0.1)
-    end
+    end)
 end
 
-player.CharacterAdded:Connect(function()
-    wait(1)
+-- ============================================
+-- LOOPS PRINCIPAIS
+-- ============================================
+
+RunService.Heartbeat:Connect(function()
     updateCharacter()
+    updateSphere()
+    findBalls()
+    
+    if not HRP then return end
+    
+    local now = tick()
+    if now - lastTouch < 0.05 then return end
+    
+    local hrpPos = HRP.Position
+    local characterParts = getBodyParts()
+    if #characterParts == 0 then return end
+    
+    local closestBall = nil
+    local closestDistance = CONFIG.reach
+    
+    for _, ball in ipairs(balls) do
+        if ball and ball.Parent then
+            local distance = (ball.Position - hrpPos).Magnitude
+            if distance <= CONFIG.reach and distance < closestDistance then
+                closestDistance = distance
+                closestBall = ball
+            end
+        end
+    end
+    
+    if CONFIG.autoTouch and closestBall then
+        lastTouch = now
+        for _, part in ipairs(characterParts) do
+            doTouch(closestBall, part)
+        end
+    end
+    
+    if autoSkills and closestBall and (now - lastSkillActivation > skillCooldown) then
+        lastSkillActivation = now
+        local skillButtons = findSkillButtons()
+        for _, button in ipairs(skillButtons) do
+            if button.Name == "Shoot" or button.Name == "Pass" or button.Name == "Dribble" then
+                activateSkillButton(button)
+            end
+        end
+    end
 end)
 
-spawn(createLoadingScreen)
-spawn(updateLoop)
-spawn(autoTouchLoop)
+-- ============================================
+-- INICIALIZAÇÃO
+-- ============================================
 
-notify("CADUXX137", "Sistema inicializado com sucesso!", 5, "success")
+createMainGUI()
