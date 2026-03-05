@@ -74,9 +74,9 @@ local CONFIG = {
     showStats = true,
     autoUpdate = true,
     
-    -- IDs das imagens (Bazuka)
-    iconImage = "rbxassetid://104616032736993",
-    iconBackground = "rbxassetid://96755648876012",
+    -- IDs das imagens atualizadas (Bazuka)
+    iconImage = "rbxassetid://88380080222477",      -- Ícone do botão
+    backgroundImage = "rbxassetid://99265572519062", -- Fundo do Hub
     
     -- Lista expandida de bolas (CADUXX137)
     ballNames = { 
@@ -199,73 +199,8 @@ local function tween(obj, props, time, style, dir, callback)
     return t
 end
 
-local function applyTheme(theme)
-    CONFIG.theme = theme
-    
-    if theme == "light" then
-        CONFIG.bgDark = CONFIG.lightBg
-        CONFIG.bgCard = CONFIG.lightCard
-        CONFIG.bgElevated = Color3.fromRGB(230, 230, 240)
-        CONFIG.textPrimary = CONFIG.lightText
-        CONFIG.textSecondary = CONFIG.lightMuted
-        CONFIG.textMuted = Color3.fromRGB(140, 150, 170)
-    else
-        CONFIG.bgDark = Color3.fromRGB(12, 12, 20)
-        CONFIG.bgCard = Color3.fromRGB(28, 28, 42)
-        CONFIG.bgElevated = Color3.fromRGB(42, 42, 62)
-        CONFIG.textPrimary = Color3.fromRGB(252, 252, 255)
-        CONFIG.textSecondary = Color3.fromRGB(170, 180, 210)
-        CONFIG.textMuted = Color3.fromRGB(130, 140, 170)
-    end
-    
-    if mainGui then
-        createMainGUI()
-        notify("Tema Alterado", "Modo " .. theme:upper() .. " ativado!", 2)
-    end
-end
-
 -- ============================================
--- SISTEMA DE PARTÍCULAS (CADUXX137)
--- ============================================
-local function createParticleSystem(parent)
-    if not CONFIG.particleEffects then return nil end
-    
-    local particles = Instance.new("Frame")
-    particles.Name = "Particles"
-    particles.Size = UDim2.new(1, 0, 1, 0)
-    particles.BackgroundTransparency = 1
-    particles.ZIndex = -5
-    particles.Parent = parent
-    
-    for i = 1, 15 do
-        local particle = Instance.new("Frame")
-        particle.Size = UDim2.new(0, math.random(2, 4), 0, math.random(2, 4))
-        particle.Position = UDim2.new(math.random(), 0, math.random(), 0)
-        particle.BackgroundColor3 = CONFIG.accent
-        particle.BackgroundTransparency = math.random(5, 8) / 10
-        particle.BorderSizePixel = 0
-        particle.Parent = particles
-        
-        task.spawn(function()
-            while particle and particle.Parent do
-                local newY = particle.Position.Y.Scale + (math.random(-20, 20) / 1000)
-                if newY < 0 then newY = 1 elseif newY > 1 then newY = 0 end
-                
-                tween(particle, {
-                    Position = UDim2.new(particle.Position.X.Scale, 0, newY, 0),
-                    BackgroundTransparency = math.random(5, 9) / 10
-                }, math.random(3, 6))
-                
-                task.wait(math.random(3, 6))
-            end
-        end)
-    end
-    
-    return particles
-end
-
--- ============================================
--- ÍCONE FLUTUANTE PREMIUM (CADUXX137)
+-- ÍCONE FLUTUANTE PREMIUM COM NOVA IMAGEM
 -- ============================================
 local function createIconButton()
     if iconGui then iconGui:Destroy() end
@@ -278,57 +213,61 @@ local function createIconButton()
     
     local iconSize = 75 * CONFIG.scale
     
+    -- Frame principal com fundo circular
     local mainBtn = Instance.new("ImageButton")
     mainBtn.Name = "IconButton"
     mainBtn.Size = UDim2.new(0, iconSize, 0, iconSize)
     mainBtn.Position = UDim2.new(0.5, -iconSize/2, 0.88, 0)
     mainBtn.BackgroundTransparency = 1
-    mainBtn.Image = CONFIG.iconBackground
+    mainBtn.Image = CONFIG.iconImage  -- Ícone novo
     mainBtn.ImageColor3 = Color3.new(1, 1, 1)
-    mainBtn.ScaleType = Enum.ScaleType.Stretch
+    mainBtn.ScaleType = Enum.ScaleType.Crop
     mainBtn.Parent = iconGui
     
-    Instance.new("UICorner", mainBtn).CornerRadius = UDim.new(1, 0)
+    -- Corner radius para deixar circular
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = mainBtn
     
-    -- Glow animado
+    -- Borda glow
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = CONFIG.accentColor
+    stroke.Thickness = 2
+    stroke.Transparency = 0.3
+    stroke.Parent = mainBtn
+    
+    -- Efeito de glow animado externo
     local glow = Instance.new("ImageLabel")
-    glow.Size = UDim2.new(1.5, 0, 1.5, 0)
-    glow.Position = UDim2.new(-0.25, 0, -0.25, 0)
+    glow.Name = "Glow"
+    glow.Size = UDim2.new(1.4, 0, 1.4, 0)
+    glow.Position = UDim2.new(-0.2, 0, -0.2, 0)
     glow.BackgroundTransparency = 1
-    glow.Image = "rbxassetid://96755648876012"
+    glow.Image = CONFIG.iconImage
     glow.ImageColor3 = CONFIG.accentColor
-    glow.ImageTransparency = 0.7
+    glow.ImageTransparency = 0.85
     glow.ZIndex = -1
     glow.Parent = mainBtn
+    Instance.new("UICorner", glow).CornerRadius = UDim.new(1, 0)
     
-    -- Ícone interno
-    local icon = Instance.new("ImageLabel")
-    icon.Size = UDim2.new(0.55, 0, 0.55, 0)
-    icon.Position = UDim2.new(0.225, 0, 0.225, 0)
-    icon.BackgroundTransparency = 1
-    icon.Image = CONFIG.iconImage
-    icon.ImageColor3 = CONFIG.textPrimary
-    icon.Parent = mainBtn
-    
-    -- Animação de rotação do glow
+    -- Animação de pulso do glow
     task.spawn(function()
         while glow and glow.Parent do
-            tween(glow, {Rotation = glow.Rotation + 360}, 8, Enum.EasingStyle.Linear)
-            task.wait(8)
+            tween(glow, {Size = UDim2.new(1.6, 0, 1.6, 0), ImageTransparency = 0.9}, 1)
+            task.wait(1)
+            tween(glow, {Size = UDim2.new(1.4, 0, 1.4, 0), ImageTransparency = 0.85}, 1)
+            task.wait(1)
         end
     end)
     
     -- Hover effects
     mainBtn.MouseEnter:Connect(function()
         tween(mainBtn, {Size = UDim2.new(0, iconSize * 1.15, 0, iconSize * 1.15)}, 0.3, Enum.EasingStyle.Back)
-        tween(glow, {ImageTransparency = 0.35}, 0.3)
-        tween(icon, {Rotation = 20}, 0.4, Enum.EasingStyle.Back)
+        tween(stroke, {Thickness = 4, Transparency = 0}, 0.3)
     end)
     
     mainBtn.MouseLeave:Connect(function()
         tween(mainBtn, {Size = UDim2.new(0, iconSize, 0, iconSize)}, 0.3, Enum.EasingStyle.Back)
-        tween(glow, {ImageTransparency = 0.7}, 0.3)
-        tween(icon, {Rotation = 0}, 0.4, Enum.EasingStyle.Back)
+        tween(stroke, {Thickness = 2, Transparency = 0.3}, 0.3)
     end)
     
     -- Clique para abrir
@@ -338,7 +277,8 @@ local function createIconButton()
         iconGui:Destroy()
         iconGui = nil
         isMinimized = false
-        createMainGUI()
+        -- Aqui seria chamado o createMainGUI mas como usamos WindUI, vamos apenas notificar
+        notify("Zyronis Hub", "Use o botão minimizado ou reinicie o script", 3)
     end)
     
     -- Draggable
@@ -374,10 +314,37 @@ local function createIconButton()
 end
 
 -- ============================================
--- INTERFACE WINDUI (Zyronis Hub)
+-- INTERFACE WINDUI (Zyronis Hub) COM FUNDO PERSONALIZADO
 -- ============================================
 local Libary = loadstring(game:HttpGet("https://raw.githubusercontent.com/BRENOPOOF/slapola/refs/heads/main/Main.txt"))()
 Workspace.FallenPartsDestroyHeight = -math.huge
+
+-- Criar ScreenGui manual para o fundo personalizado
+local bgGui = Instance.new("ScreenGui")
+bgGui.Name = "Zyronis_Background"
+bgGui.ResetOnSpawn = false
+bgGui.DisplayOrder = -1  -- Atrás da UI principal
+bgGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Imagem de fundo
+local bgImage = Instance.new("ImageLabel")
+bgImage.Name = "Background"
+bgImage.Size = UDim2.new(1, 0, 1, 0)
+bgImage.BackgroundTransparency = 1
+bgImage.Image = CONFIG.backgroundImage
+bgImage.ImageColor3 = Color3.new(1, 1, 1)
+bgImage.ImageTransparency = 0.2  -- Leve transparência para não atrapalhar a UI
+bgImage.ScaleType = Enum.ScaleType.Crop
+bgImage.Parent = bgGui
+
+-- Overlay escuro para melhor contraste
+local overlay = Instance.new("Frame")
+overlay.Name = "Overlay"
+overlay.Size = UDim2.new(1, 0, 1, 0)
+overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+overlay.BackgroundTransparency = 0.4
+overlay.BorderSizePixel = 0
+overlay.Parent = bgImage
 
 local Window = Libary:MakeWindow({
     Title = "Zyronis Hub",
@@ -386,11 +353,13 @@ local Window = Libary:MakeWindow({
     Flags = "ZyronisHub_v13_Ultimate"
 })
 
+-- Botão minimizar com novo ícone
 Window:AddMinimizeButton({
     Button = {
         Image = CONFIG.iconImage,
         BackgroundTransparency = 0,
-        Size = UDim2.new(0, 45, 0, 45),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 40),
+        Size = UDim2.new(0, 50, 0, 50),
     },
     Corner = {
         CornerRadius = UDim.new(0, 100),
@@ -534,19 +503,6 @@ local statusLabel = BallTab:AddParagraph({ "Bolas Detectadas:", "0" })
 local reachLabel = BallTab:AddParagraph({ "Alcance Atual:", "15 studs" })
 local touchesLabel = BallTab:AddParagraph({ "Toques Totais:", "0" })
 
--- Atualizador automático
-task.spawn(function()
-    while true do
-        task.wait(1)
-        local count = findBalls()
-        pcall(function()
-            statusLabel:Set("Bolas Detectadas: " .. count)
-            reachLabel:Set("Alcance Atual: " .. CONFIG.reach .. " studs")
-            touchesLabel:Set("Toques Totais: " .. STATS.totalTouches)
-        end)
-    end
-end)
-
 -- ============================================
 -- ABA ESTATÍSTICAS (CADUXX137)
 -- ============================================
@@ -565,30 +521,6 @@ local ballsTouchedLabel = StatsTab:AddParagraph({ "Bolas Tocadas:", "0" })
 local skillsActivatedLabel = StatsTab:AddParagraph({ "Skills Ativadas:", "0" })
 local peakReachLabel = StatsTab:AddParagraph({ "Pico de Alcance:", "0" })
 
--- Atualizador de stats
-task.spawn(function()
-    while true do
-        task.wait(1)
-        
-        local sessionTime = tick() - STATS.sessionStart
-        local mins = math.floor(sessionTime / 60)
-        local secs = math.floor(sessionTime % 60)
-        
-        if sessionTime > 0 then
-            STATS.touchesPerMinute = math.floor((STATS.totalTouches / sessionTime) * 60)
-        end
-        
-        pcall(function()
-            sessionTimeLabel:Set("Tempo de Uso: " .. string.format("%02d:%02d", mins, secs))
-            totalTouchesLabel:Set("Toques Totais: " .. STATS.totalTouches)
-            ballsTouchedLabel:Set("Bolas Tocadas: " .. STATS.ballsTouched)
-            skillsActivatedLabel:Set("Skills Ativadas: " .. STATS.skillsActivated)
-            peakReachLabel:Set("Pico de Alcance: " .. STATS.peakReach)
-            tpmLabel:Set("Toques por Minuto: " .. STATS.touchesPerMinute)
-        end)
-    end
-end)
-
 -- ============================================
 -- ABA CONFIGURAÇÕES (CADUXX137)
 -- ============================================
@@ -601,7 +533,15 @@ ConfigTab:AddDropdown({
     Default = "dark",
     Options = {"dark", "light", "auto"},
     Callback = function(Value)
-        applyTheme(Value)
+        -- Ajustar transparência do fundo baseado no tema
+        if Value == "light" then
+            bgImage.ImageTransparency = 0.4
+            overlay.BackgroundTransparency = 0.6
+        else
+            bgImage.ImageTransparency = 0.2
+            overlay.BackgroundTransparency = 0.4
+        end
+        notify("Tema", "Modo " .. Value:upper() .. " ativado!", 2)
     end
 })
 
@@ -692,7 +632,9 @@ ConfigTab:AddButton({
         STATS.skillsActivated = 0
         STATS.peakReach = 0
         
-        applyTheme("dark")
+        bgImage.ImageTransparency = 0.2
+        overlay.BackgroundTransparency = 0.4
+        
         notify("Reset", "Todas as configurações padrão restauradas!", 3)
         addLog("Reset total executado", "warning")
     end
@@ -925,18 +867,13 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     
     -- F1: Minimizar/Maximizar
     if input.KeyCode == Enum.KeyCode.F1 then
-        if mainGui then
-            mainGui:Destroy()
-            mainGui = nil
-            isMinimized = true
-            createIconButton()
+        -- Toggle visibilidade do fundo
+        if bgGui.Enabled then
+            bgGui.Enabled = false
+            notify("Hub", "Minimizado (F1 para restaurar)", 2)
         else
-            if iconGui then
-                iconGui:Destroy()
-                iconGui = nil
-            end
-            isMinimized = false
-            createMainGUI()
+            bgGui.Enabled = true
+            notify("Hub", "Restaurado", 2)
         end
     end
     
@@ -956,6 +893,45 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- ============================================
+-- ATUALIZADORES DE UI
+-- ============================================
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        local count = findBalls()
+        pcall(function()
+            statusLabel:Set("Bolas Detectadas: " .. count)
+            reachLabel:Set("Alcance Atual: " .. CONFIG.reach .. " studs")
+            touchesLabel:Set("Toques Totais: " .. STATS.totalTouches)
+        end)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        
+        local sessionTime = tick() - STATS.sessionStart
+        local mins = math.floor(sessionTime / 60)
+        local secs = math.floor(sessionTime % 60)
+        
+        if sessionTime > 0 then
+            STATS.touchesPerMinute = math.floor((STATS.totalTouches / sessionTime) * 60)
+        end
+        
+        pcall(function()
+            sessionTimeLabel:Set("Tempo de Uso: " .. string.format("%02d:%02d", mins, secs))
+            totalTouchesLabel:Set("Toques Totais: " .. STATS.totalTouches)
+            ballsTouchedLabel:Set("Bolas Tocadas: " .. STATS.ballsTouched)
+            skillsActivatedLabel:Set("Skills Ativadas: " .. STATS.skillsActivated)
+            peakReachLabel:Set("Pico de Alcance: " .. STATS.peakReach)
+            tpmLabel:Set("Toques por Minuto: " .. STATS.touchesPerMinute)
+        end)
+    end
+end)
+
+-- ============================================
 -- INICIALIZAÇÃO (Bazuka & Cafuxz1)
 -- ============================================
 
@@ -963,12 +939,10 @@ task.spawn(function()
     repeat task.wait(0.1) until game:IsLoaded() and LocalPlayer.Character
     task.wait(0.5)
     
-    -- Criar GUI inicial
-    createMainGUI()
-    
     -- Mensagens de inicialização
     notify("⚡ Zyronis Hub v13.0", "Ultimate Edition by Bazuka & Cafuxz1", 4)
     notify("CADUXX137", "Sistema de Ball Reach ativo!", 3)
+    notify("Imagens", "Fundo e Ícone personalizados carregados!", 2)
     
     print("========================================")
     print("  ZYRIONIS HUB v13.0 - ULTIMATE EDITION")
@@ -976,6 +950,7 @@ task.spawn(function()
     print("Criadores: Bazuka & Cafuxz1")
     print("Ball Reach: CADUXX137 v13.0 Ultimate")
     print("Interface: Zyronis Hub (WindUI)")
+    print("Imagens: Fundo 99265572519062 | Ícone 88380080222477")
     print("----------------------------------------")
     print("Reach: " .. CONFIG.reach .. " studs")
     print("Auto Touch: " .. tostring(CONFIG.autoTouch))
