@@ -76,7 +76,6 @@ local CONFIG = {
     
     -- IDs das imagens atualizadas (Bazuka)
     iconImage = "rbxassetid://88380080222477",      -- Ícone do botão
-    backgroundImage = "rbxassetid://99265572519062", -- Fundo do Hub
     
     -- Lista expandida de bolas (CADUXX137)
     ballNames = { 
@@ -200,6 +199,287 @@ local function tween(obj, props, time, style, dir, callback)
 end
 
 -- ============================================
+-- TELA DE LOADING PREMIUM
+-- ============================================
+local loadingGui = nil
+
+local function createLoadingScreen()
+    loadingGui = Instance.new("ScreenGui")
+    loadingGui.Name = "Zyronis_Loading"
+    loadingGui.ResetOnSpawn = false
+    loadingGui.DisplayOrder = 999999
+    loadingGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    
+    -- Frame principal
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(1, 0, 1, 0)
+    mainFrame.BackgroundColor3 = CONFIG.bgDark
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = loadingGui
+    
+    -- Gradiente de fundo animado
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, CONFIG.bgDark),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(20, 20, 35)),
+        ColorSequenceKeypoint.new(1, CONFIG.bgDark)
+    })
+    gradient.Rotation = 45
+    gradient.Parent = mainFrame
+    
+    -- Animação do gradiente
+    task.spawn(function()
+        while mainFrame and mainFrame.Parent do
+            tween(gradient, {Rotation = gradient.Rotation + 180}, 10, Enum.EasingStyle.Linear)
+            task.wait(10)
+        end
+    end)
+    
+    -- Container central
+    local container = Instance.new("Frame")
+    container.Name = "Container"
+    container.Size = UDim2.new(0, 400, 0, 500)
+    container.Position = UDim2.new(0.5, -200, 0.5, -250)
+    container.BackgroundTransparency = 1
+    container.Parent = mainFrame
+    
+    -- Ícone central com glow
+    local iconContainer = Instance.new("Frame")
+    iconContainer.Name = "IconContainer"
+    iconContainer.Size = UDim2.new(0, 150, 0, 150)
+    iconContainer.Position = UDim2.new(0.5, -75, 0, 50)
+    iconContainer.BackgroundTransparency = 1
+    iconContainer.Parent = container
+    
+    -- Glow externo pulsante
+    local outerGlow = Instance.new("ImageLabel")
+    outerGlow.Name = "OuterGlow"
+    outerGlow.Size = UDim2.new(1.8, 0, 1.8, 0)
+    outerGlow.Position = UDim2.new(-0.4, 0, -0.4, 0)
+    outerGlow.BackgroundTransparency = 1
+    outerGlow.Image = CONFIG.iconImage
+    outerGlow.ImageColor3 = CONFIG.accentColor
+    outerGlow.ImageTransparency = 0.9
+    outerGlow.Parent = iconContainer
+    
+    -- Glow médio
+    local midGlow = Instance.new("ImageLabel")
+    midGlow.Name = "MidGlow"
+    midGlow.Size = UDim2.new(1.4, 0, 1.4, 0)
+    midGlow.Position = UDim2.new(-0.2, 0, -0.2, 0)
+    midGlow.BackgroundTransparency = 1
+    midGlow.Image = CONFIG.iconImage
+    midGlow.ImageColor3 = CONFIG.primary
+    midGlow.ImageTransparency = 0.8
+    midGlow.Parent = iconContainer
+    
+    -- Ícone principal
+    local icon = Instance.new("ImageLabel")
+    icon.Name = "Icon"
+    icon.Size = UDim2.new(1, 0, 1, 0)
+    icon.BackgroundTransparency = 1
+    icon.Image = CONFIG.iconImage
+    icon.ImageColor3 = Color3.new(1, 1, 1)
+    icon.Parent = iconContainer
+    
+    -- Animação de pulso dos glows
+    task.spawn(function()
+        while iconContainer and iconContainer.Parent do
+            -- Expandir
+            tween(outerGlow, {Size = UDim2.new(2, 0, 2, 0), ImageTransparency = 0.85}, 1.5)
+            tween(midGlow, {Size = UDim2.new(1.6, 0, 1.6, 0), ImageTransparency = 0.75}, 1.5)
+            task.wait(1.5)
+            -- Contrair
+            tween(outerGlow, {Size = UDim2.new(1.8, 0, 1.8, 0), ImageTransparency = 0.9}, 1.5)
+            tween(midGlow, {Size = UDim2.new(1.4, 0, 1.4, 0), ImageTransparency = 0.8}, 1.5)
+            task.wait(1.5)
+        end
+    end)
+    
+    -- Rotação lenta do ícone
+    task.spawn(function()
+        while icon and icon.Parent do
+            tween(icon, {Rotation = icon.Rotation + 360}, 20, Enum.EasingStyle.Linear)
+            task.wait(20)
+        end
+    end)
+    
+    -- Título
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.Position = UDim2.new(0, 0, 0, 220)
+    title.BackgroundTransparency = 1
+    title.Text = "ZYRONIS HUB"
+    title.TextColor3 = CONFIG.textPrimary
+    title.TextSize = 42
+    title.Font = Enum.Font.GothamBold
+    title.Parent = container
+    
+    -- Subtítulo
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Name = "Subtitle"
+    subtitle.Size = UDim2.new(1, 0, 0, 30)
+    subtitle.Position = UDim2.new(0, 0, 0, 270)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = "v13.0 Ultimate Edition"
+    subtitle.TextColor3 = CONFIG.accentColor
+    subtitle.TextSize = 20
+    subtitle.Font = Enum.Font.GothamSemibold
+    subtitle.Parent = container
+    
+    -- Versão CADUXX137
+    local version = Instance.new("TextLabel")
+    version.Name = "Version"
+    version.Size = UDim2.new(1, 0, 0, 25)
+    version.Position = UDim2.new(0, 0, 0, 300)
+    version.BackgroundTransparency = 1
+    version.Text = "CADUXX137 Ball Reach System"
+    version.TextColor3 = CONFIG.textSecondary
+    version.TextSize = 16
+    version.Font = Enum.Font.Gotham
+    version.Parent = container
+    
+    -- Barra de progresso container
+    local barContainer = Instance.new("Frame")
+    barContainer.Name = "BarContainer"
+    barContainer.Size = UDim2.new(0, 300, 0, 8)
+    barContainer.Position = UDim2.new(0.5, -150, 0, 360)
+    barContainer.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    barContainer.BorderSizePixel = 0
+    barContainer.Parent = container
+    
+    local barCorner = Instance.new("UICorner")
+    barCorner.CornerRadius = UDim.new(1, 0)
+    barCorner.Parent = barContainer
+    
+    -- Barra de progresso fill
+    local barFill = Instance.new("Frame")
+    barFill.Name = "BarFill"
+    barFill.Size = UDim2.new(0, 0, 1, 0)
+    barFill.BackgroundColor3 = CONFIG.primary
+    barFill.BorderSizePixel = 0
+    barFill.Parent = barContainer
+    
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = barFill
+    
+    -- Glow na barra
+    local barGlow = Instance.new("Frame")
+    barGlow.Name = "BarGlow"
+    barGlow.Size = UDim2.new(1, 10, 1, 10)
+    barGlow.Position = UDim2.new(0, -5, 0, -5)
+    barGlow.BackgroundColor3 = CONFIG.primary
+    barGlow.BackgroundTransparency = 0.8
+    barGlow.BorderSizePixel = 0
+    barGlow.ZIndex = -1
+    barGlow.Parent = barFill
+    
+    local glowCorner = Instance.new("UICorner")
+    glowCorner.CornerRadius = UDim.new(1, 0)
+    glowCorner.Parent = barGlow
+    
+    -- Texto de status
+    local statusText = Instance.new("TextLabel")
+    statusText.Name = "StatusText"
+    statusText.Size = UDim2.new(1, 0, 0, 25)
+    statusText.Position = UDim2.new(0, 0, 0, 380)
+    statusText.BackgroundTransparency = 1
+    statusText.Text = "Inicializando..."
+    statusText.TextColor3 = CONFIG.textMuted
+    statusText.TextSize = 14
+    statusText.Font = Enum.Font.Gotham
+    statusText.Parent = container
+    
+    -- Partículas flutuantes
+    local particles = Instance.new("Frame")
+    particles.Name = "Particles"
+    particles.Size = UDim2.new(1, 0, 1, 0)
+    particles.BackgroundTransparency = 1
+    particles.Parent = mainFrame
+    
+    for i = 1, 20 do
+        local particle = Instance.new("Frame")
+        particle.Size = UDim2.new(0, math.random(3, 6), 0, math.random(3, 6))
+        particle.Position = UDim2.new(math.random(), 0, math.random(), 0)
+        particle.BackgroundColor3 = math.random() > 0.5 and CONFIG.primary or CONFIG.accent
+        particle.BackgroundTransparency = math.random(6, 9) / 10
+        particle.BorderSizePixel = 0
+        particle.Parent = particles
+        
+        local pCorner = Instance.new("UICorner")
+        pCorner.CornerRadius = UDim.new(1, 0)
+        pCorner.Parent = particle
+        
+        -- Animação flutuante
+        task.spawn(function()
+            while particle and particle.Parent do
+                local newX = particle.Position.X.Scale + (math.random(-10, 10) / 1000)
+                local newY = particle.Position.Y.Scale - (math.random(5, 15) / 1000)
+                
+                if newY < -0.1 then newY = 1.1 end
+                if newX < 0 then newX = 1 elseif newX > 1 then newX = 0 end
+                
+                tween(particle, {
+                    Position = UDim2.new(newX, 0, newY, 0),
+                    BackgroundTransparency = math.random(6, 9) / 10
+                }, math.random(3, 6))
+                
+                task.wait(math.random(3, 6))
+            end
+        end)
+    end
+    
+    -- Animação de entrada
+    container.Position = UDim2.new(0.5, -200, 0.6, -250)
+    tween(container, {Position = UDim2.new(0.5, -200, 0.5, -250)}, 1, Enum.EasingStyle.Back)
+    
+    -- Simulação de loading
+    local loadingSteps = {
+        {progress = 0.15, text = "Carregando módulos...", time = 0.5},
+        {progress = 0.30, text = "Inicializando Ball Reach...", time = 0.6},
+        {progress = 0.45, text = "Configurando detecção de bolas...", time = 0.5},
+        {progress = 0.60, text = "Carregando interface WindUI...", time = 0.7},
+        {progress = 0.75, text = "Otimizando performance...", time = 0.5},
+        {progress = 0.90, text = "Finalizando...", time = 0.6},
+        {progress = 1.00, text = "Pronto!", time = 0.4}
+    }
+    
+    task.spawn(function()
+        for _, step in ipairs(loadingSteps) do
+            task.wait(step.time)
+            tween(barFill, {Size = UDim2.new(step.progress, 0, 1, 0)}, 0.4)
+            statusText.Text = step.text
+            
+            -- Efeito de brilho na barra
+            barFill.BackgroundColor3 = Color3.fromRGB(
+                math.min(255, 99 + (step.progress * 50)),
+                math.min(255, 102 + (step.progress * 50)),
+                241
+            )
+        end
+        
+        task.wait(0.5)
+        
+        -- Fade out da tela de loading
+        tween(mainFrame, {BackgroundTransparency = 1}, 0.8)
+        tween(iconContainer, {ImageTransparency = 1}, 0.8)
+        tween(title, {TextTransparency = 1}, 0.8)
+        tween(subtitle, {TextTransparency = 1}, 0.8)
+        tween(version, {TextTransparency = 1}, 0.8)
+        tween(barContainer, {BackgroundTransparency = 1}, 0.8)
+        tween(barFill, {BackgroundTransparency = 1}, 0.8)
+        tween(statusText, {TextTransparency = 1}, 0.8)
+        
+        task.wait(0.8)
+        loadingGui:Destroy()
+        loadingGui = nil
+    end)
+end
+
+-- ============================================
 -- ÍCONE FLUTUANTE PREMIUM COM NOVA IMAGEM
 -- ============================================
 local function createIconButton()
@@ -219,7 +499,7 @@ local function createIconButton()
     mainBtn.Size = UDim2.new(0, iconSize, 0, iconSize)
     mainBtn.Position = UDim2.new(0.5, -iconSize/2, 0.88, 0)
     mainBtn.BackgroundTransparency = 1
-    mainBtn.Image = CONFIG.iconImage  -- Ícone novo
+    mainBtn.Image = CONFIG.iconImage
     mainBtn.ImageColor3 = Color3.new(1, 1, 1)
     mainBtn.ScaleType = Enum.ScaleType.Crop
     mainBtn.Parent = iconGui
@@ -277,7 +557,6 @@ local function createIconButton()
         iconGui:Destroy()
         iconGui = nil
         isMinimized = false
-        -- Aqui seria chamado o createMainGUI mas como usamos WindUI, vamos apenas notificar
         notify("Zyronis Hub", "Use o botão minimizado ou reinicie o script", 3)
     end)
     
@@ -314,37 +593,10 @@ local function createIconButton()
 end
 
 -- ============================================
--- INTERFACE WINDUI (Zyronis Hub) COM FUNDO PERSONALIZADO
+-- INTERFACE WINDUI (Zyronis Hub)
 -- ============================================
 local Libary = loadstring(game:HttpGet("https://raw.githubusercontent.com/BRENOPOOF/slapola/refs/heads/main/Main.txt"))()
 Workspace.FallenPartsDestroyHeight = -math.huge
-
--- Criar ScreenGui manual para o fundo personalizado
-local bgGui = Instance.new("ScreenGui")
-bgGui.Name = "Zyronis_Background"
-bgGui.ResetOnSpawn = false
-bgGui.DisplayOrder = -1  -- Atrás da UI principal
-bgGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
--- Imagem de fundo
-local bgImage = Instance.new("ImageLabel")
-bgImage.Name = "Background"
-bgImage.Size = UDim2.new(1, 0, 1, 0)
-bgImage.BackgroundTransparency = 1
-bgImage.Image = CONFIG.backgroundImage
-bgImage.ImageColor3 = Color3.new(1, 1, 1)
-bgImage.ImageTransparency = 0.2  -- Leve transparência para não atrapalhar a UI
-bgImage.ScaleType = Enum.ScaleType.Crop
-bgImage.Parent = bgGui
-
--- Overlay escuro para melhor contraste
-local overlay = Instance.new("Frame")
-overlay.Name = "Overlay"
-overlay.Size = UDim2.new(1, 0, 1, 0)
-overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-overlay.BackgroundTransparency = 0.4
-overlay.BorderSizePixel = 0
-overlay.Parent = bgImage
 
 local Window = Libary:MakeWindow({
     Title = "Zyronis Hub",
@@ -533,14 +785,6 @@ ConfigTab:AddDropdown({
     Default = "dark",
     Options = {"dark", "light", "auto"},
     Callback = function(Value)
-        -- Ajustar transparência do fundo baseado no tema
-        if Value == "light" then
-            bgImage.ImageTransparency = 0.4
-            overlay.BackgroundTransparency = 0.6
-        else
-            bgImage.ImageTransparency = 0.2
-            overlay.BackgroundTransparency = 0.4
-        end
         notify("Tema", "Modo " .. Value:upper() .. " ativado!", 2)
     end
 })
@@ -631,9 +875,6 @@ ConfigTab:AddButton({
         STATS.ballsTouched = 0
         STATS.skillsActivated = 0
         STATS.peakReach = 0
-        
-        bgImage.ImageTransparency = 0.2
-        overlay.BackgroundTransparency = 0.4
         
         notify("Reset", "Todas as configurações padrão restauradas!", 3)
         addLog("Reset total executado", "warning")
@@ -867,14 +1108,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     
     -- F1: Minimizar/Maximizar
     if input.KeyCode == Enum.KeyCode.F1 then
-        -- Toggle visibilidade do fundo
-        if bgGui.Enabled then
-            bgGui.Enabled = false
-            notify("Hub", "Minimizado (F1 para restaurar)", 2)
-        else
-            bgGui.Enabled = true
-            notify("Hub", "Restaurado", 2)
-        end
+        notify("Hub", "Use o botão minimizado na tela", 2)
     end
     
     -- F2: Toggle Auto Touch
@@ -936,21 +1170,26 @@ end)
 -- ============================================
 
 task.spawn(function()
+    -- Mostrar tela de loading primeiro
+    createLoadingScreen()
+    
+    -- Aguardar loading terminar (aproximadamente 4.3 segundos)
+    task.wait(5)
+    
     repeat task.wait(0.1) until game:IsLoaded() and LocalPlayer.Character
     task.wait(0.5)
     
     -- Mensagens de inicialização
     notify("⚡ Zyronis Hub v13.0", "Ultimate Edition by Bazuka & Cafuxz1", 4)
     notify("CADUXX137", "Sistema de Ball Reach ativo!", 3)
-    notify("Imagens", "Fundo e Ícone personalizados carregados!", 2)
     
     print("========================================")
-    print("  ZYRIONIS HUB v13.0 - ULTIMATE EDITION")
+    print("  CADUXX137 v13.0 - ULTIMATE EDITION")
     print("========================================")
     print("Criadores: Bazuka & Cafuxz1")
     print("Ball Reach: CADUXX137 v13.0 Ultimate")
     print("Interface: Zyronis Hub (WindUI)")
-    print("Imagens: Fundo 99265572519062 | Ícone 88380080222477")
+    print("Ícone: 88380080222477")
     print("----------------------------------------")
     print("Reach: " .. CONFIG.reach .. " studs")
     print("Auto Touch: " .. tostring(CONFIG.autoTouch))
