@@ -25,8 +25,9 @@
     - Estatísticas em tempo real
     - Temas dark/light/auto
     - Atalhos de teclado (F1, F2, F3, F4)
+    - NOVO: Sistema Anti Lag completo
     
-    VERSÃO: v14.0 Ultimate
+    VERSÃO: v14.1 Ultimate
     STATUS: Produção
 ]]
 
@@ -42,6 +43,8 @@ local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local TestService = game:GetService("TestService")
 
 local LocalPlayer = Players.LocalPlayer
 local Character = nil
@@ -50,7 +53,7 @@ local RootPart = nil
 local Camera = Workspace.CurrentCamera
 
 -- ============================================
--- CONFIGURAÇÕES CAFUXZ1 v14.0 ULTIMATE
+-- CONFIGURAÇÕES CAFUXZ1 v14.1 ULTIMATE
 -- ============================================
 local CONFIG = {
     -- Dimensões
@@ -73,6 +76,17 @@ local CONFIG = {
     reachGKColor = Color3.fromRGB(255, 255, 0), -- Amarelo padrão
     reachGKTransparency = 0.8,
     reachGKShow = true,
+    
+    -- Anti Lag Settings (NOVO)
+    antiLag = {
+        enabled = false,
+        textures = true,
+        visualEffects = true,
+        parts = true,
+        particles = true,
+        sky = true,
+        fullBright = false
+    },
     
     -- Sistema de temas
     theme = "dark",
@@ -132,7 +146,8 @@ local STATS = {
     touchesPerMinute = 0,
     peakReach = 0,
     skillsActivated = 0,
-    gkSaves = 0
+    gkSaves = 0,
+    antiLagItems = 0
 }
 
 local LOGS = {}
@@ -170,6 +185,9 @@ local autoSkills = true
 local lastSkillActivation = 0
 local skillCooldown = 0.5
 local activatedSkills = {}
+local antiLagActive = false
+local originalStates = {}
+local antiLagConnection = nil
 
 local skillButtonNames = {
     "Shoot", "Pass", "Long", "Tackle", "Dribble", "GK", "Throw",
@@ -206,6 +224,163 @@ local function tween(obj, props, time, style, dir, callback)
     if callback then t.Completed:Connect(callback) end
     t:Play()
     return t
+end
+
+-- ============================================
+-- SISTEMA ANTI LAG (NOVO v14.1)
+-- ============================================
+local function saveOriginalState(obj, property, value)
+    if not originalStates[obj] then
+        originalStates[obj] = {}
+    end
+    if originalStates[obj][property] == nil then
+        originalStates[obj][property] = value
+    end
+end
+
+local function applyAntiLag()
+    if antiLagActive then return end
+    antiLagActive = true
+    local Stuff = {}
+    
+    for _, v in next, game:GetDescendants() do
+        -- Parts Material
+        if CONFIG.antiLag.parts then
+            if v:IsA("Part") or v:IsA("Union") or v:IsA("BasePart") then
+                saveOriginalState(v, "Material", v.Material)
+                v.Material = Enum.Material.SmoothPlastic
+                table.insert(Stuff, v)
+            end
+        end
+        
+        -- Particles
+        if CONFIG.antiLag.particles then
+            if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Explosion") or v:IsA("Sparkles") or v:IsA("Fire") then
+                saveOriginalState(v, "Enabled", v.Enabled)
+                v.Enabled = false
+                table.insert(Stuff, v)
+            end
+        end
+        
+        -- Visual Effects
+        if CONFIG.antiLag.visualEffects then
+            if v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("SunRaysEffect") then
+                saveOriginalState(v, "Enabled", v.Enabled)
+                v.Enabled = false
+                table.insert(Stuff, v)
+            end
+        end
+        
+        -- Textures
+        if CONFIG.antiLag.textures then
+            if v:IsA("Decal") or v:IsA("Texture") then
+                saveOriginalState(v, "Texture", v.Texture)
+                v.Texture = ""
+                table.insert(Stuff, v)
+            end
+        end
+        
+        -- Sky
+        if CONFIG.antiLag.sky then
+            if v:IsA("Sky") then
+                saveOriginalState(v, "Parent", v.Parent)
+                v.Parent = nil
+                table.insert(Stuff, v)
+            end
+        end
+    end
+    
+    -- Full Bright
+    if CONFIG.antiLag.fullBright then
+        saveOriginalState(Lighting, "FogColor", Lighting.FogColor)
+        saveOriginalState(Lighting, "FogEnd", Lighting.FogEnd)
+        saveOriginalState(Lighting, "FogStart", Lighting.FogStart)
+        saveOriginalState(Lighting, "Ambient", Lighting.Ambient)
+        saveOriginalState(Lighting, "Brightness", Lighting.Brightness)
+        saveOriginalState(Lighting, "ColorShift_Bottom", Lighting.ColorShift_Bottom)
+        saveOriginalState(Lighting, "ColorShift_Top", Lighting.ColorShift_Top)
+        saveOriginalState(Lighting, "OutdoorAmbient", Lighting.OutdoorAmbient)
+        saveOriginalState(Lighting, "Outlines", Lighting.Outlines)
+        
+        Lighting.FogColor = Color3.fromRGB(255, 255, 255)
+        Lighting.FogEnd = math.huge
+        Lighting.FogStart = math.huge
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        Lighting.Brightness = 5
+        Lighting.ColorShift_Bottom = Color3.fromRGB(255, 255, 255)
+        Lighting.ColorShift_Top = Color3.fromRGB(255, 255, 255)
+        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+        Lighting.Outlines = true
+    end
+    
+    STATS.antiLagItems = #Stuff
+    TestService:Message("CAFUXZ1 Anti Lag: Desativados " .. #Stuff .. " efeitos/assets")
+    addLog("Anti Lag ATIVADO - " .. #Stuff .. " itens otimizados", "success")
+    
+    -- Monitorar novos objetos
+    antiLagConnection = game.DescendantAdded:Connect(function(v)
+        if not antiLagActive then return end
+        
+        task.wait(0.1)
+        
+        if CONFIG.antiLag.parts and (v:IsA("Part") or v:IsA("Union") or v:IsA("BasePart")) then
+            saveOriginalState(v, "Material", v.Material)
+            v.Material = Enum.Material.SmoothPlastic
+        end
+        
+        if CONFIG.antiLag.particles and (v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Explosion") or v:IsA("Sparkles") or v:IsA("Fire")) then
+            saveOriginalState(v, "Enabled", v.Enabled)
+            v.Enabled = false
+        end
+        
+        if CONFIG.antiLag.textures and (v:IsA("Decal") or v:IsA("Texture")) then
+            saveOriginalState(v, "Texture", v.Texture)
+            v.Texture = ""
+        end
+        
+        if CONFIG.antiLag.sky and v:IsA("Sky") then
+            saveOriginalState(v, "Parent", v.Parent)
+            v.Parent = nil
+        end
+    end)
+end
+
+local function disableAntiLag()
+    if not antiLagActive then return end
+    antiLagActive = false
+    
+    if antiLagConnection then
+        antiLagConnection:Disconnect()
+        antiLagConnection = nil
+    end
+    
+    -- Restaurar estados originais
+    for obj, properties in pairs(originalStates) do
+        if obj and obj.Parent then
+            for prop, value in pairs(properties) do
+                pcall(function()
+                    if prop == "Parent" then
+                        obj.Parent = value
+                    else
+                        obj[prop] = value
+                    end
+                end)
+            end
+        end
+    end
+    
+    originalStates = {}
+    STATS.antiLagItems = 0
+    addLog("Anti Lag DESATIVADO - Efeitos restaurados", "warning")
+end
+
+local function toggleAntiLag()
+    if antiLagActive then
+        disableAntiLag()
+    else
+        applyAntiLag()
+    end
+    return antiLagActive
 end
 
 -- ============================================
@@ -412,7 +587,7 @@ Workspace.FallenPartsDestroyHeight = -math.huge
 
 local Window = Libary:MakeWindow({
     Title = "CAFUXZ1 Hub",
-    SubTitle = "v14.0 Ultimate | by Bazuka & Cafuxz1",
+    SubTitle = "v14.1 Ultimate | by Bazuka & Cafuxz1",
     LoadText = "Carregando CADUXX137 Ultimate...",
     Flags = "CAFUXZ1Hub_v14_Ultimate"
 })
@@ -439,18 +614,20 @@ InfoTab:AddSection({ "Créditos Oficiais" })
 InfoTab:AddParagraph({ "Criadores:", "Bazuka & Cafuxz1" })
 InfoTab:AddParagraph({ "Sistema Ball Reach:", "CADUXX137 v14.0 Ultimate" })
 InfoTab:AddParagraph({ "Sistema Reach GK:", "Cafuxz1 v1.0" })
+InfoTab:AddParagraph({ "Sistema Anti Lag:", "CAFUXZ1 v14.1" })
 InfoTab:AddParagraph({ "Interface:", "CAFUXZ1 Hub (WindUI)" })
 
 InfoTab:AddSection({ "Sobre" })
-InfoTab:AddParagraph({ "Versão:", "v14.0 Ultimate Edition" })
+InfoTab:AddParagraph({ "Versão:", "v14.1 Ultimate Edition" })
 InfoTab:AddParagraph({ "Descrição:", "Sistema avançado de detecção e interação automática com bolas em jogos de futebol/soccer" })
-InfoTab:AddParagraph({ "Status:", "Sistema Ativo | GK: " .. (CONFIG.reachGKEnabled and "ON" or "OFF") })
+InfoTab:AddParagraph({ "Status:", "Sistema Ativo | GK: " .. (CONFIG.reachGKEnabled and "ON" or "OFF") .. " | Anti Lag: " .. (antiLagActive and "ON" or "OFF") })
 
 InfoTab:AddSection({ "Atalhos de Teclado" })
 InfoTab:AddParagraph({ "F1:", "Minimizar/Maximizar Hub" })
 InfoTab:AddParagraph({ "F2:", "Toggle Auto Touch" })
 InfoTab:AddParagraph({ "F3:", "Toggle Esfera Visual" })
 InfoTab:AddParagraph({ "F4:", "Toggle Reach GK" })
+InfoTab:AddParagraph({ "F5:", "Toggle Anti Lag (NOVO)" })
 
 -- ============================================
 -- ABA BALL REACH (CADUXX137 CORE)
@@ -679,6 +856,117 @@ local gkSizeLabel = GKTab:AddParagraph({ "Tamanho do Cubo:", "25 studs" })
 local gkSavesLabel = GKTab:AddParagraph({ "Defesas (Saves):", "0" })
 
 -- ============================================
+-- ABA ANTI LAG (NOVO v14.1)
+-- ============================================
+local AntiLagTab = Window:MakeTab({ Title = "Anti Lag", Icon = "rbxassetid://11322093465" })
+
+AntiLagTab:AddSection({ "🚀 Otimização de Performance" })
+
+AntiLagTab:AddToggle({
+    Name = "🔥 Ativar Anti Lag",
+    Default = false,
+    Callback = function(value)
+        CONFIG.antiLag.enabled = value
+        if value then
+            applyAntiLag()
+            notify("Anti Lag", "OTIMIZAÇÃO ATIVADA - FPS Boost!", 3)
+        else
+            disableAntiLag()
+            notify("Anti Lag", "Efeitos restaurados", 2)
+        end
+    end
+})
+
+AntiLagTab:AddSection({ "⚙️ Configurações de Otimização" })
+
+AntiLagTab:AddToggle({
+    Name = "Texturas (Decals/Textures)",
+    Default = true,
+    Callback = function(value)
+        CONFIG.antiLag.textures = value
+        addLog("Anti Lag Textures: " .. (value and "ON" or "OFF"), "info")
+    end
+})
+
+AntiLagTab:AddToggle({
+    Name = "Efeitos Visuais (Bloom/Blur/SunRays)",
+    Default = true,
+    Callback = function(value)
+        CONFIG.antiLag.visualEffects = value
+        addLog("Anti Lag Visual Effects: " .. (value and "ON" or "OFF"), "info")
+    end
+})
+
+AntiLagTab:AddToggle({
+    Name = "Materiais das Partes (Smooth Plastic)",
+    Default = true,
+    Callback = function(value)
+        CONFIG.antiLag.parts = value
+        addLog("Anti Lag Parts: " .. (value and "ON" or "OFF"), "info")
+    end
+})
+
+AntiLagTab:AddToggle({
+    Name = "Partículas (Fogo/Fumaça/Explosões)",
+    Default = true,
+    Callback = function(value)
+        CONFIG.antiLag.particles = value
+        addLog("Anti Lag Particles: " .. (value and "ON" or "OFF"), "info")
+    end
+})
+
+AntiLagTab:AddToggle({
+    Name = "Céu (Remover Skybox)",
+    Default = true,
+    Callback = function(value)
+        CONFIG.antiLag.sky = value
+        addLog("Anti Lag Sky: " .. (value and "ON" or "OFF"), "info")
+    end
+})
+
+AntiLagTab:AddToggle({
+    Name = "Full Bright (Iluminação Máxima)",
+    Default = false,
+    Callback = function(value)
+        CONFIG.antiLag.fullBright = value
+        addLog("Anti Lag FullBright: " .. (value and "ON" or "OFF"), "info")
+    end
+})
+
+AntiLagTab:AddSection({ "📊 Status da Otimização" })
+
+local antiLagStatusLabel = AntiLagTab:AddParagraph({ "Status:", "Desativado" })
+local antiLagItemsLabel = AntiLagTab:AddParagraph({ "Itens Otimizados:", "0" })
+
+AntiLagTab:AddSection({ "⚡ Ações Rápidas" })
+
+AntiLagTab:AddButton({
+    Name = "Ativar Tudo (MAX FPS)",
+    Callback = function()
+        CONFIG.antiLag.textures = true
+        CONFIG.antiLag.visualEffects = true
+        CONFIG.antiLag.parts = true
+        CONFIG.antiLag.particles = true
+        CONFIG.antiLag.sky = true
+        CONFIG.antiLag.fullBright = true
+        CONFIG.antiLag.enabled = true
+        
+        applyAntiLag()
+        notify("Anti Lag", "MODO MÁXIMO DESEMPENHO ATIVADO!", 3)
+        addLog("Anti Lag MAX ativado", "success")
+    end
+})
+
+AntiLagTab:AddButton({
+    Name = "Desativar Tudo (Restaurar)",
+    Callback = function()
+        CONFIG.antiLag.enabled = false
+        disableAntiLag()
+        notify("Anti Lag", "Todos os efeitos restaurados", 2)
+    end
+})
+
+-- ============================================
 -- ABA ESTATÍSTICAS (CAFUXZ1)
 -- ============================================
 local StatsTab = Window:MakeTab({ Title = "Estatísticas", Icon = "rbxassetid://11322093465" })
@@ -696,6 +984,7 @@ local ballsTouchedLabel = StatsTab:AddParagraph({ "Bolas Tocadas:", "0" })
 local skillsActivatedLabel = StatsTab:AddParagraph({ "Skills Ativadas:", "0" })
 local peakReachLabel = StatsTab:AddParagraph({ "Pico de Alcance:", "0" })
 local gkTotalSavesLabel = StatsTab:AddParagraph({ "Defesas GK:", "0" })
+local antiLagTotalLabel = StatsTab:AddParagraph({ "Itens Anti Lag:", "0" })
 
 -- ============================================
 -- ABA CONFIGURAÇÕES (CAFUXZ1)
@@ -775,6 +1064,7 @@ ConfigTab:AddButton({
         STATS.skillsActivated = 0
         STATS.peakReach = 0
         STATS.gkSaves = 0
+        STATS.antiLagItems = 0
         STATS.sessionStart = tick()
         notify("Stats", "Estatísticas resetadas!", 2)
         addLog("Estatísticas resetadas", "warning")
@@ -798,11 +1088,16 @@ ConfigTab:AddButton({
         CONFIG.reachGKEnabled = false
         CONFIG.reachGKColor = Color3.fromRGB(255, 255, 0)
         
+        -- Reset Anti Lag
+        CONFIG.antiLag.enabled = false
+        disableAntiLag()
+        
         STATS.totalTouches = 0
         STATS.ballsTouched = 0
         STATS.skillsActivated = 0
         STATS.peakReach = 0
         STATS.gkSaves = 0
+        STATS.antiLagItems = 0
         
         notify("Reset", "Todas as configurações padrão restauradas!", 3)
         addLog("Reset total executado", "warning")
@@ -1061,11 +1356,24 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         addLog("Esfera (F3): " .. (CONFIG.showReachSphere and "ON" or "OFF"), "info")
     end
     
-    -- F4: Toggle Reach GK (NOVO)
+    -- F4: Toggle Reach GK
     if input.KeyCode == Enum.KeyCode.F4 then
         CONFIG.reachGKEnabled = not CONFIG.reachGKEnabled
         notify("Reach GK", CONFIG.reachGKEnabled and "ATIVADO - Modo Goleiro" or "DESATIVADO", 2)
         addLog("Reach GK (F4): " .. (CONFIG.reachGKEnabled and "ON" or "OFF"), CONFIG.reachGKEnabled and "success" or "warning")
+    end
+    
+    -- F5: Toggle Anti Lag (NOVO)
+    if input.KeyCode == Enum.KeyCode.F5 then
+        CONFIG.antiLag.enabled = not CONFIG.antiLag.enabled
+        if CONFIG.antiLag.enabled then
+            applyAntiLag()
+            notify("Anti Lag", "OTIMIZAÇÃO ATIVADA (F5)", 2)
+        else
+            disableAntiLag()
+            notify("Anti Lag", "DESATIVADO (F5)", 2)
+        end
+        addLog("Anti Lag (F5): " .. (CONFIG.antiLag.enabled and "ON" or "OFF"), CONFIG.antiLag.enabled and "success" or "warning")
     end
 end)
 
@@ -1105,11 +1413,16 @@ task.spawn(function()
             peakReachLabel:Set("Pico de Alcance: " .. STATS.peakReach)
             tpmLabel:Set("Toques por Minuto: " .. STATS.touchesPerMinute)
             gkTotalSavesLabel:Set("Defesas GK: " .. STATS.gkSaves)
+            antiLagTotalLabel:Set("Itens Anti Lag: " .. STATS.antiLagItems)
             
             -- Atualizar labels da aba GK
             gkStatusLabel:Set("Status GK: " .. (CONFIG.reachGKEnabled and "ATIVADO" or "Desativado"))
             gkSizeLabel:Set("Tamanho do Cubo: " .. CONFIG.reachGK .. " studs")
             gkSavesLabel:Set("Defesas (Saves): " .. STATS.gkSaves)
+            
+            -- Atualizar labels da aba Anti Lag
+            antiLagStatusLabel:Set("Status: " .. (antiLagActive and "ATIVADO ✅" or "Desativado"))
+            antiLagItemsLabel:Set("Itens Otimizados: " .. STATS.antiLagItems)
         end)
     end
 end)
@@ -1123,16 +1436,18 @@ task.spawn(function()
     task.wait(0.5)
     
     -- Mensagens de inicialização
-    notify("⚡ CAFUXZ1 Hub v14.0", "Ultimate Edition by Bazuka & Cafuxz1", 4)
+    notify("⚡ CAFUXZ1 Hub v14.1", "Ultimate Edition by Bazuka & Cafuxz1", 4)
     notify("CADUXX137", "Sistema de Ball Reach ativo!", 3)
     notify("NOVO", "Reach GK disponível (F4 ou aba Reach GK)!", 4)
+    notify("NOVO v14.1", "Anti Lag System disponível (F5 ou aba Anti Lag)!", 4)
     
     print("========================================")
-    print("  CAFUXZ1 HUB v14.0 - ULTIMATE EDITION")
+    print("  CAFUXZ1 HUB v14.1 - ULTIMATE EDITION")
     print("========================================")
     print("Criadores: Bazuka & Cafuxz1")
     print("Ball Reach: CADUXX137 v14.0 Ultimate")
     print("Reach GK: Cafuxz1 v1.0")
+    print("Anti Lag: CAFUXZ1 v14.1")
     print("Interface: CAFUXZ1 Hub (WindUI)")
     print("Ícone: 88380080222477")
     print("----------------------------------------")
@@ -1141,6 +1456,6 @@ task.spawn(function()
     print("Auto Touch: " .. tostring(CONFIG.autoTouch))
     print("Auto Skills: " .. tostring(autoSkills))
     print("Partículas: " .. tostring(CONFIG.particleEffects))
-    print("Atalhos: F1 (Minimizar) | F2 (Auto Touch) | F3 (Esfera) | F4 (GK)")
+    print("Atalhos: F1 (Minimizar) | F2 (Auto Touch) | F3 (Esfera) | F4 (GK) | F5 (Anti Lag)")
     print("========================================")
 end)
