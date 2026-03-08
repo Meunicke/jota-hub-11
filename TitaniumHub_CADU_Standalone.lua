@@ -1,5 +1,5 @@
 --[[
-    CAFUXZ1 Hub v14.0 - CADUXX137 Ultimate Edition
+    CAFUXZ1 Hub v14.1 - CADUXX137 Ultimate Edition
     ================================================
     
     CRIADORES OFICIAIS:
@@ -26,8 +26,9 @@
     - Temas dark/light/auto
     - Atalhos de teclado (F1, F2, F3, F4)
     - NOVO: Sistema Anti Lag completo
+    - NOVO: Morph Avatar (Char) integrado
     
-    VERSÃO: v14.1 Ultimate
+    VERSÃO: v14.2 Ultimate
     STATUS: Produção
 ]]
 
@@ -45,6 +46,7 @@ local StarterGui = game:GetService("StarterGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 local TestService = game:GetService("TestService")
+local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 local Character = nil
@@ -53,7 +55,7 @@ local RootPart = nil
 local Camera = Workspace.CurrentCamera
 
 -- ============================================
--- CONFIGURAÇÕES CAFUXZ1 v14.1 ULTIMATE
+-- CONFIGURAÇÕES CAFUXZ1 v14.2 ULTIMATE
 -- ============================================
 local CONFIG = {
     -- Dimensões
@@ -86,6 +88,14 @@ local CONFIG = {
         particles = true,
         sky = true,
         fullBright = false
+    },
+    
+    -- Morph Settings (NOVO)
+    morph = {
+        minimized = false,
+        draggingTitleBar = false,
+        dragStart = nil,
+        startPos = nil
     },
     
     -- Sistema de temas
@@ -147,7 +157,8 @@ local STATS = {
     peakReach = 0,
     skillsActivated = 0,
     gkSaves = 0,
-    antiLagItems = 0
+    antiLagItems = 0,
+    morphsDone = 0
 }
 
 local LOGS = {}
@@ -188,6 +199,7 @@ local activatedSkills = {}
 local antiLagActive = false
 local originalStates = {}
 local antiLagConnection = nil
+local morphGui = nil
 
 local skillButtonNames = {
     "Shoot", "Pass", "Long", "Tackle", "Dribble", "GK", "Throw",
@@ -381,6 +393,300 @@ local function toggleAntiLag()
         applyAntiLag()
     end
     return antiLagActive
+end
+
+-- ============================================
+-- SISTEMA DE MORPH AVATAR (INTEGRADO - CHAR)
+-- ============================================
+local function createMorphGui()
+    if morphGui then morphGui:Destroy() end
+    
+    -- Theme Colors
+    local BLACK = Color3.fromRGB(15, 15, 15)
+    local DARK_GRAY = Color3.fromRGB(35, 35, 35)
+    local WHITE = Color3.fromRGB(255, 255, 255)
+    local RED = Color3.fromRGB(200, 50, 50)
+    local MENU_ALPHA = 0.95
+
+    -- Cleanup Existing GUI
+    if CoreGui:FindFirstChild("CAFUXZ1_MorphChar") then 
+        CoreGui["CAFUXZ1_MorphChar"]:Destroy() 
+    end
+
+    -- Main GUI
+    morphGui = Instance.new("ScreenGui")
+    morphGui.Name = "CAFUXZ1_MorphChar"
+    morphGui.ResetOnSpawn = false
+    morphGui.DisplayOrder = 999998
+    morphGui.Parent = CoreGui
+    morphGui.Enabled = true
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 200, 0, 90)
+    frame.Position = UDim2.new(0.5, -100, 0.5, -50)
+    frame.BackgroundColor3 = BLACK
+    frame.BackgroundTransparency = 1 - MENU_ALPHA
+    frame.BorderSizePixel = 0
+    frame.Active = false
+    frame.Parent = morphGui
+    frame.Visible = true
+    frame.ClipsDescendants = true
+
+    local frameCorner = Instance.new("UICorner")
+    frameCorner.CornerRadius = UDim.new(0, 8)
+    frameCorner.Parent = frame
+
+    -- Title Bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.Position = UDim2.new(0, 0, 0, 0)
+    titleBar.BackgroundTransparency = 1
+    titleBar.Parent = frame
+    titleBar.Active = true
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -60, 0, 30)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.Text = "Char Morph"
+    title.TextColor3 = WHITE
+    title.BackgroundTransparency = 1
+    title.BorderSizePixel = 0
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = titleBar
+
+    -- Username Input
+    local usernameInput = Instance.new("TextBox")
+    usernameInput.Size = UDim2.new(1, -20, 0, 30)
+    usernameInput.Position = UDim2.new(0, 10, 0, 40)
+    usernameInput.PlaceholderText = "Enter Username"
+    usernameInput.Font = Enum.Font.Gotham
+    usernameInput.TextSize = 14
+    usernameInput.Text = ""
+    usernameInput.TextColor3 = WHITE
+    usernameInput.BackgroundColor3 = DARK_GRAY
+    usernameInput.ClearTextOnFocus = false
+    usernameInput.TextWrapped = true
+    usernameInput.Parent = frame
+    usernameInput.Visible = true
+
+    local inputCorner = Instance.new("UICorner")
+    inputCorner.CornerRadius = UDim.new(0, 4)
+    inputCorner.Parent = usernameInput
+
+    -- Buttons
+    local miniBtn = Instance.new("TextButton")
+    miniBtn.Name = "MinimizeButton"
+    miniBtn.Size = UDim2.new(0, 30, 0, 30)
+    miniBtn.Position = UDim2.new(1, -60, 0, 0)
+    miniBtn.Text = "-"
+    miniBtn.Font = Enum.Font.GothamBold
+    miniBtn.TextSize = 16
+    miniBtn.TextColor3 = WHITE
+    miniBtn.BackgroundTransparency = 1
+    miniBtn.Parent = titleBar
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "Close"
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -30, 0, 0)
+    closeBtn.Text = "X"
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 16
+    closeBtn.TextColor3 = RED
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Parent = titleBar
+    closeBtn.ZIndex = 2
+
+    -- Morph Functions
+    local function applyMorphEffect(character)
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if not rootPart then return end
+
+        local particleEmitter = Instance.new("ParticleEmitter")
+        particleEmitter.Texture = "rbxassetid://243098098"
+        particleEmitter.Rate = 50
+        particleEmitter.Speed = NumberRange.new(5, 10)
+        particleEmitter.Lifetime = NumberRange.new(0.5, 1)
+        particleEmitter.SpreadAngle = Vector2.new(360, 360)
+        particleEmitter.Color = ColorSequence.new(RED)
+        particleEmitter.Parent = rootPart
+
+        local explosion = Instance.new("Explosion")
+        explosion.BlastRadius = 5
+        explosion.BlastPressure = 0
+        explosion.Position = rootPart.Position
+        explosion.Visible = true
+        explosion.Parent = workspace
+        explosion.ExplosionType = Enum.ExplosionType.NoCraters
+
+        task.spawn(function()
+            task.wait(2)
+            particleEmitter.Enabled = false
+            task.wait(1)
+            particleEmitter:Destroy()
+            explosion:Destroy()
+        end)
+    end
+
+    local function findPlayerByName(partialName)
+        if not partialName or partialName == "" then return nil end
+        local searchName = partialName:lower()
+        
+        local localPlayer = nil
+        for _, v in ipairs(Players:GetPlayers()) do
+            local nameLower = v.Name:lower()
+            local dNameLower = v.DisplayName:lower()
+            
+            if nameLower == searchName or dNameLower == searchName then
+                return v
+            end
+            
+            if nameLower:sub(1, #searchName) == searchName or dNameLower:sub(1, #searchName) == searchName then
+                localPlayer = v
+            end
+        end
+        
+        if not localPlayer then
+            local success, userId = pcall(function()
+                return Players:GetUserIdFromNameAsync(searchName)
+            end)
+            if success and userId then
+                return {UserId = userId, Name = searchName}
+            end
+        end
+        
+        return localPlayer
+    end
+
+    local function morphToPlayer(target)
+        if not target then 
+            notify("Char Morph", "No target found!", 3)
+            return 
+        end
+        
+        local userId = target.UserId or (type(target) == "number" and target or target.UserId)
+        local targetName = target.Name or "Unknown"
+        
+        if userId == LocalPlayer.UserId then
+            notify("Char Morph", "Cannot morph to yourself!", 3)
+            return
+        end
+        
+        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        local humanoid = character:WaitForChild("Humanoid", 10)
+        if not humanoid then 
+            notify("Char Morph", "Failed to find humanoid!", 3)
+            return 
+        end
+
+        local success, desc = pcall(function()
+            return Players:GetHumanoidDescriptionFromUserId(userId)
+        end)
+        if not success or not desc then
+            notify("Char Morph", "Failed to load avatar data!", 3)
+            return
+        end
+
+        -- Fetch target thumbnail
+        local targetThumbnail = ""
+        local thumbSuccess, thumbResult = pcall(function()
+            return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+        end)
+        if thumbSuccess then
+            targetThumbnail = thumbResult
+        end
+
+        for _, obj in ipairs(character:GetChildren()) do
+            if obj:IsA("Shirt") or obj:IsA("Pants") or obj:IsA("ShirtGraphic") or
+               obj:IsA("Accessory") or obj:IsA("BodyColors") then
+                obj:Destroy()
+            end
+        end
+        local head = character:FindFirstChild("Head")
+        if head then
+            for _, decal in ipairs(head:GetChildren()) do
+                if decal:IsA("Decal") then decal:Destroy() end
+            end
+        end
+
+        local applySuccess = pcall(function()
+            humanoid:ApplyDescriptionClientServer(desc)
+        end)
+
+        if applySuccess then
+            applyMorphEffect(character)
+            STATS.morphsDone = STATS.morphsDone + 1
+            notify("Char Morph", "Successfully morphed to " .. targetName .. "!", 3)
+            addLog("Morph realizado: " .. targetName, "success")
+        else
+            notify("Char Morph", "Failed to apply morph!", 3)
+        end
+    end
+
+    -- Events
+    local draggingTitleBar = false
+    local dragStart, startPos
+
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            draggingTitleBar = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            draggingTitleBar = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if draggingTitleBar and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    miniBtn.MouseButton1Click:Connect(function()
+        CONFIG.morph.minimized = not CONFIG.morph.minimized
+        if CONFIG.morph.minimized then
+            frame.Size = UDim2.new(0, 200, 0, 30)
+            miniBtn.Text = "+"
+            usernameInput.Visible = false
+        else
+            frame.Size = UDim2.new(0, 200, 0, 90)
+            miniBtn.Text = "-"
+            usernameInput.Visible = true
+        end
+    end)
+
+    closeBtn.MouseButton1Click:Connect(function()
+        morphGui:Destroy()
+        morphGui = nil
+    end)
+
+    usernameInput.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local inputText = usernameInput.Text
+            if inputText == "" then 
+                notify("Char Morph", "Please enter a username!", 3)
+                return 
+            end
+            
+            local target = findPlayerByName(inputText)
+            if target then
+                usernameInput.Text = target.Name or inputText
+                morphToPlayer(target)
+            else
+                notify("Char Morph", "Player not found!", 3)
+            end
+        end
+    end)
+    
+    return morphGui
 end
 
 -- ============================================
@@ -587,7 +893,7 @@ Workspace.FallenPartsDestroyHeight = -math.huge
 
 local Window = Libary:MakeWindow({
     Title = "CAFUXZ1 Hub",
-    SubTitle = "v14.1 Ultimate | by Bazuka & Cafuxz1",
+    SubTitle = "v14.2 Ultimate | by Bazuka & Cafuxz1",
     LoadText = "Carregando CADUXX137 Ultimate...",
     Flags = "CAFUXZ1Hub_v14_Ultimate"
 })
@@ -615,11 +921,12 @@ InfoTab:AddParagraph({ "Criadores:", "Bazuka & Cafuxz1" })
 InfoTab:AddParagraph({ "Sistema Ball Reach:", "CADUXX137 v14.0 Ultimate" })
 InfoTab:AddParagraph({ "Sistema Reach GK:", "Cafuxz1 v1.0" })
 InfoTab:AddParagraph({ "Sistema Anti Lag:", "CAFUXZ1 v14.1" })
+InfoTab:AddParagraph({ "Sistema Char Morph:", "Integrado v1.0" })
 InfoTab:AddParagraph({ "Interface:", "CAFUXZ1 Hub (WindUI)" })
 
 InfoTab:AddSection({ "Sobre" })
-InfoTab:AddParagraph({ "Versão:", "v14.1 Ultimate Edition" })
-InfoTab:AddParagraph({ "Descrição:", "Sistema avançado de detecção e interação automática com bolas em jogos de futebol/soccer" })
+InfoTab:AddParagraph({ "Versão:", "v14.2 Ultimate Edition" })
+InfoTab:AddParagraph({ "Descrição:", "Sistema avançado de detecção e interação automática com bolas em jogos de futebol/soccer + Morph Avatar" })
 InfoTab:AddParagraph({ "Status:", "Sistema Ativo | GK: " .. (CONFIG.reachGKEnabled and "ON" or "OFF") .. " | Anti Lag: " .. (antiLagActive and "ON" or "OFF") })
 
 InfoTab:AddSection({ "Atalhos de Teclado" })
@@ -627,7 +934,43 @@ InfoTab:AddParagraph({ "F1:", "Minimizar/Maximizar Hub" })
 InfoTab:AddParagraph({ "F2:", "Toggle Auto Touch" })
 InfoTab:AddParagraph({ "F3:", "Toggle Esfera Visual" })
 InfoTab:AddParagraph({ "F4:", "Toggle Reach GK" })
-InfoTab:AddParagraph({ "F5:", "Toggle Anti Lag (NOVO)" })
+InfoTab:AddParagraph({ "F5:", "Toggle Anti Lag" })
+InfoTab:AddParagraph({ "F6:", "Abrir Char Morph" })
+
+-- ============================================
+-- ABA CHAR (MORPH AVATAR - NOVO)
+-- ============================================
+local CharTab = Window:MakeTab({ Title = "Char", Icon = "rbxassetid://15309138473" })
+
+CharTab:AddSection({ "👤 Morph Avatar" })
+
+CharTab:AddParagraph({ "Como usar:", "Digite o username e pressione Enter para aplicar o morph" })
+
+CharTab:AddButton({
+    Name = "Abrir Interface Char Morph",
+    Callback = function()
+        createMorphGui()
+        notify("Char Morph", "Interface aberta! Digite o username.", 3)
+        addLog("Interface Char Morph aberta", "info")
+    end
+})
+
+CharTab:AddButton({
+    Name = "Fechar Interface Char Morph",
+    Callback = function()
+        if morphGui then
+            morphGui:Destroy()
+            morphGui = nil
+            notify("Char Morph", "Interface fechada", 2)
+        else
+            notify("Char Morph", "Interface não está aberta", 2)
+        end
+    end
+})
+
+CharTab:AddSection({ "📊 Estatísticas de Morph" })
+
+local morphsDoneLabel = CharTab:AddParagraph({ "Morphs Realizados:", "0" })
 
 -- ============================================
 -- ABA BALL REACH (CADUXX137 CORE)
@@ -985,6 +1328,7 @@ local skillsActivatedLabel = StatsTab:AddParagraph({ "Skills Ativadas:", "0" })
 local peakReachLabel = StatsTab:AddParagraph({ "Pico de Alcance:", "0" })
 local gkTotalSavesLabel = StatsTab:AddParagraph({ "Defesas GK:", "0" })
 local antiLagTotalLabel = StatsTab:AddParagraph({ "Itens Anti Lag:", "0" })
+local morphsTotalLabel = StatsTab:AddParagraph({ "Morphs Realizados:", "0" })
 
 -- ============================================
 -- ABA CONFIGURAÇÕES (CAFUXZ1)
@@ -1065,6 +1409,7 @@ ConfigTab:AddButton({
         STATS.peakReach = 0
         STATS.gkSaves = 0
         STATS.antiLagItems = 0
+        STATS.morphsDone = 0
         STATS.sessionStart = tick()
         notify("Stats", "Estatísticas resetadas!", 2)
         addLog("Estatísticas resetadas", "warning")
@@ -1098,6 +1443,7 @@ ConfigTab:AddButton({
         STATS.peakReach = 0
         STATS.gkSaves = 0
         STATS.antiLagItems = 0
+        STATS.morphsDone = 0
         
         notify("Reset", "Todas as configurações padrão restauradas!", 3)
         addLog("Reset total executado", "warning")
@@ -1363,7 +1709,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         addLog("Reach GK (F4): " .. (CONFIG.reachGKEnabled and "ON" or "OFF"), CONFIG.reachGKEnabled and "success" or "warning")
     end
     
-    -- F5: Toggle Anti Lag (NOVO)
+    -- F5: Toggle Anti Lag
     if input.KeyCode == Enum.KeyCode.F5 then
         CONFIG.antiLag.enabled = not CONFIG.antiLag.enabled
         if CONFIG.antiLag.enabled then
@@ -1374,6 +1720,13 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             notify("Anti Lag", "DESATIVADO (F5)", 2)
         end
         addLog("Anti Lag (F5): " .. (CONFIG.antiLag.enabled and "ON" or "OFF"), CONFIG.antiLag.enabled and "success" or "warning")
+    end
+    
+    -- F6: Abrir Char Morph
+    if input.KeyCode == Enum.KeyCode.F6 then
+        createMorphGui()
+        notify("Char Morph", "Interface aberta (F6)! Digite o username.", 3)
+        addLog("Char Morph aberto via F6", "info")
     end
 end)
 
@@ -1414,6 +1767,7 @@ task.spawn(function()
             tpmLabel:Set("Toques por Minuto: " .. STATS.touchesPerMinute)
             gkTotalSavesLabel:Set("Defesas GK: " .. STATS.gkSaves)
             antiLagTotalLabel:Set("Itens Anti Lag: " .. STATS.antiLagItems)
+            morphsTotalLabel:Set("Morphs Realizados: " .. STATS.morphsDone)
             
             -- Atualizar labels da aba GK
             gkStatusLabel:Set("Status GK: " .. (CONFIG.reachGKEnabled and "ATIVADO" or "Desativado"))
@@ -1423,6 +1777,9 @@ task.spawn(function()
             -- Atualizar labels da aba Anti Lag
             antiLagStatusLabel:Set("Status: " .. (antiLagActive and "ATIVADO ✅" or "Desativado"))
             antiLagItemsLabel:Set("Itens Otimizados: " .. STATS.antiLagItems)
+            
+            -- Atualizar labels da aba Char
+            morphsDoneLabel:Set("Morphs Realizados: " .. STATS.morphsDone)
         end)
     end
 end)
@@ -1436,18 +1793,20 @@ task.spawn(function()
     task.wait(0.5)
     
     -- Mensagens de inicialização
-    notify("⚡ CAFUXZ1 Hub v14.1", "Ultimate Edition by Bazuka & Cafuxz1", 4)
+    notify("⚡ CAFUXZ1 Hub v14.2", "Ultimate Edition by Bazuka & Cafuxz1", 4)
     notify("CADUXX137", "Sistema de Ball Reach ativo!", 3)
     notify("NOVO", "Reach GK disponível (F4 ou aba Reach GK)!", 4)
     notify("NOVO v14.1", "Anti Lag System disponível (F5 ou aba Anti Lag)!", 4)
+    notify("NOVO v14.2", "Char Morph disponível (F6 ou aba Char)!", 4)
     
     print("========================================")
-    print("  CAFUXZ1 HUB v14.1 - ULTIMATE EDITION")
+    print("  CAFUXZ1 HUB v14.2 - ULTIMATE EDITION")
     print("========================================")
     print("Criadores: Bazuka & Cafuxz1")
     print("Ball Reach: CADUXX137 v14.0 Ultimate")
     print("Reach GK: Cafuxz1 v1.0")
     print("Anti Lag: CAFUXZ1 v14.1")
+    print("Char Morph: Integrado v1.0")
     print("Interface: CAFUXZ1 Hub (WindUI)")
     print("Ícone: 88380080222477")
     print("----------------------------------------")
@@ -1456,6 +1815,6 @@ task.spawn(function()
     print("Auto Touch: " .. tostring(CONFIG.autoTouch))
     print("Auto Skills: " .. tostring(autoSkills))
     print("Partículas: " .. tostring(CONFIG.particleEffects))
-    print("Atalhos: F1 (Minimizar) | F2 (Auto Touch) | F3 (Esfera) | F4 (GK) | F5 (Anti Lag)")
+    print("Atalhos: F1 (Minimizar) | F2 (Auto Touch) | F3 (Esfera) | F4 (GK) | F5 (Anti Lag) | F6 (Char)")
     print("========================================")
 end)
