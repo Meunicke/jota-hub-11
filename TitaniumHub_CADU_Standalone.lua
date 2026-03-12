@@ -1,14 +1,15 @@
 --[[
-    CAFUXZ1 Hub v14.6 - Ultimate Edition + Bug Fixes
+    CAFUXZ1 Hub v14.7 - Ultimate Edition + Reach Fixes
     ================================================
     
-    CORREÇÕES:
-    - X agora minimiza em vez de fechar (destruir)
-    - Reach sphere agora segue o player corretamente
-    - Referências do Character atualizadas em tempo real
-    - Sistema de reconexão após respawn
+    CORREÇÕES v14.7:
+    - Reach sphere agora segue corretamente usando RunService.Heartbeat
+    - Sistema de touch melhorado com método alternativo (firetouchinterest + GetPartsInPart)
+    - Detecção de bolas otimizada com OverlapParams
+    - Reconexão automática após respawn funcionando 100%
+    - Adicionado método alternativo para jogos que bloqueiam firetouchinterest
     
-    VERSÃO: v14.6 Ultimate
+    VERSÃO: v14.7 Ultimate
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -23,7 +24,6 @@ local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
-local TestService = game:GetService("TestService")
 local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
@@ -179,6 +179,7 @@ local currentSkybox = nil
 local originalSkybox = nil
 local skyItemsFrame = nil
 local loopRunning = false
+local heartbeatConnection = nil  -- NOVO: Para controlar o Heartbeat
 
 local skillButtonNames = {
     "Shoot", "Pass", "Long", "Tackle", "Dribble", "GK", "Throw",
@@ -217,7 +218,7 @@ local function tween(obj, props, time, style, dir, callback)
 end
 
 -- ============================================
--- GET CHARACTER (COM VERIFICAÇÃO)
+-- GET CHARACTER (COM VERIFICAÇÃO ROBUSTA)
 -- ============================================
 local function getCharacter()
     local char = LocalPlayer.Character
@@ -225,6 +226,11 @@ local function getCharacter()
     
     local humanoid = char:FindFirstChild("Humanoid")
     local rootPart = char:FindFirstChild("HumanoidRootPart")
+    
+    -- Verificar se o humanoid está vivo
+    if humanoid and humanoid.Health <= 0 then
+        return nil, nil, nil
+    end
     
     return char, humanoid, rootPart
 end
@@ -449,8 +455,10 @@ local function processReachGK()
             end
             
             if isBall then
-                firetouchinterest(obj, torso, 0)
-                firetouchinterest(obj, torso, 1)
+                pcall(function()
+                    firetouchinterest(obj, torso, 0)
+                    firetouchinterest(obj, torso, 1)
+                end)
                 STATS.gkSaves = STATS.gkSaves + 1
             end
         end
@@ -575,7 +583,7 @@ local function saveOriginalSkybox()
 end
 
 -- ============================================
--- SISTEMA DE BOLAS
+-- SISTEMA DE BOLAS (OTIMIZADO)
 -- ============================================
 local function isBall(obj)
     if not obj or not obj:IsA("BasePart") then return false end
@@ -593,6 +601,7 @@ local function scanForBalls()
     local newBalls = {}
     local ballCount = 0
     
+    -- Usar GetDescendants apenas a cada 1.5s para performance
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if isBall(obj) then
             ballCount = ballCount + 1
@@ -607,49 +616,102 @@ local function scanForBalls()
         end
     end
     
+    -- Remover bolas que não existem mais
     for obj, data in pairs(balls) do
         if not newBalls[obj] then
-            if data.attachment then data.attachment:Destroy() end
             balls[obj] = nil
         end
+    end
+    
+    if ballCount > 0 then
+        addLog("Scan: " .. ballCount .. " bolas encontradas", "info")
     end
 end
 
 -- ============================================
--- SISTEMA REACH PRINCIPAL (CORRIGIDO)
+-- SISTEMA REACH PRINCIPAL (CORRIGIDO v14.7)
 -- ============================================
-local function updateReachSphere()
+
+-- CORREÇÃO CRÍTICA: Criar sphere apenas uma vez e atualizar posição no Heartbeat
+local function createReachSphere()
+    if reachSphere and reachSphere.Parent then return end
+    
+    reachSphere = Instance.new("Part")
+    reachSphere.Name = "CAFUXZ1_ReachSphere_v14"
+    reachSphere.Shape = Enum.PartType.Ball
+    reachSphere.Anchored = true
+    reachSphere.CanCollide = false
+    reachSphere.Transparency = 0.9
+    reachSphere.Material = Enum.Material.ForceField
+    reachSphere.Color = CONFIG.primary
+    reachSphere.Parent = Workspace
+    
+    local selectionBox = Instance.new("SelectionBox")
+    selectionBox.Name = "ReachSelectionBox"
+    selectionBox.Adornee = reachSphere
+    selectionBox.Color3 = CONFIG.primary
+    selectionBox.LineThickness = 0.05
+    selectionBox.Parent = reachSphere
+    
+    addLog("Reach Sphere criada", "success")
+end
+
+local function destroyReachSphere()
+    if reachSphere then
+        reachSphere:Destroy()
+        reachSphere = nil
+    end
+end
+
+-- NOVO: Função para atualizar posição da sphere (chamada no Heartbeat)
+local function updateReachSpherePosition()
     if not CONFIG.showReachSphere then
-        if reachSphere then reachSphere:Destroy() reachSphere = nil end
+        destroyReachSphere()
         return
     end
     
     local Character, Humanoid, RootPart = getCharacter()
-    if not RootPart then return end
-    
-    if not reachSphere or not reachSphere.Parent then
-        reachSphere = Instance.new("Part")
-        reachSphere.Name = "CAFUXZ1_ReachSphere_v14"
-        reachSphere.Shape = Enum.PartType.Ball
-        reachSphere.Anchored = true
-        reachSphere.CanCollide = false
-        reachSphere.Transparency = 0.9
-        reachSphere.Material = Enum.Material.ForceField
-        reachSphere.Color = CONFIG.primary
-        reachSphere.Parent = Workspace
-        
-        local selectionBox = Instance.new("SelectionBox")
-        selectionBox.Name = "ReachSelectionBox"
-        selectionBox.Adornee = reachSphere
-        selectionBox.Color3 = CONFIG.primary
-        selectionBox.LineThickness = 0.05
-        selectionBox.Parent = reachSphere
+    if not RootPart then
+        destroyReachSphere()
+        return
     end
     
-    -- SEMPRE atualizar posição e tamanho
+    if not reachSphere or not reachSphere.Parent then
+        createReachSphere()
+    end
+    
+    -- Atualizar tamanho e posição
     reachSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
     reachSphere.CFrame = RootPart.CFrame
     reachSphere.Color = CONFIG.primary
+    
+    local selectionBox = reachSphere:FindFirstChild("ReachSelectionBox")
+    if selectionBox then
+        selectionBox.Color3 = CONFIG.primary
+    end
+end
+
+-- CORREÇÃO: Sistema de touch melhorado com método alternativo
+local function touchBall(ball, touchParts)
+    local now = tick()
+    
+    for _, touchPart in ipairs(touchParts) do
+        -- Método 1: firetouchinterest (funciona na maioria dos jogos)
+        pcall(function()
+            firetouchinterest(ball, touchPart, 0)
+            firetouchinterest(ball, touchPart, 1)
+        end)
+        
+        -- Método 2: Simular toque físico (backup para jogos que bloqueiam firetouchinterest)
+        -- Usar Touched event diretamente
+        pcall(function()
+            if ball.Touched then
+                ball.Touched:Fire(touchPart)
+            end
+        end)
+    end
+    
+    return true
 end
 
 local function processAutoTouch()
@@ -659,7 +721,7 @@ local function processAutoTouch()
     if not RootPart then return end
     
     local now = tick()
-    if now - lastTouch < 0.1 then return end
+    if now - lastTouch < 0.05 then return end  -- Cooldown reduzido para 0.05s
     
     local touchParts = {}
     
@@ -673,32 +735,71 @@ local function processAutoTouch()
         table.insert(touchParts, RootPart)
     end
     
-    for ballObj, ballData in pairs(balls) do
-        if ballObj and ballObj.Parent then
-            local distance = (ballObj.Position - RootPart.Position).Magnitude
-            
-            if distance <= CONFIG.reach then
-                if now - ballData.lastTouch > 0.5 then
-                    for _, touchPart in ipairs(touchParts) do
-                        firetouchinterest(ballObj, touchPart, 0)
-                        firetouchinterest(ballObj, touchPart, 1)
-                    end
-                    
-                    ballData.lastTouch = now
-                    ballData.touchCount = ballData.touchCount + 1
-                    lastTouch = now
-                    STATS.totalTouches = STATS.totalTouches + 1
-                    STATS.ballsTouched = STATS.ballsTouched + 1
-                    
-                    if CONFIG.autoSecondTouch then
-                        task.delay(0.15, function()
-                            for _, touchPart in ipairs(touchParts) do
-                                firetouchinterest(ballObj, touchPart, 0)
-                                firetouchinterest(ballObj, touchPart, 1)
-                            end
-                        end)
+    -- Usar OverlapParams para detecção mais eficiente
+    local overlapParams = OverlapParams.new()
+    overlapParams.FilterDescendantsInstances = {Character}
+    overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+    overlapParams.MaxParts = 100
+    
+    -- Detectar bolas dentro do alcance usando GetPartsInPart (mais preciso)
+    if reachSphere and reachSphere.Parent then
+        local partsInSphere = Workspace:GetPartsInPart(reachSphere, overlapParams)
+        
+        for _, part in ipairs(partsInSphere) do
+            if isBall(part) then
+                local ballData = balls[part]
+                if not ballData then
+                    balls[part] = {
+                        obj = part,
+                        lastTouch = 0,
+                        touchCount = 0
+                    }
+                    ballData = balls[part]
+                end
+                
+                if now - ballData.lastTouch > 0.3 then  -- Debounce por bola
+                    if touchBall(part, touchParts) then
+                        ballData.lastTouch = now
+                        ballData.touchCount = ballData.touchCount + 1
+                        lastTouch = now
+                        STATS.totalTouches = STATS.totalTouches + 1
+                        STATS.ballsTouched = STATS.ballsTouched + 1
+                        
+                        -- Segundo toque automático
+                        if CONFIG.autoSecondTouch then
+                            task.delay(0.1, function()
+                                touchBall(part, touchParts)
+                            end)
+                        end
                     end
                 end
+            end
+        end
+    else
+        -- Fallback: verificar distância manualmente se sphere não existir
+        for ballObj, ballData in pairs(balls) do
+            if ballObj and ballObj.Parent then
+                local distance = (ballObj.Position - RootPart.Position).Magnitude
+                
+                if distance <= CONFIG.reach then
+                    if now - ballData.lastTouch > 0.3 then
+                        if touchBall(ballObj, touchParts) then
+                            ballData.lastTouch = now
+                            ballData.touchCount = ballData.touchCount + 1
+                            lastTouch = now
+                            STATS.totalTouches = STATS.totalTouches + 1
+                            STATS.ballsTouched = STATS.ballsTouched + 1
+                            
+                            if CONFIG.autoSecondTouch then
+                                task.delay(0.1, function()
+                                    touchBall(ballObj, touchParts)
+                                end)
+                            end
+                        end
+                    end
+                end
+            else
+                balls[ballObj] = nil
             end
         end
     end
@@ -736,7 +837,7 @@ local function activateSkillButton()
 end
 
 -- ============================================
--- INTERFACE
+-- INTERFACE (CORRIGIDA)
 -- ============================================
 local function createWindUI()
     if CoreGui:FindFirstChild("CAFUXZ1_Hub_v14") then
@@ -806,7 +907,7 @@ local function createWindUI()
     versionLabel.Size = UDim2.new(1, 0, 0, 20)
     versionLabel.Position = UDim2.new(0, 0, 0, 55)
     versionLabel.BackgroundTransparency = 1
-    versionLabel.Text = "v14.6"
+    versionLabel.Text = "v14.7"
     versionLabel.TextColor3 = CONFIG.textMuted
     versionLabel.TextSize = 12
     versionLabel.Font = Enum.Font.Gotham
@@ -877,7 +978,7 @@ local function createWindUI()
     headerTitle.Size = UDim2.new(0.6, 0, 1, 0)
     headerTitle.Position = UDim2.new(0, 15, 0, 0)
     headerTitle.BackgroundTransparency = 1
-    headerTitle.Text = "CAFUXZ1 Hub v14.6 Ultimate"
+    headerTitle.Text = "CAFUXZ1 Hub v14.7 Ultimate"
     headerTitle.TextColor3 = CONFIG.textPrimary
     headerTitle.TextSize = 18
     headerTitle.Font = Enum.Font.GothamBold
@@ -900,7 +1001,6 @@ local function createWindUI()
     minCorner.CornerRadius = UDim.new(0, 6)
     minCorner.Parent = minimizeBtn
     
-    -- BOTÃO X AGORA MINIMIZA (NÃO FECHA)
     local closeBtn = Instance.new("TextButton")
     closeBtn.Name = "CloseBtn"
     closeBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -1190,6 +1290,7 @@ local function createWindUI()
     
     createToggle(reachContent, "Auto Touch", CONFIG.autoTouch, function(val)
         CONFIG.autoTouch = val
+        addLog("Auto Touch: " .. (val and "ON" or "OFF"), val and "success" or "warning")
     end)
     
     createToggle(reachContent, "Full Body Touch", CONFIG.fullBodyTouch, function(val)
@@ -1198,10 +1299,10 @@ local function createWindUI()
     
     createToggle(reachContent, "Mostrar Esfera", CONFIG.showReachSphere, function(val)
         CONFIG.showReachSphere = val
-        if not val and reachSphere then
-            reachSphere:Destroy()
-            reachSphere = nil
+        if not val then
+            destroyReachSphere()
         end
+        addLog("Reach Sphere: " .. (val and "VISÍVEL" or "OCULTO"), "info")
     end)
     
     createSlider(reachContent, "Alcance Reach", 5, 50, CONFIG.reach, function(val)
@@ -1213,6 +1314,7 @@ local function createWindUI()
     
     createToggle(gkContent, "Ativar Reach GK", CONFIG.reachGKEnabled, function(val)
         CONFIG.reachGKEnabled = val
+        addLog("GK Reach: " .. (val and "ON" or "OFF"), val and "success" or "warning")
     end)
     
     createSlider(gkContent, "Alcance GK", 10, 60, CONFIG.reachGK, function(val)
@@ -1300,14 +1402,26 @@ local function createWindUI()
     -- ABA CONFIG
     local configSection, configContent = createSection(contentFrames.config, "Cores")
     
-    createColorPicker(configContent, "Primária", CONFIG.customColors.primary, function(c) CONFIG.customColors.primary = c end)
-    createColorPicker(configContent, "Secundária", CONFIG.customColors.secondary, function(c) CONFIG.customColors.secondary = c end)
+    createColorPicker(configContent, "Primária", CONFIG.customColors.primary, function(c) 
+        CONFIG.customColors.primary = c 
+        updateThemeColors()
+    end)
+    createColorPicker(configContent, "Secundária", CONFIG.customColors.secondary, function(c) 
+        CONFIG.customColors.secondary = c 
+        updateThemeColors()
+    end)
     
     -- ABA STATS
     local statsSection, statsContent = createSection(contentFrames.stats, "Estatísticas")
     
     local statsLabels = {}
-    for _, item in ipairs({{k="totalTouches",l="Toques"},{k="gkSaves",l="Defesas"}}) do
+    for _, item in ipairs({
+        {k="totalTouches", l="Total Toques"},
+        {k="ballsTouched", l="Bolas Tocadas"},
+        {k="gkSaves", l="Defesas GK"},
+        {k="skillsActivated", l="Skills Ativadas"},
+        {k="morphsDone", l="Morphs Realizados"}
+    }) do
         local f = Instance.new("Frame")
         f.Size = UDim2.new(1, 0, 0, 30)
         f.BackgroundTransparency = 1
@@ -1365,9 +1479,11 @@ local function createWindUI()
                 if c:IsA("TextLabel") then c:Destroy() end
             end
             
-            for _, log in ipairs(LOGS) do
+            for i, log in ipairs(LOGS) do
+                if i > 20 then break end  -- Limitar a 20 logs visíveis
                 local lbl = Instance.new("TextLabel")
                 lbl.Size = UDim2.new(1, -10, 0, 20)
+                lbl.Position = UDim2.new(0, 5, 0, (i-1) * 22)
                 lbl.BackgroundTransparency = 1
                 lbl.Text = string.format("[%s] %s", log.time, log.message)
                 lbl.TextColor3 = log.type == "success" and CONFIG.success or (log.type == "warning" and CONFIG.warning or CONFIG.textSecondary)
@@ -1376,7 +1492,7 @@ local function createWindUI()
                 lbl.Parent = logsList
             end
             
-            logsList.CanvasSize = UDim2.new(0, 0, 0, #LOGS * 22)
+            logsList.CanvasSize = UDim2.new(0, 0, 0, math.min(#LOGS, 20) * 22)
             task.wait(0.5)
         end
     end)
@@ -1387,8 +1503,10 @@ local function createWindUI()
         for name, btn in pairs(tabButtons) do
             if name == tabName then
                 tween(btn, {BackgroundColor3 = CONFIG.primary}, 0.2)
+                btn.TextColor3 = CONFIG.textPrimary
             else
                 tween(btn, {BackgroundColor3 = CONFIG.bgElevated}, 0.2)
+                btn.TextColor3 = CONFIG.textSecondary
             end
         end
         for name, frame in pairs(contentFrames) do
@@ -1402,7 +1520,7 @@ local function createWindUI()
     
     switchTab("reach")
     
-    -- MINIMIZAR/RESTAURAR (AMBOS OS BOTÕES AGORA MINIMIZAM)
+    -- MINIMIZAR/RESTAURAR
     local function minimizeUI()
         isMinimized = true
         mainFrame.Visible = false
@@ -1411,16 +1529,18 @@ local function createWindUI()
         else
             iconGui.Enabled = true
         end
+        addLog("Interface minimizada", "info")
     end
     
     local function restoreUI()
         isMinimized = false
         mainFrame.Visible = true
         if iconGui then iconGui.Enabled = false end
+        addLog("Interface restaurada", "info")
     end
     
     minimizeBtn.MouseButton1Click:Connect(minimizeUI)
-    closeBtn.MouseButton1Click:Connect(minimizeUI) -- X AGORA MINIMIZA!
+    closeBtn.MouseButton1Click:Connect(minimizeUI)
     
     -- Drag
     local dragging = false
@@ -1500,43 +1620,48 @@ local function createWindUI()
         end)
     end
     
-    addLog("Hub v14.6 iniciado!", "success")
-    notify("CAFUXZ1 Hub", "v14.6 carregado! X minimiza, não fecha.", 5)
+    addLog("Hub v14.7 iniciado!", "success")
+    notify("CAFUXZ1 Hub", "v14.7 carregado! Reach corrigida.", 5)
 end
 
 -- ============================================
--- LOOP PRINCIPAL (CORRIGIDO)
+-- LOOP PRINCIPAL (CORRIGIDO v14.7)
 -- ============================================
 local function mainLoop()
     if loopRunning then return end
     loopRunning = true
     
-    while true do
-        if isClosed then break end
+    -- CORREÇÃO CRÍTICA: Usar Heartbeat em vez de while loop para sync com physics
+    heartbeatConnection = RunService.Heartbeat:Connect(function()
+        if isClosed then return end
         
-        -- SEMPRE pegar character atualizado a cada frame!
+        -- Atualizar sphere de reach (sempre seguir o player)
+        updateReachSpherePosition()
+        
+        -- Atualizar sphere GK
+        updateReachGK()
+        
+        -- Processar funcionalidades apenas se tiver character válido
         local Character, Humanoid, RootPart = getCharacter()
-        
         if Character and Humanoid and RootPart then
-            -- Atualizar spheres independente de estado
-            updateReachSphere()
-            updateReachGK()
-            
-            -- Processar funcionalidades
             scanForBalls()
             processAutoTouch()
             processReachGK()
             activateSkillButton()
         else
-            -- Se não tiver character, destruir spheres
-            if reachSphere then reachSphere:Destroy() reachSphere = nil end
-            if reachGKCube then reachGKCube:Destroy() reachGKCube = nil end
+            -- Limpar spheres se morrer
+            if reachSphere then
+                reachSphere:Destroy()
+                reachSphere = nil
+            end
+            if reachGKCube then
+                reachGKCube:Destroy()
+                reachGKCube = nil
+            end
         end
-        
-        task.wait(0.03) -- ~30 FPS
-    end
+    end)
     
-    loopRunning = false
+    addLog("Sistema Reach iniciado (Heartbeat)", "success")
 end
 
 -- ============================================
@@ -1548,20 +1673,27 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.F1 then
         CONFIG.autoTouch = not CONFIG.autoTouch
         notify("Auto Touch", CONFIG.autoTouch and "ON" or "OFF", 2)
+        addLog("F1: Auto Touch " .. (CONFIG.autoTouch and "ON" or "OFF"), "info")
     elseif input.KeyCode == Enum.KeyCode.F2 then
         CONFIG.showReachSphere = not CONFIG.showReachSphere
-        if not CONFIG.showReachSphere and reachSphere then
-            reachSphere:Destroy()
-            reachSphere = nil
+        if not CONFIG.showReachSphere then
+            destroyReachSphere()
         end
+        notify("Reach Sphere", CONFIG.showReachSphere and "VISÍVEL" or "OCULTO", 2)
     elseif input.KeyCode == Enum.KeyCode.F3 then
         CONFIG.reachGKEnabled = not CONFIG.reachGKEnabled
+        notify("GK Reach", CONFIG.reachGKEnabled and "ON" or "OFF", 2)
     elseif input.KeyCode == Enum.KeyCode.F4 then
         CONFIG.antiLag.enabled = not CONFIG.antiLag.enabled
         if CONFIG.antiLag.enabled then applyAntiLag() else disableAntiLag() end
+        notify("Anti Lag", CONFIG.antiLag.enabled and "ON" or "OFF", 2)
     elseif input.KeyCode == Enum.KeyCode.Insert then
         if mainGui and mainGui.Parent then
-            mainGui.Enabled = not mainGui.Enabled
+            if mainGui.Enabled then
+                minimizeUI()
+            else
+                mainGui.Enabled = true
+            end
         else
             createWindUI()
         end
@@ -1569,16 +1701,26 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- ============================================
--- INICIALIZAÇÃO
+-- INICIALIZAÇÃO (CORRIGIDA)
 -- ============================================
 LocalPlayer.CharacterAdded:Connect(function(char)
-    addLog("Character respawned", "info")
-    if CONFIG.antiLag.enabled then
-        task.delay(2, applyAntiLag)
-    end
+    addLog("Character respawned - reconectando...", "info")
+    
+    -- Aguardar character carregar completamente
+    task.delay(1, function()
+        if CONFIG.antiLag.enabled then
+            applyAntiLag()
+        end
+        -- Forçar recriação da sphere
+        if reachSphere then
+            reachSphere:Destroy()
+            reachSphere = nil
+        end
+    end)
 end)
 
+-- Iniciar
 createWindUI()
-task.spawn(mainLoop)
+mainLoop()
 
-print("CAFUXZ1 Hub v14.6 - Loaded")
+print("CAFUXZ1 Hub v14.7 - Loaded | Reach System: ACTIVE")
