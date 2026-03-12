@@ -1,15 +1,14 @@
 --[[
-    CAFUXZ1 Hub v14.7 - Ultimate Edition + Reach Fixes
+    CAFUXZ1 Hub v14.8 - Ultimate Edition + Bug Fixes
     ================================================
     
-    CORREÇÕES v14.7:
-    - Reach sphere agora segue corretamente usando RunService.Heartbeat
-    - Sistema de touch melhorado com método alternativo (firetouchinterest + GetPartsInPart)
-    - Detecção de bolas otimizada com OverlapParams
-    - Reconexão automática após respawn funcionando 100%
-    - Adicionado método alternativo para jogos que bloqueiam firetouchinterest
+    CORREÇÕES v14.8:
+    - Slider de arrastar corrigido (agora funciona suave)
+    - Cores aplicam em tempo real em todos os elementos
+    - Toggle da esfera GK funcional
+    - Auto Scan com botão ON/OFF (padrão: OFF para não travar)
     
-    VERSÃO: v14.7 Ultimate
+    VERSÃO: v14.8 Ultimate
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -58,7 +57,8 @@ local CONFIG = {
     autoTouch = true,
     fullBodyTouch = true,
     autoSecondTouch = true,
-    scanCooldown = 1.5,
+    scanCooldown = 2.0, -- Aumentado para 2s
+    autoScanEnabled = false, -- NOVO: Desativado por padrão para não travar
     
     reachGK = 25,
     reachGKEnabled = false,
@@ -103,26 +103,6 @@ local CONFIG = {
         " bola", "Bola", "BALL", "SOCCER", "FOOTBALL", "SoccerBall"
     }
 }
-
--- Atualizar cores
-local function updateThemeColors()
-    CONFIG.primary = CONFIG.customColors.primary
-    CONFIG.secondary = CONFIG.customColors.secondary
-    CONFIG.accent = CONFIG.customColors.accent
-    CONFIG.success = CONFIG.customColors.success
-    CONFIG.danger = CONFIG.customColors.danger
-    CONFIG.warning = CONFIG.customColors.warning
-    CONFIG.info = CONFIG.customColors.info
-    CONFIG.bgDark = CONFIG.customColors.bgDark
-    CONFIG.bgCard = CONFIG.customColors.bgCard
-    CONFIG.bgElevated = CONFIG.customColors.bgElevated
-    CONFIG.bgGlass = CONFIG.customColors.bgGlass
-    CONFIG.textPrimary = CONFIG.customColors.textPrimary
-    CONFIG.textSecondary = CONFIG.customColors.textSecondary
-    CONFIG.textMuted = CONFIG.customColors.textMuted
-end
-
-updateThemeColors()
 
 -- ============================================
 -- ESTATÍSTICAS E LOGS
@@ -179,7 +159,8 @@ local currentSkybox = nil
 local originalSkybox = nil
 local skyItemsFrame = nil
 local loopRunning = false
-local heartbeatConnection = nil  -- NOVO: Para controlar o Heartbeat
+local heartbeatConnection = nil
+local uiElements = {} -- NOVO: Guardar referências de UI para atualizar cores
 
 local skillButtonNames = {
     "Shoot", "Pass", "Long", "Tackle", "Dribble", "GK", "Throw",
@@ -218,7 +199,7 @@ local function tween(obj, props, time, style, dir, callback)
 end
 
 -- ============================================
--- GET CHARACTER (COM VERIFICAÇÃO ROBUSTA)
+-- GET CHARACTER
 -- ============================================
 local function getCharacter()
     local char = LocalPlayer.Character
@@ -227,7 +208,6 @@ local function getCharacter()
     local humanoid = char:FindFirstChild("Humanoid")
     local rootPart = char:FindFirstChild("HumanoidRootPart")
     
-    -- Verificar se o humanoid está vivo
     if humanoid and humanoid.Health <= 0 then
         return nil, nil, nil
     end
@@ -392,41 +372,64 @@ end
 -- ============================================
 -- SISTEMA REACH GK
 -- ============================================
+local function createReachGK()
+    if reachGKCube and reachGKCube.Parent then return end
+    
+    reachGKCube = Instance.new("Part")
+    reachGKCube.Name = "CAFUXZ1_ReachGK_v14"
+    reachGKCube.Shape = Enum.PartType.Block
+    reachGKCube.Anchored = true
+    reachGKCube.CanCollide = false
+    reachGKCube.Transparency = CONFIG.reachGKTransparency
+    reachGKCube.Material = Enum.Material.ForceField
+    reachGKCube.Color = CONFIG.reachGKColor
+    reachGKCube.Parent = Workspace
+    
+    local selectionBox = Instance.new("SelectionBox")
+    selectionBox.Name = "GKSelectionBox"
+    selectionBox.Adornee = reachGKCube
+    selectionBox.Color3 = CONFIG.reachGKColor
+    selectionBox.LineThickness = 0.08
+    selectionBox.Parent = reachGKCube
+    
+    addLog("GK Sphere criada", "success")
+end
+
+local function destroyReachGK()
+    if reachGKCube then
+        reachGKCube:Destroy()
+        reachGKCube = nil
+    end
+end
+
 local function updateReachGK()
+    -- Verificar se deve mostrar a esfera
     if not CONFIG.reachGKShow then
-        if reachGKCube then reachGKCube:Destroy() reachGKCube = nil end
+        destroyReachGK()
         return
     end
     
     local Character, Humanoid, RootPart = getCharacter()
-    if not RootPart then return end
-    
-    if not reachGKCube or not reachGKCube.Parent then
-        reachGKCube = Instance.new("Part")
-        reachGKCube.Name = "CAFUXZ1_ReachGK_v14"
-        reachGKCube.Shape = Enum.PartType.Block
-        reachGKCube.Anchored = true
-        reachGKCube.CanCollide = false
-        reachGKCube.Transparency = CONFIG.reachGKTransparency
-        reachGKCube.Material = Enum.Material.ForceField
-        reachGKCube.Color = CONFIG.reachGKColor
-        reachGKCube.Parent = Workspace
-        
-        local selectionBox = Instance.new("SelectionBox")
-        selectionBox.Name = "GKSelectionBox"
-        selectionBox.Adornee = reachGKCube
-        selectionBox.Color3 = CONFIG.reachGKColor
-        selectionBox.LineThickness = 0.08
-        selectionBox.Parent = reachGKCube
+    if not RootPart then
+        destroyReachGK()
+        return
     end
     
+    -- Criar se não existir
+    if not reachGKCube or not reachGKCube.Parent then
+        createReachGK()
+    end
+    
+    -- Atualizar propriedades
     reachGKCube.Size = Vector3.new(CONFIG.reachGK, CONFIG.reachGK, CONFIG.reachGK)
     reachGKCube.CFrame = RootPart.CFrame
     reachGKCube.Color = CONFIG.reachGKColor
     reachGKCube.Transparency = CONFIG.reachGKTransparency
     
     local selectionBox = reachGKCube:FindFirstChild("GKSelectionBox")
-    if selectionBox then selectionBox.Color3 = CONFIG.reachGKColor end
+    if selectionBox then
+        selectionBox.Color3 = CONFIG.reachGKColor
+    end
 end
 
 local function processReachGK()
@@ -583,7 +586,7 @@ local function saveOriginalSkybox()
 end
 
 -- ============================================
--- SISTEMA DE BOLAS (OTIMIZADO)
+-- SISTEMA DE BOLAS (COM TOGGLE)
 -- ============================================
 local function isBall(obj)
     if not obj or not obj:IsA("BasePart") then return false end
@@ -594,6 +597,9 @@ local function isBall(obj)
 end
 
 local function scanForBalls()
+    -- NOVO: Só scan se autoScan estiver ativado
+    if not CONFIG.autoScanEnabled then return end
+    
     local currentTime = tick()
     if currentTime - lastBallUpdate < CONFIG.scanCooldown then return end
     lastBallUpdate = currentTime
@@ -601,7 +607,7 @@ local function scanForBalls()
     local newBalls = {}
     local ballCount = 0
     
-    -- Usar GetDescendants apenas a cada 1.5s para performance
+    -- Scan otimizado - só pega descendants do Workspace
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if isBall(obj) then
             ballCount = ballCount + 1
@@ -624,15 +630,13 @@ local function scanForBalls()
     end
     
     if ballCount > 0 then
-        addLog("Scan: " .. ballCount .. " bolas encontradas", "info")
+        addLog("Scan: " .. ballCount .. " bolas", "info")
     end
 end
 
 -- ============================================
--- SISTEMA REACH PRINCIPAL (CORRIGIDO v14.7)
+-- SISTEMA REACH PRINCIPAL
 -- ============================================
-
--- CORREÇÃO CRÍTICA: Criar sphere apenas uma vez e atualizar posição no Heartbeat
 local function createReachSphere()
     if reachSphere and reachSphere.Parent then return end
     
@@ -643,17 +647,15 @@ local function createReachSphere()
     reachSphere.CanCollide = false
     reachSphere.Transparency = 0.9
     reachSphere.Material = Enum.Material.ForceField
-    reachSphere.Color = CONFIG.primary
+    reachSphere.Color = CONFIG.customColors.primary
     reachSphere.Parent = Workspace
     
     local selectionBox = Instance.new("SelectionBox")
     selectionBox.Name = "ReachSelectionBox"
     selectionBox.Adornee = reachSphere
-    selectionBox.Color3 = CONFIG.primary
+    selectionBox.Color3 = CONFIG.customColors.primary
     selectionBox.LineThickness = 0.05
     selectionBox.Parent = reachSphere
-    
-    addLog("Reach Sphere criada", "success")
 end
 
 local function destroyReachSphere()
@@ -663,7 +665,6 @@ local function destroyReachSphere()
     end
 end
 
--- NOVO: Função para atualizar posição da sphere (chamada no Heartbeat)
 local function updateReachSpherePosition()
     if not CONFIG.showReachSphere then
         destroyReachSphere()
@@ -680,37 +681,29 @@ local function updateReachSpherePosition()
         createReachSphere()
     end
     
-    -- Atualizar tamanho e posição
     reachSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
     reachSphere.CFrame = RootPart.CFrame
-    reachSphere.Color = CONFIG.primary
+    reachSphere.Color = CONFIG.customColors.primary
     
     local selectionBox = reachSphere:FindFirstChild("ReachSelectionBox")
     if selectionBox then
-        selectionBox.Color3 = CONFIG.primary
+        selectionBox.Color3 = CONFIG.customColors.primary
     end
 end
 
--- CORREÇÃO: Sistema de touch melhorado com método alternativo
 local function touchBall(ball, touchParts)
-    local now = tick()
-    
     for _, touchPart in ipairs(touchParts) do
-        -- Método 1: firetouchinterest (funciona na maioria dos jogos)
         pcall(function()
             firetouchinterest(ball, touchPart, 0)
             firetouchinterest(ball, touchPart, 1)
         end)
         
-        -- Método 2: Simular toque físico (backup para jogos que bloqueiam firetouchinterest)
-        -- Usar Touched event diretamente
         pcall(function()
             if ball.Touched then
                 ball.Touched:Fire(touchPart)
             end
         end)
     end
-    
     return true
 end
 
@@ -721,7 +714,7 @@ local function processAutoTouch()
     if not RootPart then return end
     
     local now = tick()
-    if now - lastTouch < 0.05 then return end  -- Cooldown reduzido para 0.05s
+    if now - lastTouch < 0.05 then return end
     
     local touchParts = {}
     
@@ -735,14 +728,13 @@ local function processAutoTouch()
         table.insert(touchParts, RootPart)
     end
     
-    -- Usar OverlapParams para detecção mais eficiente
-    local overlapParams = OverlapParams.new()
-    overlapParams.FilterDescendantsInstances = {Character}
-    overlapParams.FilterType = Enum.RaycastFilterType.Exclude
-    overlapParams.MaxParts = 100
-    
-    -- Detectar bolas dentro do alcance usando GetPartsInPart (mais preciso)
+    -- Usar GetPartsInPart se sphere existir
     if reachSphere and reachSphere.Parent then
+        local overlapParams = OverlapParams.new()
+        overlapParams.FilterDescendantsInstances = {Character}
+        overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+        overlapParams.MaxParts = 100
+        
         local partsInSphere = Workspace:GetPartsInPart(reachSphere, overlapParams)
         
         for _, part in ipairs(partsInSphere) do
@@ -757,7 +749,7 @@ local function processAutoTouch()
                     ballData = balls[part]
                 end
                 
-                if now - ballData.lastTouch > 0.3 then  -- Debounce por bola
+                if now - ballData.lastTouch > 0.3 then
                     if touchBall(part, touchParts) then
                         ballData.lastTouch = now
                         ballData.touchCount = ballData.touchCount + 1
@@ -765,7 +757,6 @@ local function processAutoTouch()
                         STATS.totalTouches = STATS.totalTouches + 1
                         STATS.ballsTouched = STATS.ballsTouched + 1
                         
-                        -- Segundo toque automático
                         if CONFIG.autoSecondTouch then
                             task.delay(0.1, function()
                                 touchBall(part, touchParts)
@@ -776,7 +767,7 @@ local function processAutoTouch()
             end
         end
     else
-        -- Fallback: verificar distância manualmente se sphere não existir
+        -- Fallback: verificar distância manualmente
         for ballObj, ballData in pairs(balls) do
             if ballObj and ballObj.Parent then
                 local distance = (ballObj.Position - RootPart.Position).Magnitude
@@ -837,7 +828,71 @@ local function activateSkillButton()
 end
 
 -- ============================================
--- INTERFACE (CORRIGIDA)
+-- ATUALIZAÇÃO DE CORES EM TEMPO REAL
+-- ============================================
+local function updateAllColors()
+    -- Atualizar stroke do mainFrame
+    if mainFrame then
+        local stroke = mainFrame:FindFirstChild("UIStroke")
+        if stroke then
+            stroke.Color = CONFIG.customColors.primary
+        end
+        
+        local gradient = mainFrame:FindFirstChild("UIGradient")
+        if gradient then
+            gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, CONFIG.customColors.bgDark),
+                ColorSequenceKeypoint.new(1, CONFIG.customColors.bgCard)
+            })
+        end
+    end
+    
+    -- Atualizar título
+    if mainFrame then
+        local header = mainFrame:FindFirstChild("Header")
+        if header then
+            local title = header:FindFirstChild("HeaderTitle")
+            if title then
+                title.TextColor3 = CONFIG.customColors.textPrimary
+            end
+        end
+        
+        local sidebar = mainFrame:FindFirstChild("Sidebar")
+        if sidebar then
+            local titleLabel = sidebar:FindFirstChild("TextLabel")
+            if titleLabel then
+                titleLabel.TextColor3 = CONFIG.customColors.primary
+            end
+            
+            local versionLabel = sidebar:FindFirstChild("TextLabel", 2)
+            if versionLabel then
+                versionLabel.TextColor3 = CONFIG.customColors.textMuted
+            end
+        end
+    end
+    
+    -- Atualizar spheres se existirem
+    if reachSphere then
+        reachSphere.Color = CONFIG.customColors.primary
+        local selectionBox = reachSphere:FindFirstChild("ReachSelectionBox")
+        if selectionBox then
+            selectionBox.Color3 = CONFIG.customColors.primary
+        end
+    end
+    
+    -- Atualizar ícone flutuante
+    if iconGui then
+        local iconBtn = iconGui:FindFirstChild("IconButton")
+        if iconBtn then
+            iconBtn.BackgroundColor3 = CONFIG.customColors.primary
+        end
+    end
+    
+    addLog("Cores atualizadas!", "success")
+end
+
+-- ============================================
+-- INTERFACE (CORRIGIDA v14.8)
 -- ============================================
 local function createWindUI()
     if CoreGui:FindFirstChild("CAFUXZ1_Hub_v14") then
@@ -856,7 +911,7 @@ local function createWindUI()
     mainFrame.Name = "MainFrame"
     mainFrame.Size = UDim2.new(0, CONFIG.width, 0, CONFIG.height)
     mainFrame.Position = UDim2.new(0.5, -CONFIG.width/2, 0.5, -CONFIG.height/2)
-    mainFrame.BackgroundColor3 = CONFIG.bgGlass
+    mainFrame.BackgroundColor3 = CONFIG.customColors.bgGlass
     mainFrame.BackgroundTransparency = 0.2
     mainFrame.BorderSizePixel = 0
     mainFrame.ClipsDescendants = true
@@ -867,15 +922,17 @@ local function createWindUI()
     corner.Parent = mainFrame
     
     local stroke = Instance.new("UIStroke")
-    stroke.Color = CONFIG.primary
+    stroke.Name = "UIStroke"
+    stroke.Color = CONFIG.customColors.primary
     stroke.Thickness = 2
     stroke.Transparency = 0.5
     stroke.Parent = mainFrame
     
     local gradient = Instance.new("UIGradient")
+    gradient.Name = "UIGradient"
     gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, CONFIG.bgDark),
-        ColorSequenceKeypoint.new(1, CONFIG.bgCard)
+        ColorSequenceKeypoint.new(0, CONFIG.customColors.bgDark),
+        ColorSequenceKeypoint.new(1, CONFIG.customColors.bgCard)
     })
     gradient.Rotation = 45
     gradient.Parent = mainFrame
@@ -884,7 +941,7 @@ local function createWindUI()
     local sidebar = Instance.new("Frame")
     sidebar.Name = "Sidebar"
     sidebar.Size = UDim2.new(0, CONFIG.sidebarWidth, 1, 0)
-    sidebar.BackgroundColor3 = CONFIG.bgCard
+    sidebar.BackgroundColor3 = CONFIG.customColors.bgCard
     sidebar.BackgroundTransparency = 0.3
     sidebar.BorderSizePixel = 0
     sidebar.Parent = mainFrame
@@ -898,7 +955,7 @@ local function createWindUI()
     titleLabel.Position = UDim2.new(0, 0, 0, 10)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = "⚡"
-    titleLabel.TextColor3 = CONFIG.primary
+    titleLabel.TextColor3 = CONFIG.customColors.primary
     titleLabel.TextSize = 32
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.Parent = sidebar
@@ -907,8 +964,8 @@ local function createWindUI()
     versionLabel.Size = UDim2.new(1, 0, 0, 20)
     versionLabel.Position = UDim2.new(0, 0, 0, 55)
     versionLabel.BackgroundTransparency = 1
-    versionLabel.Text = "v14.7"
-    versionLabel.TextColor3 = CONFIG.textMuted
+    versionLabel.Text = "v14.8"
+    versionLabel.TextColor3 = CONFIG.customColors.textMuted
     versionLabel.TextSize = 12
     versionLabel.Font = Enum.Font.Gotham
     versionLabel.Parent = sidebar
@@ -933,10 +990,10 @@ local function createWindUI()
         btn.Name = tab.name .. "Btn"
         btn.Size = UDim2.new(0.9, 0, 0, 40)
         btn.Position = UDim2.new(0.05, 0, 0, 90 + (i-1) * 45)
-        btn.BackgroundColor3 = CONFIG.bgElevated
+        btn.BackgroundColor3 = CONFIG.customColors.bgElevated
         btn.BackgroundTransparency = 0.5
         btn.Text = tab.icon .. " " .. tab.label
-        btn.TextColor3 = CONFIG.textSecondary
+        btn.TextColor3 = CONFIG.customColors.textSecondary
         btn.TextSize = 11
         btn.Font = Enum.Font.GothamBold
         btn.Parent = sidebar
@@ -954,7 +1011,7 @@ local function createWindUI()
         content.BackgroundTransparency = 1
         content.BorderSizePixel = 0
         content.ScrollBarThickness = 4
-        content.ScrollBarImageColor3 = CONFIG.primary
+        content.ScrollBarImageColor3 = CONFIG.customColors.primary
         content.Visible = false
         content.Parent = mainFrame
         
@@ -978,8 +1035,8 @@ local function createWindUI()
     headerTitle.Size = UDim2.new(0.6, 0, 1, 0)
     headerTitle.Position = UDim2.new(0, 15, 0, 0)
     headerTitle.BackgroundTransparency = 1
-    headerTitle.Text = "CAFUXZ1 Hub v14.7 Ultimate"
-    headerTitle.TextColor3 = CONFIG.textPrimary
+    headerTitle.Text = "CAFUXZ1 Hub v14.8 Ultimate"
+    headerTitle.TextColor3 = CONFIG.customColors.textPrimary
     headerTitle.TextSize = 18
     headerTitle.Font = Enum.Font.GothamBold
     headerTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -990,7 +1047,7 @@ local function createWindUI()
     minimizeBtn.Name = "MinimizeBtn"
     minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
     minimizeBtn.Position = UDim2.new(1, -70, 0, 5)
-    minimizeBtn.BackgroundColor3 = CONFIG.warning
+    minimizeBtn.BackgroundColor3 = CONFIG.customColors.warning
     minimizeBtn.Text = "−"
     minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
     minimizeBtn.TextSize = 20
@@ -1005,7 +1062,7 @@ local function createWindUI()
     closeBtn.Name = "CloseBtn"
     closeBtn.Size = UDim2.new(0, 30, 0, 30)
     closeBtn.Position = UDim2.new(1, -35, 0, 5)
-    closeBtn.BackgroundColor3 = CONFIG.danger
+    closeBtn.BackgroundColor3 = CONFIG.customColors.danger
     closeBtn.Text = "×"
     closeBtn.TextColor3 = Color3.new(1, 1, 1)
     closeBtn.TextSize = 20
@@ -1021,7 +1078,7 @@ local function createWindUI()
         local section = Instance.new("Frame")
         section.Size = UDim2.new(0.95, 0, 0, 0)
         section.AutomaticSize = Enum.AutomaticSize.Y
-        section.BackgroundColor3 = CONFIG.bgCard
+        section.BackgroundColor3 = CONFIG.customColors.bgCard
         section.BackgroundTransparency = 0.4
         section.BorderSizePixel = 0
         section.Parent = parent
@@ -1035,7 +1092,7 @@ local function createWindUI()
         sectionTitle.Position = UDim2.new(0, 10, 0, 5)
         sectionTitle.BackgroundTransparency = 1
         sectionTitle.Text = "◆ " .. title
-        sectionTitle.TextColor3 = CONFIG.primary
+        sectionTitle.TextColor3 = CONFIG.customColors.primary
         sectionTitle.TextSize = 14
         sectionTitle.Font = Enum.Font.GothamBold
         sectionTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -1066,7 +1123,7 @@ local function createWindUI()
         label.Size = UDim2.new(0.7, 0, 1, 0)
         label.BackgroundTransparency = 1
         label.Text = text
-        label.TextColor3 = CONFIG.textSecondary
+        label.TextColor3 = CONFIG.customColors.textSecondary
         label.TextSize = 13
         label.Font = Enum.Font.Gotham
         label.TextXAlignment = Enum.TextXAlignment.Left
@@ -1075,7 +1132,7 @@ local function createWindUI()
         local toggleBtn = Instance.new("TextButton")
         toggleBtn.Size = UDim2.new(0, 50, 0, 25)
         toggleBtn.Position = UDim2.new(1, -50, 0.5, -12.5)
-        toggleBtn.BackgroundColor3 = default and CONFIG.success or CONFIG.bgElevated
+        toggleBtn.BackgroundColor3 = default and CONFIG.customColors.success or CONFIG.customColors.bgElevated
         toggleBtn.Text = default and "ON" or "OFF"
         toggleBtn.TextColor3 = Color3.new(1, 1, 1)
         toggleBtn.TextSize = 12
@@ -1090,13 +1147,16 @@ local function createWindUI()
         
         toggleBtn.MouseButton1Click:Connect(function()
             enabled = not enabled
-            toggleBtn.BackgroundColor3 = enabled and CONFIG.success or CONFIG.bgElevated
+            toggleBtn.BackgroundColor3 = enabled and CONFIG.customColors.success or CONFIG.customColors.bgElevated
             toggleBtn.Text = enabled and "ON" or "OFF"
             if callback then callback(enabled) end
         end)
         
-        return toggleFrame
+        return toggleFrame, toggleBtn
     end
+    
+    -- CORREÇÃO: Slider funcional com InputChanged global
+    local activeSlider = nil
     
     local function createSlider(parent, text, min, max, default, callback)
         local sliderFrame = Instance.new("Frame")
@@ -1108,16 +1168,17 @@ local function createWindUI()
         label.Size = UDim2.new(0.6, 0, 0, 20)
         label.BackgroundTransparency = 1
         label.Text = text .. ": " .. default
-        label.TextColor3 = CONFIG.textSecondary
+        label.TextColor3 = CONFIG.customColors.textSecondary
         label.TextSize = 13
         label.Font = Enum.Font.Gotham
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = sliderFrame
         
         local sliderBg = Instance.new("Frame")
+        sliderBg.Name = "SliderBg"
         sliderBg.Size = UDim2.new(1, 0, 0, 8)
         sliderBg.Position = UDim2.new(0, 0, 0, 30)
-        sliderBg.BackgroundColor3 = CONFIG.bgElevated
+        sliderBg.BackgroundColor3 = CONFIG.customColors.bgElevated
         sliderBg.BorderSizePixel = 0
         sliderBg.Parent = sliderFrame
         
@@ -1126,8 +1187,9 @@ local function createWindUI()
         sliderBgCorner.Parent = sliderBg
         
         local sliderFill = Instance.new("Frame")
+        sliderFill.Name = "SliderFill"
         sliderFill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-        sliderFill.BackgroundColor3 = CONFIG.primary
+        sliderFill.BackgroundColor3 = CONFIG.customColors.primary
         sliderFill.BorderSizePixel = 0
         sliderFill.Parent = sliderBg
         
@@ -1136,6 +1198,7 @@ local function createWindUI()
         sliderFillCorner.Parent = sliderFill
         
         local sliderKnob = Instance.new("TextButton")
+        sliderKnob.Name = "SliderKnob"
         sliderKnob.Size = UDim2.new(0, 16, 0, 16)
         sliderKnob.Position = UDim2.new((default - min) / (max - min), -8, 0.5, -8)
         sliderKnob.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -1146,44 +1209,65 @@ local function createWindUI()
         knobCorner.CornerRadius = UDim.new(1, 0)
         knobCorner.Parent = sliderKnob
         
-        local dragging = false
+        local currentValue = default
         
         local function updateSlider(input)
-            local pos = math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
+            local sliderBgAbs = sliderBg.AbsolutePosition.X
+            local sliderBgSize = sliderBg.AbsoluteSize.X
+            local mouseX = input.Position.X
+            
+            local pos = math.clamp((mouseX - sliderBgAbs) / sliderBgSize, 0, 1)
             local value = math.floor(min + (pos * (max - min)))
             
             sliderFill.Size = UDim2.new(pos, 0, 1, 0)
             sliderKnob.Position = UDim2.new(pos, -8, 0.5, -8)
-            label.Text = text .. ": " .. value
             
-            if callback then callback(value) end
+            if value ~= currentValue then
+                currentValue = value
+                label.Text = text .. ": " .. value
+                if callback then callback(value) end
+            end
         end
         
         sliderKnob.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = true
+                activeSlider = {
+                    update = updateSlider,
+                    knob = sliderKnob
+                }
             end
         end)
         
-        UserInputService.InputChanged:Connect(function(input)
-            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                updateSlider(input)
-            end
-        end)
-        
-        UserInputService.InputEnded:Connect(function(input)
+        sliderBg.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = false
+                updateSlider(input)
+                activeSlider = {
+                    update = updateSlider,
+                    knob = sliderKnob
+                }
             end
         end)
         
         return sliderFrame
     end
     
+    -- Conexão global para sliders
+    UserInputService.InputChanged:Connect(function(input)
+        if activeSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+            activeSlider.update(input)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            activeSlider = nil
+        end
+    end)
+    
     local function createButton(parent, text, color, callback)
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(1, 0, 0, 35)
-        btn.BackgroundColor3 = color or CONFIG.primary
+        btn.BackgroundColor3 = color or CONFIG.customColors.primary
         btn.Text = text
         btn.TextColor3 = Color3.new(1, 1, 1)
         btn.TextSize = 13
@@ -1204,6 +1288,7 @@ local function createWindUI()
         return btn
     end
     
+    -- CORREÇÃO: ColorPicker que atualiza cores em tempo real
     local function createColorPicker(parent, labelText, defaultColor, callback)
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, 0, 0, 40)
@@ -1214,7 +1299,7 @@ local function createWindUI()
         label.Size = UDim2.new(0.6, 0, 1, 0)
         label.BackgroundTransparency = 1
         label.Text = labelText
-        label.TextColor3 = CONFIG.textSecondary
+        label.TextColor3 = CONFIG.customColors.textSecondary
         label.TextSize = 13
         label.Font = Enum.Font.Gotham
         label.TextXAlignment = Enum.TextXAlignment.Left
@@ -1241,7 +1326,7 @@ local function createWindUI()
         
         local rInput = Instance.new("TextBox")
         rInput.Size = UDim2.new(0.3, -4, 1, 0)
-        rInput.BackgroundColor3 = CONFIG.bgElevated
+        rInput.BackgroundColor3 = CONFIG.customColors.bgElevated
         rInput.Text = tostring(math.floor(defaultColor.R * 255))
         rInput.TextColor3 = Color3.new(1, 0, 0)
         rInput.Parent = rgbFrame
@@ -1249,7 +1334,7 @@ local function createWindUI()
         local gInput = Instance.new("TextBox")
         gInput.Size = UDim2.new(0.3, -4, 1, 0)
         gInput.Position = UDim2.new(0.35, 0, 0, 0)
-        gInput.BackgroundColor3 = CONFIG.bgElevated
+        gInput.BackgroundColor3 = CONFIG.customColors.bgElevated
         gInput.Text = tostring(math.floor(defaultColor.G * 255))
         gInput.TextColor3 = Color3.fromRGB(0, 255, 0)
         gInput.Parent = rgbFrame
@@ -1257,7 +1342,7 @@ local function createWindUI()
         local bInput = Instance.new("TextBox")
         bInput.Size = UDim2.new(0.3, -4, 1, 0)
         bInput.Position = UDim2.new(0.7, 0, 0, 0)
-        bInput.BackgroundColor3 = CONFIG.bgElevated
+        bInput.BackgroundColor3 = CONFIG.customColors.bgElevated
         bInput.Text = tostring(math.floor(defaultColor.B * 255))
         bInput.TextColor3 = Color3.fromRGB(0, 100, 255)
         bInput.Parent = rgbFrame
@@ -1305,6 +1390,15 @@ local function createWindUI()
         addLog("Reach Sphere: " .. (val and "VISÍVEL" or "OCULTO"), "info")
     end)
     
+    -- NOVO: Toggle para Auto Scan
+    createToggle(reachContent, "Auto Scan (Pesado)", CONFIG.autoScanEnabled, function(val)
+        CONFIG.autoScanEnabled = val
+        addLog("Auto Scan: " .. (val and "ON" or "OFF"), val and "warning" or "success")
+        if val then
+            notify("Aviso", "Auto Scan pode causar lag!", 3)
+        end
+    end)
+    
     createSlider(reachContent, "Alcance Reach", 5, 50, CONFIG.reach, function(val)
         CONFIG.reach = val
     end)
@@ -1317,8 +1411,21 @@ local function createWindUI()
         addLog("GK Reach: " .. (val and "ON" or "OFF"), val and "success" or "warning")
     end)
     
+    -- CORREÇÃO: Toggle da esfera GK funcional
+    createToggle(gkContent, "Mostrar Esfera GK", CONFIG.reachGKShow, function(val)
+        CONFIG.reachGKShow = val
+        if not val then
+            destroyReachGK()
+        end
+        addLog("GK Sphere: " .. (val and "VISÍVEL" or "OCULTO"), "info")
+    end)
+    
     createSlider(gkContent, "Alcance GK", 10, 60, CONFIG.reachGK, function(val)
         CONFIG.reachGK = val
+    end)
+    
+    createSlider(gkContent, "Transparência GK", 0, 100, math.floor(CONFIG.reachGKTransparency * 100), function(val)
+        CONFIG.reachGKTransparency = val / 100
     end)
     
     -- ABA VISUAL
@@ -1334,17 +1441,17 @@ local function createWindUI()
     
     local usernameInput = Instance.new("TextBox")
     usernameInput.Size = UDim2.new(1, 0, 0, 30)
-    usernameInput.BackgroundColor3 = CONFIG.bgElevated
+    usernameInput.BackgroundColor3 = CONFIG.customColors.bgElevated
     usernameInput.Text = ""
     usernameInput.PlaceholderText = "Username..."
-    usernameInput.TextColor3 = CONFIG.textPrimary
+    usernameInput.TextColor3 = CONFIG.customColors.textPrimary
     usernameInput.Parent = charContent
     
     local inputCorner = Instance.new("UICorner")
     inputCorner.CornerRadius = UDim.new(0, 6)
     inputCorner.Parent = usernameInput
     
-    createButton(charContent, "Aplicar Morph", CONFIG.primary, function()
+    createButton(charContent, "Aplicar Morph", CONFIG.customColors.primary, function()
         local username = usernameInput.Text
         if username ~= "" then
             task.spawn(function()
@@ -1357,7 +1464,7 @@ local function createWindUI()
     end)
     
     for _, preset in ipairs(PRESET_MORPHS) do
-        createButton(charContent, preset.displayName, CONFIG.bgElevated, function()
+        createButton(charContent, preset.displayName, CONFIG.customColors.bgElevated, function()
             if preset.userId then morphToUser(preset.userId, preset.displayName) end
         end)
     end
@@ -1397,18 +1504,34 @@ local function createWindUI()
     createButton(skyContent, "🌅 Atmosféricos", CategoryColors["2"], function() loadSkyCategory("2") end)
     createButton(skyContent, "🎨 Custom", CategoryColors["3"], function() loadSkyCategory("3") end)
     createButton(skyContent, "✨ Especiais", CategoryColors["4"], function() loadSkyCategory("4") end)
-    createButton(skyContent, "↩️ Resetar", CONFIG.danger, restoreOriginalSkybox)
+    createButton(skyContent, "↩️ Resetar", CONFIG.customColors.danger, restoreOriginalSkybox)
     
-    -- ABA CONFIG
-    local configSection, configContent = createSection(contentFrames.config, "Cores")
+    -- ABA CONFIG - CORREÇÃO: Cores aplicam em tempo real
+    local configSection, configContent = createSection(contentFrames.config, "Cores do Tema")
     
-    createColorPicker(configContent, "Primária", CONFIG.customColors.primary, function(c) 
-        CONFIG.customColors.primary = c 
-        updateThemeColors()
+    createColorPicker(configContent, "Cor Primária", CONFIG.customColors.primary, function(c) 
+        CONFIG.customColors.primary = c
+        updateAllColors()
     end)
-    createColorPicker(configContent, "Secundária", CONFIG.customColors.secondary, function(c) 
-        CONFIG.customColors.secondary = c 
-        updateThemeColors()
+    
+    createColorPicker(configContent, "Cor Secundária", CONFIG.customColors.secondary, function(c) 
+        CONFIG.customColors.secondary = c
+        updateAllColors()
+    end)
+    
+    createColorPicker(configContent, "Cor Sucesso", CONFIG.customColors.success, function(c) 
+        CONFIG.customColors.success = c
+        updateAllColors()
+    end)
+    
+    createColorPicker(configContent, "Cor Perigo", CONFIG.customColors.danger, function(c) 
+        CONFIG.customColors.danger = c
+        updateAllColors()
+    end)
+    
+    createColorPicker(configContent, "Cor Aviso", CONFIG.customColors.warning, function(c) 
+        CONFIG.customColors.warning = c
+        updateAllColors()
     end)
     
     -- ABA STATS
@@ -1431,7 +1554,7 @@ local function createWindUI()
         lbl.Size = UDim2.new(0.6, 0, 1, 0)
         lbl.BackgroundTransparency = 1
         lbl.Text = item.l .. ":"
-        lbl.TextColor3 = CONFIG.textSecondary
+        lbl.TextColor3 = CONFIG.customColors.textSecondary
         lbl.TextSize = 13
         lbl.Font = Enum.Font.Gotham
         lbl.Parent = f
@@ -1441,7 +1564,7 @@ local function createWindUI()
         val.Position = UDim2.new(0.6, 0, 0, 0)
         val.BackgroundTransparency = 1
         val.Text = "0"
-        val.TextColor3 = CONFIG.primary
+        val.TextColor3 = CONFIG.customColors.primary
         val.TextSize = 14
         val.Font = Enum.Font.GothamBold
         val.Parent = f
@@ -1463,7 +1586,7 @@ local function createWindUI()
     
     local logsList = Instance.new("ScrollingFrame")
     logsList.Size = UDim2.new(1, 0, 0, 250)
-    logsList.BackgroundColor3 = CONFIG.bgDark
+    logsList.BackgroundColor3 = CONFIG.customColors.bgDark
     logsList.BackgroundTransparency = 0.5
     logsList.BorderSizePixel = 0
     logsList.ScrollBarThickness = 4
@@ -1480,13 +1603,13 @@ local function createWindUI()
             end
             
             for i, log in ipairs(LOGS) do
-                if i > 20 then break end  -- Limitar a 20 logs visíveis
+                if i > 20 then break end
                 local lbl = Instance.new("TextLabel")
                 lbl.Size = UDim2.new(1, -10, 0, 20)
                 lbl.Position = UDim2.new(0, 5, 0, (i-1) * 22)
                 lbl.BackgroundTransparency = 1
                 lbl.Text = string.format("[%s] %s", log.time, log.message)
-                lbl.TextColor3 = log.type == "success" and CONFIG.success or (log.type == "warning" and CONFIG.warning or CONFIG.textSecondary)
+                lbl.TextColor3 = log.type == "success" and CONFIG.customColors.success or (log.type == "warning" and CONFIG.customColors.warning or CONFIG.customColors.textSecondary)
                 lbl.TextSize = 11
                 lbl.Font = Enum.Font.Code
                 lbl.Parent = logsList
@@ -1502,11 +1625,11 @@ local function createWindUI()
         currentTab = tabName
         for name, btn in pairs(tabButtons) do
             if name == tabName then
-                tween(btn, {BackgroundColor3 = CONFIG.primary}, 0.2)
-                btn.TextColor3 = CONFIG.textPrimary
+                tween(btn, {BackgroundColor3 = CONFIG.customColors.primary}, 0.2)
+                btn.TextColor3 = CONFIG.customColors.textPrimary
             else
-                tween(btn, {BackgroundColor3 = CONFIG.bgElevated}, 0.2)
-                btn.TextColor3 = CONFIG.textSecondary
+                tween(btn, {BackgroundColor3 = CONFIG.customColors.bgElevated}, 0.2)
+                btn.TextColor3 = CONFIG.customColors.textSecondary
             end
         end
         for name, frame in pairs(contentFrames) do
@@ -1582,7 +1705,7 @@ local function createWindUI()
         iconBtn.Name = "IconButton"
         iconBtn.Size = UDim2.new(0, 50, 0, 50)
         iconBtn.Position = UDim2.new(0, 20, 0.5, -25)
-        iconBtn.BackgroundColor3 = CONFIG.primary
+        iconBtn.BackgroundColor3 = CONFIG.customColors.primary
         iconBtn.Text = "⚡"
         iconBtn.TextColor3 = Color3.new(1, 1, 1)
         iconBtn.TextSize = 24
@@ -1620,28 +1743,23 @@ local function createWindUI()
         end)
     end
     
-    addLog("Hub v14.7 iniciado!", "success")
-    notify("CAFUXZ1 Hub", "v14.7 carregado! Reach corrigida.", 5)
+    addLog("Hub v14.8 iniciado!", "success")
+    notify("CAFUXZ1 Hub", "v14.8 - Slider, Cores e Scan corrigidos!", 5)
 end
 
 -- ============================================
--- LOOP PRINCIPAL (CORRIGIDO v14.7)
+-- LOOP PRINCIPAL
 -- ============================================
 local function mainLoop()
     if loopRunning then return end
     loopRunning = true
     
-    -- CORREÇÃO CRÍTICA: Usar Heartbeat em vez de while loop para sync com physics
     heartbeatConnection = RunService.Heartbeat:Connect(function()
         if isClosed then return end
         
-        -- Atualizar sphere de reach (sempre seguir o player)
         updateReachSpherePosition()
-        
-        -- Atualizar sphere GK
         updateReachGK()
         
-        -- Processar funcionalidades apenas se tiver character válido
         local Character, Humanoid, RootPart = getCharacter()
         if Character and Humanoid and RootPart then
             scanForBalls()
@@ -1649,7 +1767,6 @@ local function mainLoop()
             processReachGK()
             activateSkillButton()
         else
-            -- Limpar spheres se morrer
             if reachSphere then
                 reachSphere:Destroy()
                 reachSphere = nil
@@ -1661,7 +1778,7 @@ local function mainLoop()
         end
     end)
     
-    addLog("Sistema Reach iniciado (Heartbeat)", "success")
+    addLog("Sistema Reach iniciado", "success")
 end
 
 -- ============================================
@@ -1701,20 +1818,22 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- ============================================
--- INICIALIZAÇÃO (CORRIGIDA)
+-- INICIALIZAÇÃO
 -- ============================================
 LocalPlayer.CharacterAdded:Connect(function(char)
     addLog("Character respawned - reconectando...", "info")
     
-    -- Aguardar character carregar completamente
     task.delay(1, function()
         if CONFIG.antiLag.enabled then
             applyAntiLag()
         end
-        -- Forçar recriação da sphere
         if reachSphere then
             reachSphere:Destroy()
             reachSphere = nil
+        end
+        if reachGKCube then
+            reachGKCube:Destroy()
+            reachGKCube = nil
         end
     end)
 end)
@@ -1723,4 +1842,4 @@ end)
 createWindUI()
 mainLoop()
 
-print("CAFUXZ1 Hub v14.7 - Loaded | Reach System: ACTIVE")
+print("CAFUXZ1 Hub v14.8 - Loaded | Auto Scan: " .. (CONFIG.autoScanEnabled and "ON" or "OFF (Padrão)"))
