@@ -1,36 +1,15 @@
+
 --[[
-    CAFUXZ1 Hub v14.4 - Ultimate Edition + Skybox Fix + Customização
-    ================================================================
+    CAFUXZ1 Hub v14.5 - Ultimate Edition + Bug Fixes
+    ================================================
     
     CRIADORES OFICIAIS:
     - Bazuka: Reconstrução total, integração WindUI + CADUXX137
     - Cafuxz1: Contribuições, sistema GK e melhorias no sistema
     - CADUXX137: Sistema de Ball Reach original (lógica de detecção de bolas)
     
-    INTERFACE:
-    - CAFUXZ1 Hub: WindUI Library (emprestada para este projeto)
-    
-    DESCRIÇÃO:
-    Script focado exclusivamente em jogos de futebol/soccer do Roblox.
-    Combina a interface moderna do CAFUXZ1 Hub com o sistema avançado
-    de Ball Reach do CADUXX137 v14.0 Ultimate.
-    
-    FEATURES:
-    - Detecção automática de 200+ tipos de bolas
-    - Reach sphere/cubo visual com partículas
-    - Reach GK (Goleiro) com cubo ampliado
-    - Auto-touch com full body support
-    - Double touch e triple touch
-    - Auto-skills para botões de futebol
-    - Estatísticas em tempo real
-    - Temas dark/light/auto + CUSTOMIZAÇÃO DE CORES
-    - Atalhos de teclado (F1, F2, F3, F4, F5, F6, F7)
-    - Sistema Anti Lag completo
-    - Morph Avatar (Char) integrado com 5 pré-definidos
-    - Sistema Skybox v2.0 corrigido (16 céus)
-    
-    VERSÃO: v14.4 Ultimate
-    STATUS: Produção
+    VERSÃO: v14.5 Ultimate
+    STATUS: Produção - Bug Fixes
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -56,15 +35,23 @@ local RootPart = nil
 local Camera = Workspace.CurrentCamera
 
 -- ============================================
--- CONFIGURAÇÕES CAFUXZ1 v14.4 ULTIMATE
+-- VERIFICAÇÃO ANTI-DUPLICAÇÃO
+-- ============================================
+if CoreGui:FindFirstChild("CAFUXZ1_Hub_v14") then
+    CoreGui:FindFirstChild("CAFUXZ1_Hub_v14"):Destroy()
+end
+if CoreGui:FindFirstChild("CAFUXZ1_Icon_v14") then
+    CoreGui:FindFirstChild("CAFUXZ1_Icon_v14"):Destroy()
+end
+
+-- ============================================
+-- CONFIGURAÇÕES CAFUXZ1 v14.5 ULTIMATE
 -- ============================================
 local CONFIG = {
-    -- Dimensões
     width = 600,
     height = 450,
     sidebarWidth = 90,
     
-    -- Core Ball Reach
     reach = 15,
     showReachSphere = true,
     autoTouch = true,
@@ -73,14 +60,12 @@ local CONFIG = {
     scanCooldown = 1.5,
     scale = 1.0,
     
-    -- Reach GK (NOVO)
     reachGK = 25,
     reachGKEnabled = false,
     reachGKColor = Color3.fromRGB(255, 255, 0),
     reachGKTransparency = 0.8,
     reachGKShow = true,
     
-    -- Anti Lag Settings
     antiLag = {
         enabled = false,
         textures = true,
@@ -91,7 +76,6 @@ local CONFIG = {
         fullBright = false
     },
     
-    -- Morph Settings
     morph = {
         minimized = false,
         draggingTitleBar = false,
@@ -99,7 +83,6 @@ local CONFIG = {
         startPos = nil
     },
     
-    -- Sistema de temas e CUSTOMIZAÇÃO DE CORES
     theme = "custom",
     accentColor = Color3.fromRGB(99, 102, 241),
     particleEffects = true,
@@ -107,7 +90,6 @@ local CONFIG = {
     showStats = true,
     autoUpdate = true,
     
-    -- Cores personalizáveis (NOVO v14.4)
     customColors = {
         primary = Color3.fromRGB(99, 102, 241),
         secondary = Color3.fromRGB(139, 92, 246),
@@ -127,10 +109,8 @@ local CONFIG = {
         textMuted = Color3.fromRGB(130, 140, 170),
     },
     
-    -- IDs das imagens atualizadas (Bazuka)
     iconImage = "rbxassetid://88380080222477",
     
-    -- Lista expandida de bolas (CADUXX137)
     ballNames = { 
         "TPS", "TCS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ",
         "Ball", "Soccer", "Football", "Basketball", "Baseball", 
@@ -139,7 +119,6 @@ local CONFIG = {
         " bola", "Bola", "BALL", "SOCCER", "FOOTBALL", "SoccerBall"
     },
     
-    -- Cores tema Light (backup)
     lightBg = Color3.fromRGB(245, 245, 250),
     lightCard = Color3.fromRGB(255, 255, 255),
     lightText = Color3.fromRGB(30, 30, 40),
@@ -167,7 +146,7 @@ end
 updateThemeColors()
 
 -- ============================================
--- ESTATÍSTICAS E LOGS (CAFUXZ1)
+-- ESTATÍSTICAS E LOGS
 -- ============================================
 local STATS = {
     totalTouches = 0,
@@ -222,9 +201,9 @@ local activatedSkills = {}
 local antiLagActive = false
 local originalStates = {}
 local antiLagConnection = nil
-local morphGui = nil
 local currentSkybox = nil
 local originalSkybox = nil
+local skyItemsFrame = nil -- REFERÊNCIA GLOBAL PARA EVITAR DUPLICAÇÃO
 
 local skillButtonNames = {
     "Shoot", "Pass", "Long", "Tackle", "Dribble", "GK", "Throw",
@@ -264,7 +243,7 @@ local function tween(obj, props, time, style, dir, callback)
 end
 
 -- ============================================
--- SISTEMA ANTI LAG (NOVO v14.1)
+-- SISTEMA ANTI LAG
 -- ============================================
 local function saveOriginalState(obj, property, value)
     if not originalStates[obj] then
@@ -403,7 +382,7 @@ local function disableAntiLag()
 end
 
 -- ============================================
--- SISTEMA DE MORPH AVATAR (5 PRÉ-DEFINIDOS)
+-- SISTEMA DE MORPH AVATAR
 -- ============================================
 local PRESET_MORPHS = {
     { name = "Miguelcalebegamer202", userId = nil, displayName = "Miguelcalebegamer202" },
@@ -513,7 +492,7 @@ local function morphToUser(userId, targetName)
 end
 
 -- ============================================
--- SISTEMA DE REACH GK (NOVO - CAFUXZ1)
+-- SISTEMA DE REACH GK
 -- ============================================
 local function updateReachGK()
     if not CONFIG.reachGKShow then
@@ -736,7 +715,7 @@ local function saveOriginalSkybox()
 end
 
 -- ============================================
--- SISTEMA DE DETECÇÃO DE BOLAS (CADUXX137)
+-- SISTEMA DE DETECÇÃO DE BOLAS
 -- ============================================
 local function isBall(obj)
     if not obj or not obj:IsA("BasePart") then return false end
@@ -940,10 +919,14 @@ local function activateSkillButton()
 end
 
 -- ============================================
--- INTERFACE WINDUI - CAFUXZ1 HUB v14.4
+-- INTERFACE WINDUI - CAFUXZ1 HUB v14.5
 -- ============================================
 local function createWindUI()
-    -- Atualizar cores antes de criar
+    -- Verificar se já existe e destruir
+    if CoreGui:FindFirstChild("CAFUXZ1_Hub_v14") then
+        CoreGui:FindFirstChild("CAFUXZ1_Hub_v14"):Destroy()
+    end
+    
     updateThemeColors()
     
     mainGui = Instance.new("ScreenGui")
@@ -952,7 +935,7 @@ local function createWindUI()
     mainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     mainGui.Parent = CoreGui
     
-    -- Frame principal com glassmorphism
+    -- Frame principal
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
     mainFrame.Size = UDim2.new(0, CONFIG.width, 0, CONFIG.height)
@@ -1011,7 +994,7 @@ local function createWindUI()
     versionLabel.Size = UDim2.new(1, 0, 0, 20)
     versionLabel.Position = UDim2.new(0, 0, 0, 55)
     versionLabel.BackgroundTransparency = 1
-    versionLabel.Text = "v14.4"
+    versionLabel.Text = "v14.5"
     versionLabel.TextColor3 = CONFIG.textMuted
     versionLabel.TextSize = 12
     versionLabel.Font = Enum.Font.Gotham
@@ -1082,7 +1065,7 @@ local function createWindUI()
     headerTitle.Size = UDim2.new(0.6, 0, 1, 0)
     headerTitle.Position = UDim2.new(0, 15, 0, 0)
     headerTitle.BackgroundTransparency = 1
-    headerTitle.Text = "CAFUXZ1 Hub v14.4 Ultimate"
+    headerTitle.Text = "CAFUXZ1 Hub v14.5 Ultimate"
     headerTitle.TextColor3 = CONFIG.textPrimary
     headerTitle.TextSize = 18
     headerTitle.Font = Enum.Font.GothamBold
@@ -1587,7 +1570,7 @@ local function createWindUI()
         addLog("Avatar resetado", "warning")
     end)
     
-    -- ABA SKYBOX (CORRIGIDA v2.0)
+    -- ABA SKYBOX (CORRIGIDA v2.0 - SEM DUPLICAÇÃO)
     local skySection, skyContent = createSection(contentFrames.sky, "Skybox System v2.0")
     
     local skyLabel = Instance.new("TextLabel")
@@ -1613,21 +1596,28 @@ local function createWindUI()
         {name = "✨ Especiais", cat = "4", desc = "3 skyboxes"}
     }
     
-    local skyItemsFrame = Instance.new("Frame")
+    -- CRIAR FRAME UMA ÚNICA VEZ
+    skyItemsFrame = Instance.new("Frame")
+    skyItemsFrame.Name = "SkyItemsContainer"
     skyItemsFrame.Size = UDim2.new(1, 0, 0, 0)
     skyItemsFrame.AutomaticSize = Enum.AutomaticSize.Y
     skyItemsFrame.BackgroundTransparency = 1
     skyItemsFrame.Parent = skyContent
     
     local function loadSkyCategory(categoryNum)
-        -- Limpa items anteriores
+        -- Limpa items anteriores de forma segura
         for _, child in ipairs(skyItemsFrame:GetChildren()) do
-            if child:IsA("TextButton") then child:Destroy() end
+            if child:IsA("TextButton") then 
+                child:Destroy() 
+            end
         end
+        
+        -- Pequeno delay para garantir que destruição ocorreu
+        task.wait()
         
         for _, sky in ipairs(SkyboxDatabase) do
             if sky.category == categoryNum and sky.id ~= 0 then
-                local skyBtn = createButton(skyItemsFrame, "☁️ " .. sky.name .. " (ID: " .. sky.id .. ")", CategoryColors[categoryNum], function()
+                createButton(skyItemsFrame, "☁️ " .. sky.name, CategoryColors[categoryNum], function()
                     saveOriginalSkybox()
                     local success = ApplySkybox(sky.id, sky.name)
                     if success then
@@ -1709,10 +1699,8 @@ local function createWindUI()
         restoreOriginalSkybox()
     end)
     
-    skyItemsFrame.Parent = skyContent
-    
-    -- ABA CONFIG (NOVA - Personalização)
-    local configSection, configContent = createSection(contentFrames.config, "Personalização de Cores v14.4")
+    -- ABA CONFIG (Personalização)
+    local configSection, configContent = createSection(contentFrames.config, "Personalização de Cores v14.5")
     
     local themeLabel = Instance.new("TextLabel")
     themeLabel.Size = UDim2.new(1, 0, 0, 25)
@@ -1727,7 +1715,7 @@ local function createWindUI()
     createColorPicker(configContent, "Cor Primária", CONFIG.customColors.primary, function(color)
         CONFIG.customColors.primary = color
         updateThemeColors()
-        notify("Config", "Cor primária atualizada! Reinicie a UI para aplicar totalmente.", 3)
+        notify("Config", "Cor primária atualizada!", 2)
     end)
     
     createColorPicker(configContent, "Cor Secundária", CONFIG.customColors.secondary, function(color)
@@ -1785,13 +1773,13 @@ local function createWindUI()
         updateThemeColors()
     end)
     
-    -- Botão para salvar tema
-    createButton(configContent, "💾 Salvar Tema Atual", CONFIG.success, function()
-        notify("Config", "Tema salvo na memória!", 2)
+    -- Botões de ação
+    createButton(configContent, "💾 Salvar Tema", CONFIG.success, function()
+        notify("Config", "Tema salvo!", 2)
         addLog("Tema personalizado salvo", "success")
     end)
     
-    createButton(configContent, "🔄 Resetar para Padrão", CONFIG.warning, function()
+    createButton(configContent, "🔄 Resetar Padrão", CONFIG.warning, function()
         CONFIG.customColors = {
             primary = Color3.fromRGB(99, 102, 241),
             secondary = Color3.fromRGB(139, 92, 246),
@@ -1809,7 +1797,7 @@ local function createWindUI()
             textMuted = Color3.fromRGB(130, 140, 170),
         }
         updateThemeColors()
-        notify("Config", "Tema resetado para padrão!", 2)
+        notify("Config", "Tema resetado!", 2)
     end)
     
     -- ABA STATS
@@ -1989,7 +1977,6 @@ local function createWindUI()
     
     -- Drag functionality
     local dragging = false
-    local dragInput = nil
     local dragStart = nil
     local startPos = nil
     
@@ -2014,8 +2001,12 @@ local function createWindUI()
         end
     end)
     
-    -- Criar ícone flutuante quando minimizado
+    -- Criar ícone flutuante
     local function createIconGui()
+        if CoreGui:FindFirstChild("CAFUXZ1_Icon_v14") then
+            CoreGui:FindFirstChild("CAFUXZ1_Icon_v14"):Destroy()
+        end
+        
         iconGui = Instance.new("ScreenGui")
         iconGui.Name = "CAFUXZ1_Icon_v14"
         iconGui.ResetOnSpawn = false
@@ -2038,7 +2029,6 @@ local function createWindUI()
         iconStroke.Thickness = 2
         iconStroke.Parent = iconBtn
         
-        -- Glow effect
         local glow = Instance.new("ImageLabel")
         glow.Name = "Glow"
         glow.Size = UDim2.new(1.5, 0, 1.5, 0)
@@ -2058,7 +2048,6 @@ local function createWindUI()
             end
         end)
         
-        -- Drag para o ícone também
         local iconDragging = false
         local iconDragStart = nil
         local iconStartPos = nil
@@ -2087,8 +2076,8 @@ local function createWindUI()
     
     createIconGui()
     
-    addLog("CAFUXZ1 Hub v14.4 iniciado com sucesso!", "success")
-    notify("CAFUXZ1 Hub v14.4", "Sistema carregado! Pressione F1-F7 para atalhos.", 5)
+    addLog("CAFUXZ1 Hub v14.5 iniciado com sucesso!", "success")
+    notify("CAFUXZ1 Hub v14.5", "Sistema carregado! Pressione F1-F7 para atalhos.", 5)
 end
 
 -- ============================================
@@ -2097,30 +2086,21 @@ end
 local function mainLoop()
     while true do
         if Character and Humanoid and RootPart then
-            -- Atualizar referências
             Character = LocalPlayer.Character
             Humanoid = Character:FindFirstChild("Humanoid")
             RootPart = Character:FindFirstChild("HumanoidRootPart")
             
-            -- Scan de bolas
             scanForBalls()
-            
-            -- Atualizar reach sphere
             updateReachSphere()
-            
-            -- Processar auto touch
             processAutoTouch()
             
-            -- Processar GK
             if CONFIG.reachGKEnabled then
                 updateReachGK()
                 processReachGK()
             end
             
-            -- Auto skills
             activateSkillButton()
             
-            -- Atualizar stats
             local now = tick()
             if now - STATS.lastUpdate >= 60 then
                 STATS.touchesPerMinute = math.floor(STATS.totalTouches / ((now - STATS.sessionStart) / 60))
@@ -2128,7 +2108,7 @@ local function mainLoop()
             end
         end
         
-        task.wait(0.03) -- ~30 FPS
+        task.wait(0.03)
     end
 end
 
@@ -2163,7 +2143,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         autoSkills = not autoSkills
         notify("Auto Skills", autoSkills and "ATIVADO" or "DESATIVADO", 2)
     elseif input.KeyCode == Enum.KeyCode.F6 then
-        -- Random morph
         local validPresets = {}
         for _, preset in ipairs(PRESET_MORPHS) do
             if preset.userId then table.insert(validPresets, preset) end
@@ -2173,7 +2152,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             morphToUser(randomPreset.userId, randomPreset.displayName)
         end
     elseif input.KeyCode == Enum.KeyCode.F7 then
-        -- Toggle UI
         if mainGui and mainGui.Parent then
             mainGui.Enabled = not mainGui.Enabled
         else
@@ -2201,29 +2179,23 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     
     addLog("Character respawned - sistemas reiniciados", "info")
     
-    -- Reaplicar morph se necessário
     if CONFIG.antiLag.enabled then
         task.delay(2, applyAntiLag)
     end
 end)
 
--- Iniciar se já tiver character
 if LocalPlayer.Character then
     Character = LocalPlayer.Character
     Humanoid = Character:FindFirstChild("Humanoid")
     RootPart = Character:FindFirstChild("HumanoidRootPart")
 end
 
--- Criar UI
 createWindUI()
-
--- Iniciar loop principal
 task.spawn(mainLoop)
 
--- Mensagem final
 print([[ 
     ╔══════════════════════════════════════════════════════════════╗
-    ║           CAFUXZ1 Hub v14.4 Ultimate - Loaded                  ║
+    ║           CAFUXZ1 Hub v14.5 Ultimate - Loaded                  ║
     ║           Created by: Bazuka | Cafuxz1 | CADUXX137           ║
     ║                                                                ║
     ║  Features: Ball Reach GK | Anti Lag | Morph | Skybox v2.0     ║
@@ -2232,4 +2204,5 @@ print([[
     ╚══════════════════════════════════════════════════════════════╝
 ]])
 
-addLog("Sistema inicializado - Bem-vindo ao CAFUXZ1 Hub v14.4!", "success")
+addLog("Sistema inicializado - Bem-vindo ao CAFUXZ1 Hub v14.5!", "success")
+            
