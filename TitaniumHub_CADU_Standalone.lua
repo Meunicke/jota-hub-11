@@ -1,14 +1,16 @@
 --[[
-    CAFUXZ1 Hub v14.8 - Ultimate Edition + Bug Fixes
-    ================================================
+    CAFUXZ1 Hub v14.9 - WindUI Edition + Performance Fix
+    ====================================================
     
-    CORREÇÕES v14.8:
-    - Slider de arrastar corrigido (agora funciona suave)
-    - Cores aplicam em tempo real em todos os elementos
-    - Toggle da esfera GK funcional
-    - Auto Scan com botão ON/OFF (padrão: OFF para não travar)
+    CORREÇÕES v14.9 (Anti-Lag):
+    - Scan otimizado: Event-based ao invés de GetDescendants()
+    - Cache de Character (não busca 3x por frame)
+    - Object pooling para esferas (não recria)
+    - Logs com recycling (não destrói labels)
+    - Throttling em skills e scan
+    - Early-exits em hot paths
     
-    VERSÃO: v14.8 Ultimate
+    VERSÃO: v14.9 WindUI Performance
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -24,6 +26,7 @@ local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
 local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -57,8 +60,8 @@ local CONFIG = {
     autoTouch = true,
     fullBodyTouch = true,
     autoSecondTouch = true,
-    scanCooldown = 2.0, -- Aumentado para 2s
-    autoScanEnabled = false, -- NOVO: Desativado por padrão para não travar
+    scanCooldown = 2.0,
+    autoScanEnabled = false,
     
     reachGK = 25,
     reachGKEnabled = false,
@@ -135,9 +138,10 @@ local function addLog(message, type)
 end
 
 -- ============================================
--- VARIÁVEIS GLOBAIS
+-- VARIÁVEIS GLOBAIS (CACHE SYSTEM)
 -- ============================================
 local balls = {}
+local ballConnections = {} -- NOVO: Conexões para event-based scanning
 local reachSphere = nil
 local reachGKCube = nil
 local lastBallUpdate = 0
@@ -160,7 +164,23 @@ local originalSkybox = nil
 local skyItemsFrame = nil
 local loopRunning = false
 local heartbeatConnection = nil
-local uiElements = {} -- NOVO: Guardar referências de UI para atualizar cores
+
+-- NOVO: Sistema de cache pesado
+local cachedCharacter = nil
+local cachedHumanoid = nil
+local cachedRootPart = nil
+local lastCharacterUpdate = 0
+local characterCacheTime = 0.1 -- Atualiza a cada 100ms
+
+-- NOVO: Throttling
+local lastSkillCheck = 0
+local skillCheckInterval = 0.1 -- Só checa skills a cada 100ms
+local lastStatsUpdate = 0
+local statsUpdateInterval = 1 -- Stats a cada 1s
+
+-- NOVO: Object pooling para logs
+local logLabelPool = {}
+local activeLogLabels = {}
 
 local skillButtonNames = {
     "Shoot", "Pass", "Long", "Tackle", "Dribble", "GK", "Throw",
@@ -199,24 +219,47 @@ local function tween(obj, props, time, style, dir, callback)
 end
 
 -- ============================================
--- GET CHARACTER
+-- GET CHARACTER (COM CACHE)
 -- ============================================
-local function getCharacter()
+local function updateCharacterCache()
+    local now = tick()
+    if now - lastCharacterUpdate < characterCacheTime then
+        return cachedCharacter, cachedHumanoid, cachedRootPart
+    end
+    
     local char = LocalPlayer.Character
-    if not char then return nil, nil, nil end
-    
-    local humanoid = char:FindFirstChild("Humanoid")
-    local rootPart = char:FindFirstChild("HumanoidRootPart")
-    
-    if humanoid and humanoid.Health <= 0 then
+    if not char then
+        cachedCharacter = nil
+        cachedHumanoid = nil
+        cachedRootPart = nil
         return nil, nil, nil
     end
     
-    return char, humanoid, rootPart
+    -- Só atualiza se mudou
+    if char ~= cachedCharacter then
+        cachedCharacter = char
+        cachedHumanoid = char:FindFirstChild("Humanoid")
+        cachedRootPart = char:FindFirstChild("HumanoidRootPart")
+    end
+    
+    -- Verifica se morreu
+    if cachedHumanoid and cachedHumanoid.Health <= 0 then
+        cachedCharacter = nil
+        cachedHumanoid = nil
+        cachedRootPart = nil
+        return nil, nil, nil
+    end
+    
+    lastCharacterUpdate = now
+    return cachedCharacter, cachedHumanoid, cachedRootPart
+end
+
+local function getCharacter()
+    return updateCharacterCache()
 end
 
 -- ============================================
--- SISTEMA ANTI LAG
+-- SISTEMA ANTI LAG (OTIMIZADO COM BATCHING)
 -- ============================================
 local function saveOriginalState(obj, property, value)
     if not originalStates[obj] then originalStates[obj] = {} end
@@ -228,54 +271,60 @@ end
 local function applyAntiLag()
     if antiLagActive then return end
     antiLagActive = true
+    
+    -- Processamento em batches para não travar
+    local batchSize = 100
+    local currentBatch = 0
     local Stuff = {}
     
-    for _, v in next, game:GetDescendants() do
-        if CONFIG.antiLag.parts and (v:IsA("Part") or v:IsA("Union") or v:IsA("BasePart")) then
-            saveOriginalState(v, "Material", v.Material)
-            v.Material = Enum.Material.SmoothPlastic
-            table.insert(Stuff, v)
+    local function processBatch(descendants, startIdx)
+        local endIdx = math.min(startIdx + batchSize - 1, #descendants)
+        
+        for i = startIdx, endIdx do
+            local v = descendants[i]
+            
+            if CONFIG.antiLag.parts and (v:IsA("Part") or v:IsA("Union") or v:IsA("BasePart")) then
+                saveOriginalState(v, "Material", v.Material)
+                v.Material = Enum.Material.SmoothPlastic
+                table.insert(Stuff, v)
+            end
+            
+            if CONFIG.antiLag.particles and (v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Explosion") or v:IsA("Sparkles") or v:IsA("Fire")) then
+                saveOriginalState(v, "Enabled", v.Enabled)
+                v.Enabled = false
+                table.insert(Stuff, v)
+            end
+            
+            if CONFIG.antiLag.visualEffects and (v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("SunRaysEffect")) then
+                saveOriginalState(v, "Enabled", v.Enabled)
+                v.Enabled = false
+                table.insert(Stuff, v)
+            end
+            
+            if CONFIG.antiLag.textures and (v:IsA("Decal") or v:IsA("Texture")) then
+                saveOriginalState(v, "Texture", v.Texture)
+                v.Texture = ""
+                table.insert(Stuff, v)
+            end
+            
+            if CONFIG.antiLag.sky and v:IsA("Sky") then
+                saveOriginalState(v, "Parent", v.Parent)
+                v.Parent = nil
+                table.insert(Stuff, v)
+            end
         end
         
-        if CONFIG.antiLag.particles and (v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Explosion") or v:IsA("Sparkles") or v:IsA("Fire")) then
-            saveOriginalState(v, "Enabled", v.Enabled)
-            v.Enabled = false
-            table.insert(Stuff, v)
-        end
-        
-        if CONFIG.antiLag.visualEffects and (v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("SunRaysEffect")) then
-            saveOriginalState(v, "Enabled", v.Enabled)
-            v.Enabled = false
-            table.insert(Stuff, v)
-        end
-        
-        if CONFIG.antiLag.textures and (v:IsA("Decal") or v:IsA("Texture")) then
-            saveOriginalState(v, "Texture", v.Texture)
-            v.Texture = ""
-            table.insert(Stuff, v)
-        end
-        
-        if CONFIG.antiLag.sky and v:IsA("Sky") then
-            saveOriginalState(v, "Parent", v.Parent)
-            v.Parent = nil
-            table.insert(Stuff, v)
+        if endIdx < #descendants then
+            task.wait() -- Yield para não travar
+            processBatch(descendants, endIdx + 1)
+        else
+            STATS.antiLagItems = #Stuff
+            addLog("Anti Lag ATIVADO - " .. #Stuff .. " itens", "success")
         end
     end
     
-    if CONFIG.antiLag.fullBright then
-        saveOriginalState(Lighting, "FogColor", Lighting.FogColor)
-        saveOriginalState(Lighting, "FogEnd", Lighting.FogEnd)
-        saveOriginalState(Lighting, "Ambient", Lighting.Ambient)
-        saveOriginalState(Lighting, "Brightness", Lighting.Brightness)
-        
-        Lighting.FogColor = Color3.fromRGB(255, 255, 255)
-        Lighting.FogEnd = math.huge
-        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
-        Lighting.Brightness = 5
-    end
-    
-    STATS.antiLagItems = #Stuff
-    addLog("Anti Lag ATIVADO - " .. #Stuff .. " itens", "success")
+    local allDescendants = game:GetDescendants()
+    processBatch(allDescendants, 1)
     
     antiLagConnection = game.DescendantAdded:Connect(function(v)
         if not antiLagActive then return end
@@ -296,20 +345,40 @@ local function disableAntiLag()
         antiLagConnection = nil
     end
     
-    for obj, properties in pairs(originalStates) do
-        if obj and obj.Parent then
-            for prop, value in pairs(properties) do
-                pcall(function()
-                    if prop == "Parent" then obj.Parent = value
-                    else obj[prop] = value end
-                end)
+    -- Restauração em batches
+    local states = {}
+    for obj, props in pairs(originalStates) do
+        table.insert(states, {obj = obj, props = props})
+    end
+    
+    local batchSize = 100
+    local function restoreBatch(startIdx)
+        local endIdx = math.min(startIdx + batchSize - 1, #states)
+        
+        for i = startIdx, endIdx do
+            local data = states[i]
+            local obj = data.obj
+            if obj and obj.Parent then
+                for prop, value in pairs(data.props) do
+                    pcall(function()
+                        if prop == "Parent" then obj.Parent = value
+                        else obj[prop] = value end
+                    end)
+                end
             end
+        end
+        
+        if endIdx < #states then
+            task.wait()
+            restoreBatch(endIdx + 1)
+        else
+            originalStates = {}
+            STATS.antiLagItems = 0
+            addLog("Anti Lag DESATIVADO", "warning")
         end
     end
     
-    originalStates = {}
-    STATS.antiLagItems = 0
-    addLog("Anti Lag DESATIVADO", "warning")
+    restoreBatch(1)
 end
 
 -- ============================================
@@ -370,7 +439,7 @@ local function morphToUser(userId, targetName)
 end
 
 -- ============================================
--- SISTEMA REACH GK
+-- SISTEMA REACH GK (OBJECT POOLING)
 -- ============================================
 local function createReachGK()
     if reachGKCube and reachGKCube.Parent then return end
@@ -380,7 +449,7 @@ local function createReachGK()
     reachGKCube.Shape = Enum.PartType.Block
     reachGKCube.Anchored = true
     reachGKCube.CanCollide = false
-    reachGKCube.Transparency = CONFIG.reachGKTransparency
+    reachGKCube.Transparency = 1 -- Começa invisível
     reachGKCube.Material = Enum.Material.ForceField
     reachGKCube.Color = CONFIG.reachGKColor
     reachGKCube.Parent = Workspace
@@ -395,32 +464,31 @@ local function createReachGK()
     addLog("GK Sphere criada", "success")
 end
 
-local function destroyReachGK()
-    if reachGKCube then
-        reachGKCube:Destroy()
-        reachGKCube = nil
+local function setReachGKVisible(visible)
+    if not reachGKCube then return end
+    reachGKCube.Transparency = visible and CONFIG.reachGKTransparency or 1
+    local selectionBox = reachGKCube:FindFirstChild("GKSelectionBox")
+    if selectionBox then
+        selectionBox.Visible = visible
     end
 end
 
 local function updateReachGK()
-    -- Verificar se deve mostrar a esfera
-    if not CONFIG.reachGKShow then
-        destroyReachGK()
+    if not CONFIG.reachGKShow or not CONFIG.reachGKEnabled then
+        setReachGKVisible(false)
         return
     end
     
     local Character, Humanoid, RootPart = getCharacter()
     if not RootPart then
-        destroyReachGK()
+        setReachGKVisible(false)
         return
     end
     
-    -- Criar se não existir
     if not reachGKCube or not reachGKCube.Parent then
         createReachGK()
     end
     
-    -- Atualizar propriedades
     reachGKCube.Size = Vector3.new(CONFIG.reachGK, CONFIG.reachGK, CONFIG.reachGK)
     reachGKCube.CFrame = RootPart.CFrame
     reachGKCube.Color = CONFIG.reachGKColor
@@ -429,6 +497,7 @@ local function updateReachGK()
     local selectionBox = reachGKCube:FindFirstChild("GKSelectionBox")
     if selectionBox then
         selectionBox.Color3 = CONFIG.reachGKColor
+        selectionBox.Visible = true
     end
 end
 
@@ -586,7 +655,7 @@ local function saveOriginalSkybox()
 end
 
 -- ============================================
--- SISTEMA DE BOLAS (COM TOGGLE)
+-- SISTEMA DE BOLAS (EVENT-BASED SCANNING)
 -- ============================================
 local function isBall(obj)
     if not obj or not obj:IsA("BasePart") then return false end
@@ -596,46 +665,94 @@ local function isBall(obj)
     return false
 end
 
+-- NOVO: Adiciona bola com verificação
+local function addBall(obj)
+    if not balls[obj] then
+        balls[obj] = {
+            obj = obj,
+            lastTouch = 0,
+            touchCount = 0
+        }
+        
+        -- Conexão para remover quando destruído
+        local conn
+        conn = obj.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                balls[obj] = nil
+                if conn then conn:Disconnect() end
+            end
+        end)
+        ballConnections[obj] = conn
+    end
+end
+
+-- NOVO: Setup de event-based scanning
+local function setupBallScanning()
+    -- Scan inicial rápido (só 1 nível)
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if isBall(obj) then
+            addBall(obj)
+        end
+        -- Checa 1 nível de profundidade
+        for _, child in ipairs(obj:GetChildren()) do
+            if isBall(child) then
+                addBall(child)
+            end
+        end
+    end
+    
+    -- Event-based para novos objetos
+    Workspace.ChildAdded:Connect(function(child)
+        if isBall(child) then
+            addBall(child)
+        end
+        -- Monitora filhos
+        local childConn
+        childConn = child.ChildAdded:Connect(function(grandChild)
+            if isBall(grandChild) then
+                addBall(grandChild)
+            end
+        end)
+        
+        -- Limpa conexão quando objeto é removido
+        child.AncestryChanged:Connect(function(_, parent)
+            if not parent and childConn then
+                childConn:Disconnect()
+            end
+        end)
+    end)
+end
+
+-- Mantido para compatibilidade, mas desativado por padrão
 local function scanForBalls()
-    -- NOVO: Só scan se autoScan estiver ativado
     if not CONFIG.autoScanEnabled then return end
     
     local currentTime = tick()
     if currentTime - lastBallUpdate < CONFIG.scanCooldown then return end
     lastBallUpdate = currentTime
     
-    local newBalls = {}
-    local ballCount = 0
-    
-    -- Scan otimizado - só pega descendants do Workspace
-    for _, obj in ipairs(Workspace:GetDescendants()) do
+    -- Scan otimizado - só 2 níveis
+    local count = 0
+    for _, obj in ipairs(Workspace:GetChildren()) do
         if isBall(obj) then
-            ballCount = ballCount + 1
-            if not balls[obj] then
-                balls[obj] = {
-                    obj = obj,
-                    lastTouch = 0,
-                    touchCount = 0
-                }
+            addBall(obj)
+            count = count + 1
+        end
+        for _, child in ipairs(obj:GetChildren()) do
+            if isBall(child) then
+                addBall(child)
+                count = count + 1
             end
-            newBalls[obj] = balls[obj]
         end
     end
     
-    -- Remover bolas que não existem mais
-    for obj, data in pairs(balls) do
-        if not newBalls[obj] then
-            balls[obj] = nil
-        end
-    end
-    
-    if ballCount > 0 then
-        addLog("Scan: " .. ballCount .. " bolas", "info")
+    if count > 0 then
+        addLog("Scan: " .. count .. " bolas", "info")
     end
 end
 
 -- ============================================
--- SISTEMA REACH PRINCIPAL
+-- SISTEMA REACH PRINCIPAL (OBJECT POOLING)
 -- ============================================
 local function createReachSphere()
     if reachSphere and reachSphere.Parent then return end
@@ -645,7 +762,7 @@ local function createReachSphere()
     reachSphere.Shape = Enum.PartType.Ball
     reachSphere.Anchored = true
     reachSphere.CanCollide = false
-    reachSphere.Transparency = 0.9
+    reachSphere.Transparency = 1 -- Começa invisível
     reachSphere.Material = Enum.Material.ForceField
     reachSphere.Color = CONFIG.customColors.primary
     reachSphere.Parent = Workspace
@@ -658,22 +775,24 @@ local function createReachSphere()
     selectionBox.Parent = reachSphere
 end
 
-local function destroyReachSphere()
-    if reachSphere then
-        reachSphere:Destroy()
-        reachSphere = nil
+local function setReachSphereVisible(visible)
+    if not reachSphere then return end
+    reachSphere.Transparency = visible and 0.9 or 1
+    local selectionBox = reachSphere:FindFirstChild("ReachSelectionBox")
+    if selectionBox then
+        selectionBox.Visible = visible
     end
 end
 
 local function updateReachSpherePosition()
     if not CONFIG.showReachSphere then
-        destroyReachSphere()
+        setReachSphereVisible(false)
         return
     end
     
     local Character, Humanoid, RootPart = getCharacter()
     if not RootPart then
-        destroyReachSphere()
+        setReachSphereVisible(false)
         return
     end
     
@@ -688,6 +807,7 @@ local function updateReachSpherePosition()
     local selectionBox = reachSphere:FindFirstChild("ReachSelectionBox")
     if selectionBox then
         selectionBox.Color3 = CONFIG.customColors.primary
+        selectionBox.Visible = true
     end
 end
 
@@ -728,28 +848,21 @@ local function processAutoTouch()
         table.insert(touchParts, RootPart)
     end
     
-    -- Usar GetPartsInPart se sphere existir
-    if reachSphere and reachSphere.Parent then
+    -- Usar GetPartsInPart se sphere existir e estiver visível
+    if reachSphere and reachSphere.Parent and reachSphere.Transparency < 1 then
         local overlapParams = OverlapParams.new()
         overlapParams.FilterDescendantsInstances = {Character}
         overlapParams.FilterType = Enum.RaycastFilterType.Exclude
-        overlapParams.MaxParts = 100
+        overlapParams.MaxParts = 50 -- Limitado para performance
         
         local partsInSphere = Workspace:GetPartsInPart(reachSphere, overlapParams)
         
         for _, part in ipairs(partsInSphere) do
             if isBall(part) then
-                local ballData = balls[part]
-                if not ballData then
-                    balls[part] = {
-                        obj = part,
-                        lastTouch = 0,
-                        touchCount = 0
-                    }
-                    ballData = balls[part]
-                end
+                addBall(part) -- Garante que está na lista
                 
-                if now - ballData.lastTouch > 0.3 then
+                local ballData = balls[part]
+                if ballData and now - ballData.lastTouch > 0.3 then
                     if touchBall(part, touchParts) then
                         ballData.lastTouch = now
                         ballData.touchCount = ballData.touchCount + 1
@@ -767,7 +880,7 @@ local function processAutoTouch()
             end
         end
     else
-        -- Fallback: verificar distância manualmente
+        -- Fallback: verificar distância manualmente (só bolas conhecidas)
         for ballObj, ballData in pairs(balls) do
             if ballObj and ballObj.Parent then
                 local distance = (ballObj.Position - RootPart.Position).Magnitude
@@ -791,37 +904,57 @@ local function processAutoTouch()
                 end
             else
                 balls[ballObj] = nil
+                if ballConnections[ballObj] then
+                    ballConnections[ballObj]:Disconnect()
+                    ballConnections[ballObj] = nil
+                end
             end
         end
     end
 end
 
 -- ============================================
--- AUTO SKILLS
+-- AUTO SKILLS (COM THROTTLING)
 -- ============================================
 local function activateSkillButton()
     if not autoSkills then return end
     
     local now = tick()
+    if now - lastSkillCheck < skillCheckInterval then return end
+    lastSkillCheck = now
+    
     if now - lastSkillActivation < skillCooldown then return end
     
     local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
     if not playerGui then return end
     
-    for _, gui in ipairs(playerGui:GetDescendants()) do
-        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
-            local buttonText = gui.Text or gui.Name
-            
-            for _, skillName in ipairs(skillButtonNames) do
-                if buttonText:find(skillName) or gui.Name:find(skillName) then
-                    if not activatedSkills[gui] or (now - activatedSkills[gui] > 1) then
-                        pcall(function() gui.MouseButton1Click:Fire() end)
-                        activatedSkills[gui] = now
-                        lastSkillActivation = now
-                        STATS.skillsActivated = STATS.skillsActivated + 1
-                        return
+    -- Cache de botões (só procura a cada 5 segundos)
+    if not cachedSkillButtons or now - lastSkillCache > 5 then
+        cachedSkillButtons = {}
+        lastSkillCache = now
+        
+        for _, gui in ipairs(playerGui:GetDescendants()) do
+            if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                local buttonText = gui.Text or gui.Name
+                for _, skillName in ipairs(skillButtonNames) do
+                    if buttonText:find(skillName) or gui.Name:find(skillName) then
+                        table.insert(cachedSkillButtons, gui)
+                        break
                     end
                 end
+            end
+        end
+    end
+    
+    -- Ativa botões do cache
+    for _, gui in ipairs(cachedSkillButtons) do
+        if gui and gui.Parent then
+            if not activatedSkills[gui] or (now - activatedSkills[gui] > 1) then
+                pcall(function() gui.MouseButton1Click:Fire() end)
+                activatedSkills[gui] = now
+                lastSkillActivation = now
+                STATS.skillsActivated = STATS.skillsActivated + 1
+                return -- Só ativa um por vez
             end
         end
     end
@@ -831,12 +964,9 @@ end
 -- ATUALIZAÇÃO DE CORES EM TEMPO REAL
 -- ============================================
 local function updateAllColors()
-    -- Atualizar stroke do mainFrame
     if mainFrame then
         local stroke = mainFrame:FindFirstChild("UIStroke")
-        if stroke then
-            stroke.Color = CONFIG.customColors.primary
-        end
+        if stroke then stroke.Color = CONFIG.customColors.primary end
         
         local gradient = mainFrame:FindFirstChild("UIGradient")
         if gradient then
@@ -847,52 +977,22 @@ local function updateAllColors()
         end
     end
     
-    -- Atualizar título
-    if mainFrame then
-        local header = mainFrame:FindFirstChild("Header")
-        if header then
-            local title = header:FindFirstChild("HeaderTitle")
-            if title then
-                title.TextColor3 = CONFIG.customColors.textPrimary
-            end
-        end
-        
-        local sidebar = mainFrame:FindFirstChild("Sidebar")
-        if sidebar then
-            local titleLabel = sidebar:FindFirstChild("TextLabel")
-            if titleLabel then
-                titleLabel.TextColor3 = CONFIG.customColors.primary
-            end
-            
-            local versionLabel = sidebar:FindFirstChild("TextLabel", 2)
-            if versionLabel then
-                versionLabel.TextColor3 = CONFIG.customColors.textMuted
-            end
-        end
-    end
-    
-    -- Atualizar spheres se existirem
     if reachSphere then
         reachSphere.Color = CONFIG.customColors.primary
         local selectionBox = reachSphere:FindFirstChild("ReachSelectionBox")
-        if selectionBox then
-            selectionBox.Color3 = CONFIG.customColors.primary
-        end
+        if selectionBox then selectionBox.Color3 = CONFIG.customColors.primary end
     end
     
-    -- Atualizar ícone flutuante
     if iconGui then
         local iconBtn = iconGui:FindFirstChild("IconButton")
-        if iconBtn then
-            iconBtn.BackgroundColor3 = CONFIG.customColors.primary
-        end
+        if iconBtn then iconBtn.BackgroundColor3 = CONFIG.customColors.primary end
     end
     
     addLog("Cores atualizadas!", "success")
 end
 
 -- ============================================
--- INTERFACE (CORRIGIDA v14.8)
+-- INTERFACE WINDUI (OTIMIZADA)
 -- ============================================
 local function createWindUI()
     if CoreGui:FindFirstChild("CAFUXZ1_Hub_v14") then
@@ -964,7 +1064,7 @@ local function createWindUI()
     versionLabel.Size = UDim2.new(1, 0, 0, 20)
     versionLabel.Position = UDim2.new(0, 0, 0, 55)
     versionLabel.BackgroundTransparency = 1
-    versionLabel.Text = "v14.8"
+    versionLabel.Text = "v14.9"
     versionLabel.TextColor3 = CONFIG.customColors.textMuted
     versionLabel.TextSize = 12
     versionLabel.Font = Enum.Font.Gotham
@@ -1035,7 +1135,7 @@ local function createWindUI()
     headerTitle.Size = UDim2.new(0.6, 0, 1, 0)
     headerTitle.Position = UDim2.new(0, 15, 0, 0)
     headerTitle.BackgroundTransparency = 1
-    headerTitle.Text = "CAFUXZ1 Hub v14.8 Ultimate"
+    headerTitle.Text = "CAFUXZ1 Hub v14.9 WindUI"
     headerTitle.TextColor3 = CONFIG.customColors.textPrimary
     headerTitle.TextSize = 18
     headerTitle.Font = Enum.Font.GothamBold
@@ -1155,7 +1255,7 @@ local function createWindUI()
         return toggleFrame, toggleBtn
     end
     
-    -- CORREÇÃO: Slider funcional com InputChanged global
+    -- Slider funcional
     local activeSlider = nil
     
     local function createSlider(parent, text, min, max, default, callback)
@@ -1251,7 +1351,6 @@ local function createWindUI()
         return sliderFrame
     end
     
-    -- Conexão global para sliders
     UserInputService.InputChanged:Connect(function(input)
         if activeSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
             activeSlider.update(input)
@@ -1288,7 +1387,6 @@ local function createWindUI()
         return btn
     end
     
-    -- CORREÇÃO: ColorPicker que atualiza cores em tempo real
     local function createColorPicker(parent, labelText, defaultColor, callback)
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, 0, 0, 40)
@@ -1384,19 +1482,14 @@ local function createWindUI()
     
     createToggle(reachContent, "Mostrar Esfera", CONFIG.showReachSphere, function(val)
         CONFIG.showReachSphere = val
-        if not val then
-            destroyReachSphere()
-        end
+        if not val then setReachSphereVisible(false) end
         addLog("Reach Sphere: " .. (val and "VISÍVEL" or "OCULTO"), "info")
     end)
     
-    -- NOVO: Toggle para Auto Scan
     createToggle(reachContent, "Auto Scan (Pesado)", CONFIG.autoScanEnabled, function(val)
         CONFIG.autoScanEnabled = val
         addLog("Auto Scan: " .. (val and "ON" or "OFF"), val and "warning" or "success")
-        if val then
-            notify("Aviso", "Auto Scan pode causar lag!", 3)
-        end
+        if val then notify("Aviso", "Auto Scan pode causar lag!", 3) end
     end)
     
     createSlider(reachContent, "Alcance Reach", 5, 50, CONFIG.reach, function(val)
@@ -1411,12 +1504,9 @@ local function createWindUI()
         addLog("GK Reach: " .. (val and "ON" or "OFF"), val and "success" or "warning")
     end)
     
-    -- CORREÇÃO: Toggle da esfera GK funcional
     createToggle(gkContent, "Mostrar Esfera GK", CONFIG.reachGKShow, function(val)
         CONFIG.reachGKShow = val
-        if not val then
-            destroyReachGK()
-        end
+        if not val then setReachGKVisible(false) end
         addLog("GK Sphere: " .. (val and "VISÍVEL" or "OCULTO"), "info")
     end)
     
@@ -1506,7 +1596,7 @@ local function createWindUI()
     createButton(skyContent, "✨ Especiais", CategoryColors["4"], function() loadSkyCategory("4") end)
     createButton(skyContent, "↩️ Resetar", CONFIG.customColors.danger, restoreOriginalSkybox)
     
-    -- ABA CONFIG - CORREÇÃO: Cores aplicam em tempo real
+    -- ABA CONFIG
     local configSection, configContent = createSection(contentFrames.config, "Cores do Tema")
     
     createColorPicker(configContent, "Cor Primária", CONFIG.customColors.primary, function(c) 
@@ -1574,14 +1664,18 @@ local function createWindUI()
     
     task.spawn(function()
         while mainGui and mainGui.Parent do
-            for k, lbl in pairs(statsLabels) do
-                lbl.Text = tostring(STATS[k] or 0)
+            local now = tick()
+            if now - lastStatsUpdate >= statsUpdateInterval then
+                lastStatsUpdate = now
+                for k, lbl in pairs(statsLabels) do
+                    lbl.Text = tostring(STATS[k] or 0)
+                end
             end
-            task.wait(1)
+            task.wait(0.1)
         end
     end)
     
-    -- ABA LOGS
+    -- ABA LOGS (COM RECYCLING)
     local logsSection, logsContent = createSection(contentFrames.logs, "Logs")
     
     local logsList = Instance.new("ScrollingFrame")
@@ -1596,23 +1690,32 @@ local function createWindUI()
     logsCorner.CornerRadius = UDim.new(0, 6)
     logsCorner.Parent = logsList
     
+    -- Pool de labels para logs
+    for i = 1, 20 do
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, -10, 0, 20)
+        lbl.Position = UDim2.new(0, 5, 0, (i-1) * 22)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = ""
+        lbl.TextSize = 11
+        lbl.Font = Enum.Font.Code
+        lbl.Visible = false
+        lbl.Parent = logsList
+        table.insert(logLabelPool, lbl)
+    end
+    
     task.spawn(function()
         while mainGui and mainGui.Parent do
-            for _, c in ipairs(logsList:GetChildren()) do
-                if c:IsA("TextLabel") then c:Destroy() end
-            end
-            
-            for i, log in ipairs(LOGS) do
-                if i > 20 then break end
-                local lbl = Instance.new("TextLabel")
-                lbl.Size = UDim2.new(1, -10, 0, 20)
-                lbl.Position = UDim2.new(0, 5, 0, (i-1) * 22)
-                lbl.BackgroundTransparency = 1
-                lbl.Text = string.format("[%s] %s", log.time, log.message)
-                lbl.TextColor3 = log.type == "success" and CONFIG.customColors.success or (log.type == "warning" and CONFIG.customColors.warning or CONFIG.customColors.textSecondary)
-                lbl.TextSize = 11
-                lbl.Font = Enum.Font.Code
-                lbl.Parent = logsList
+            -- Atualiza visibilidade e texto sem destruir
+            for i, lbl in ipairs(logLabelPool) do
+                local log = LOGS[i]
+                if log then
+                    lbl.Text = string.format("[%s] %s", log.time, log.message)
+                    lbl.TextColor3 = log.type == "success" and CONFIG.customColors.success or (log.type == "warning" and CONFIG.customColors.warning or CONFIG.customColors.textSecondary)
+                    lbl.Visible = true
+                else
+                    lbl.Visible = false
+                end
             end
             
             logsList.CanvasSize = UDim2.new(0, 0, 0, math.min(#LOGS, 20) * 22)
@@ -1743,42 +1846,44 @@ local function createWindUI()
         end)
     end
     
-    addLog("Hub v14.8 iniciado!", "success")
-    notify("CAFUXZ1 Hub", "v14.8 - Slider, Cores e Scan corrigidos!", 5)
+    addLog("Hub v14.9 iniciado! (Otimizado)", "success")
+    notify("CAFUXZ1 Hub", "v14.9 - Performance Fix Ativado!", 5)
 end
 
 -- ============================================
--- LOOP PRINCIPAL
+-- LOOP PRINCIPAL (OTIMIZADO)
 -- ============================================
 local function mainLoop()
     if loopRunning then return end
     loopRunning = true
     
+    -- Setup event-based scanning
+    setupBallScanning()
+    
     heartbeatConnection = RunService.Heartbeat:Connect(function()
         if isClosed then return end
         
-        updateReachSpherePosition()
-        updateReachGK()
-        
+        -- Cache character uma vez por frame
         local Character, Humanoid, RootPart = getCharacter()
+        
         if Character and Humanoid and RootPart then
+            -- Atualiza esferas (só se necessário)
+            updateReachSpherePosition()
+            updateReachGK()
+            
+            -- Processa lógica
             scanForBalls()
             processAutoTouch()
             processReachGK()
             activateSkillButton()
         else
-            if reachSphere then
-                reachSphere:Destroy()
-                reachSphere = nil
-            end
-            if reachGKCube then
-                reachGKCube:Destroy()
-                reachGKCube = nil
-            end
+            -- Esconde esferas se sem character
+            setReachSphereVisible(false)
+            setReachGKVisible(false)
         end
     end)
     
-    addLog("Sistema Reach iniciado", "success")
+    addLog("Sistema Reach iniciado (Otimizado)", "success")
 end
 
 -- ============================================
@@ -1793,9 +1898,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         addLog("F1: Auto Touch " .. (CONFIG.autoTouch and "ON" or "OFF"), "info")
     elseif input.KeyCode == Enum.KeyCode.F2 then
         CONFIG.showReachSphere = not CONFIG.showReachSphere
-        if not CONFIG.showReachSphere then
-            destroyReachSphere()
-        end
+        if not CONFIG.showReachSphere then setReachSphereVisible(false) end
         notify("Reach Sphere", CONFIG.showReachSphere and "VISÍVEL" or "OCULTO", 2)
     elseif input.KeyCode == Enum.KeyCode.F3 then
         CONFIG.reachGKEnabled = not CONFIG.reachGKEnabled
@@ -1823,18 +1926,16 @@ end)
 LocalPlayer.CharacterAdded:Connect(function(char)
     addLog("Character respawned - reconectando...", "info")
     
+    -- Limpa cache
+    cachedCharacter = nil
+    cachedHumanoid = nil
+    cachedRootPart = nil
+    
     task.delay(1, function()
         if CONFIG.antiLag.enabled then
             applyAntiLag()
         end
-        if reachSphere then
-            reachSphere:Destroy()
-            reachSphere = nil
-        end
-        if reachGKCube then
-            reachGKCube:Destroy()
-            reachGKCube = nil
-        end
+        -- Esferas são recriadas automaticamente pelo loop
     end)
 end)
 
@@ -1842,4 +1943,4 @@ end)
 createWindUI()
 mainLoop()
 
-print("CAFUXZ1 Hub v14.8 - Loaded | Auto Scan: " .. (CONFIG.autoScanEnabled and "ON" or "OFF (Padrão)"))
+print("CAFUXZ1 Hub v14.9 - WindUI Loaded | Performance Mode ON")
