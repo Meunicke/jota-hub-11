@@ -1,15 +1,10 @@
 --[[
-    CAFUXZ1 Loader v1.1 - Sistema Completo
-    ======================================
-    1. Loading Screen (com avatar do jogador)
-    2. Key System (Key: CADUCOSXZ)
-    3. Loading Final
-    4. Hub CAFUXZ1
-    
-    Otimizações:
-    - Imagens carregadas uma única vez
-    - TweenService em vez de while true
-    - Código modular e limpo
+    CAFUXZ1 Intro v2.0 - Loading Screen Única
+    ==========================================
+    - Design futurista e personalizado
+    - Correção do bug do 0% (sistema de progresso real)
+    - Executa Titanium Hub após carregar
+    - Otimizado, sem loops pesados
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -20,9 +15,9 @@ if not game:IsLoaded() then game.Loaded:Wait() end
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 local StarterGui = game:GetService("StarterGui")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -31,668 +26,441 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 -- CONFIGURAÇÕES
 -- ============================================
 local CONFIG = {
-    key = "CADUCOSXZ", -- KEY CORRETA
     scriptUrl = "https://raw.githubusercontent.com/Meunicke/jota-hub-11/refs/heads/main/TitaniumHub_CADU_Standalone.lua",
+    loadingTime = 4, -- segundos totais de loading
     colors = {
         primary = Color3.fromRGB(99, 102, 241),
         secondary = Color3.fromRGB(139, 92, 246),
         accent = Color3.fromRGB(14, 165, 233),
-        dark = Color3.fromRGB(12, 12, 20),
-        darker = Color3.fromRGB(8, 8, 15),
+        dark = Color3.fromRGB(8, 8, 15),
+        darker = Color3.fromRGB(5, 5, 10),
         success = Color3.fromRGB(34, 197, 94),
-        danger = Color3.fromRGB(239, 68, 68),
-        text = Color3.fromRGB(252, 252, 255)
-    },
-    avatarSize = 150,
-    loadingDuration = 3
+        text = Color3.fromRGB(252, 252, 255),
+        glow = Color3.fromRGB(99, 102, 241)
+    }
 }
 
 -- ============================================
 -- FUNÇÕES UTILITÁRIAS
 -- ============================================
-local function tween(obj, props, time, easing, direction)
-    time = time or 0.5
-    easing = easing or Enum.EasingStyle.Quint
-    direction = direction or Enum.EasingDirection.Out
-    local info = TweenInfo.new(time, easing, direction)
+local function tween(obj, props, time, style, dir)
+    local info = TweenInfo.new(time or 0.5, style or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out)
     return TweenService:Create(obj, info, props)
 end
 
-local function createUICorner(parent, radius)
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = radius or UDim.new(0, 12)
-    corner.Parent = parent
-    return corner
+local function createCorner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = radius or UDim.new(0, 8)
+    c.Parent = parent
+    return c
 end
 
-local function createUIStroke(parent, color, thickness)
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = color or CONFIG.colors.primary
-    stroke.Thickness = thickness or 2
-    stroke.Parent = parent
-    return stroke
+local function createStroke(parent, color, thick)
+    local s = Instance.new("UIStroke")
+    s.Color = color or CONFIG.colors.primary
+    s.Thickness = thick or 1
+    s.Parent = parent
+    return s
 end
 
 -- ============================================
--- SISTEMA DE LOADING SCREEN
+-- SISTEMA DE PROGRESSO REAL (CORREÇÃO DO BUG 0%)
 -- ============================================
-local LoadingSystem = {}
+local ProgressSystem = {
+    current = 0,
+    target = 0,
+    speed = 0,
+    callbacks = {}
+}
 
-function LoadingSystem:createScreen()
-    for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui.Name:find("CAFUXZ1") or gui.Name:find("Loading") then
-            gui:Destroy()
+function ProgressSystem:init()
+    -- Atualização suave do progresso usando Heartbeat (não while true)
+    RunService.Heartbeat:Connect(function(dt)
+        if self.current < self.target then
+            -- Lerp suave entre current e target
+            self.current = self.current + (self.target - self.current) * 5 * dt
+            if math.abs(self.target - self.current) < 0.1 then
+                self.current = self.target
+            end
+            
+            -- Chamar callbacks
+            for _, cb in ipairs(self.callbacks) do
+                cb(self.current)
+            end
+        end
+    end)
+end
+
+function ProgressSystem:setTarget(t)
+    self.target = math.clamp(t, 0, 100)
+end
+
+function ProgressSystem:onUpdate(callback)
+    table.insert(self.callbacks, callback)
+end
+
+-- ============================================
+-- INTRO PERSONALIZADA
+-- ============================================
+local Intro = {}
+
+function Intro:create()
+    -- Limpar GUIs antigas
+    for _, g in ipairs(PlayerGui:GetChildren()) do
+        if g:IsA("ScreenGui") and (g.Name:find("CAFUXZ1") or g.Name:find("Intro") or g.Name:find("Loading")) then
+            g:Destroy()
         end
     end
     
     local screen = Instance.new("ScreenGui")
-    screen.Name = "CAFUXZ1_Loading"
+    screen.Name = "CAFUXZ1_Intro"
     screen.ResetOnSpawn = false
-    screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screen.ZIndexBehavior = Enum.ZIndexBehavior.Global
     screen.Parent = PlayerGui
     
-    return screen
-end
-
-function LoadingSystem:createBackground(parent)
+    -- Background principal
     local bg = Instance.new("Frame")
     bg.Name = "Background"
     bg.Size = UDim2.new(1, 0, 1, 0)
     bg.BackgroundColor3 = CONFIG.colors.darker
     bg.BorderSizePixel = 0
-    bg.Parent = parent
+    bg.Parent = screen
     
+    -- Gradiente animado de fundo
     local gradient = Instance.new("UIGradient")
     gradient.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, CONFIG.colors.darker),
-        ColorSequenceKeypoint.new(0.5, CONFIG.colors.dark),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(15, 15, 25)),
         ColorSequenceKeypoint.new(1, CONFIG.colors.darker)
     })
-    gradient.Rotation = 45
+    gradient.Rotation = 0
     gradient.Parent = bg
     
+    -- Animar gradiente suavemente
     spawn(function()
         while bg and bg.Parent do
-            tween(gradient, {Rotation = gradient.Rotation + 180}, 10):Play()
-            wait(10)
+            tween(gradient, {Rotation = gradient.Rotation + 360}, 20, Enum.EasingStyle.Linear):Play()
+            wait(20)
         end
     end)
     
-    local particles = Instance.new("Frame")
-    particles.Name = "Particles"
-    particles.Size = UDim2.new(1, 0, 1, 0)
-    particles.BackgroundTransparency = 1
-    particles.Parent = bg
+    -- Grid de linhas futuristas
+    local grid = Instance.new("Frame")
+    grid.Name = "Grid"
+    grid.Size = UDim2.new(1, 0, 1, 0)
+    grid.BackgroundTransparency = 1
+    grid.Parent = bg
     
-    for i = 1, 5 do
-        local dot = Instance.new("Frame")
-        dot.Name = "Dot"..i
-        dot.Size = UDim2.new(0, 4, 0, 4)
-        dot.Position = UDim2.new(math.random(), 0, math.random(), 0)
-        dot.BackgroundColor3 = CONFIG.colors.primary
-        dot.BackgroundTransparency = 0.6
-        dot.BorderSizePixel = 0
-        createUICorner(dot, UDim.new(1, 0))
-        dot.Parent = particles
-        
-        local function animateDot()
-            if not dot or not dot.Parent then return end
-            tween(dot, {
-                Position = UDim2.new(math.random(), 0, math.random(), 0),
-                BackgroundTransparency = math.random() * 0.5 + 0.3
-            }, math.random(3, 6)):Play()
-        end
-        
-        spawn(function()
-            while dot and dot.Parent do
-                animateDot()
-                wait(math.random(3, 6))
-            end
-        end)
+    -- Criar linhas horizontais
+    for i = 1, 10 do
+        local line = Instance.new("Frame")
+        line.Size = UDim2.new(1, 0, 0, 1)
+        line.Position = UDim2.new(0, 0, i/10, 0)
+        line.BackgroundColor3 = CONFIG.colors.primary
+        line.BackgroundTransparency = 0.95
+        line.BorderSizePixel = 0
+        line.Parent = grid
     end
     
-    return bg
-end
-
-function LoadingSystem:getAvatarImage()
-    local userId = LocalPlayer.UserId
-    local thumbType = Enum.ThumbnailType.AvatarBust
-    local thumbSize = Enum.ThumbnailSize.Size420x420
-    
-    local success, content = pcall(function()
-        return Players:GetUserThumbnailAsync(userId, thumbType, thumbSize)
-    end)
-    
-    if success then
-        return content
-    else
-        return "rbxasset://textures/ui/PlayerListDefaultAvatar.png"
-    end
-end
-
-function LoadingSystem:createAvatar(parent)
+    -- Container central
     local container = Instance.new("Frame")
-    container.Name = "AvatarContainer"
-    container.Size = UDim2.new(0, CONFIG.avatarSize, 0, CONFIG.avatarSize)
-    container.Position = UDim2.new(0.5, -CONFIG.avatarSize/2, 0.35, -CONFIG.avatarSize/2)
+    container.Name = "Container"
+    container.Size = UDim2.new(0, 500, 0, 350)
+    container.Position = UDim2.new(0.5, -250, 0.5, -175)
     container.BackgroundColor3 = CONFIG.colors.dark
+    container.BackgroundTransparency = 0.3
     container.BorderSizePixel = 0
-    createUICorner(container, UDim.new(1, 0))
-    createUIStroke(container, CONFIG.colors.primary, 3)
-    container.Parent = parent
+    createCorner(container, UDim.new(0, 20))
+    createStroke(container, CONFIG.colors.primary, 2)
+    container.Parent = bg
     
-    local image = Instance.new("ImageLabel")
-    image.Name = "AvatarImage"
-    image.Size = UDim2.new(1, -6, 1, -6)
-    image.Position = UDim2.new(0, 3, 0, 3)
-    image.BackgroundTransparency = 1
-    image.Image = self:getAvatarImage()
-    createUICorner(image, UDim.new(1, 0))
-    image.Parent = container
-    
+    -- Glow effect atrás do container
     local glow = Instance.new("ImageLabel")
     glow.Name = "Glow"
     glow.Size = UDim2.new(1.5, 0, 1.5, 0)
     glow.Position = UDim2.new(-0.25, 0, -0.25, 0)
     glow.BackgroundTransparency = 1
     glow.Image = "rbxassetid://10873939892"
-    glow.ImageColor3 = CONFIG.colors.primary
-    glow.ImageTransparency = 0.8
+    glow.ImageColor3 = CONFIG.colors.glow
+    glow.ImageTransparency = 0.7
     glow.Parent = container
     
-    tween(glow, {ImageTransparency = 0.5, Size = UDim2.new(1.8, 0, 1.8, 0), Position = UDim2.new(-0.4, 0, -0.4, 0)}, 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut).Completed:Connect(function()
-        tween(glow, {ImageTransparency = 0.8, Size = UDim2.new(1.5, 0, 1.5, 0), Position = UDim2.new(-0.25, 0, -0.25, 0)}, 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-    end)
+    -- Logo principal
+    local logoContainer = Instance.new("Frame")
+    logoContainer.Name = "LogoContainer"
+    logoContainer.Size = UDim2.new(0, 120, 0, 120)
+    logoContainer.Position = UDim2.new(0.5, -60, 0, 30)
+    logoContainer.BackgroundColor3 = CONFIG.colors.primary
+    logoContainer.BorderSizePixel = 0
+    createCorner(logoContainer, UDim.new(1, 0))
+    logoContainer.Parent = container
     
+    -- Ícone do logo
+    local logoIcon = Instance.new("TextLabel")
+    logoIcon.Name = "LogoIcon"
+    logoIcon.Size = UDim2.new(1, 0, 1, 0)
+    logoIcon.BackgroundTransparency = 1
+    logoIcon.Text = "⚡"
+    logoIcon.TextColor3 = CONFIG.colors.text
+    logoIcon.TextSize = 60
+    logoIcon.Font = Enum.Font.GothamBlack
+    logoIcon.Parent = logoContainer
+    
+    -- Glow do logo
+    local logoGlow = Instance.new("ImageLabel")
+    logoGlow.Size = UDim2.new(1.8, 0, 1.8, 0)
+    logoGlow.Position = UDim2.new(-0.4, 0, -0.4, 0)
+    logoGlow.BackgroundTransparency = 1
+    logoGlow.Image = "rbxassetid://10873939892"
+    logoGlow.ImageColor3 = CONFIG.colors.primary
+    logoGlow.ImageTransparency = 0.6
+    logoGlow.Parent = logoContainer
+    
+    -- Animação de pulso do glow
     spawn(function()
-        while container and container.Parent do
-            tween(container, {Rotation = 360}, 20, Enum.EasingStyle.Linear).Completed:Wait()
-            container.Rotation = 0
+        while logoGlow and logoGlow.Parent do
+            tween(logoGlow, {ImageTransparency = 0.3, Size = UDim2.new(2, 0, 2, 0)}, 1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut):Play()
+            wait(1)
+            tween(logoGlow, {ImageTransparency = 0.6, Size = UDim2.new(1.8, 0, 1.8, 0)}, 1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut):Play()
+            wait(1)
         end
     end)
     
-    return container
-end
-
-function LoadingSystem:createLoadingBar(parent)
-    local container = Instance.new("Frame")
-    container.Name = "LoadingContainer"
-    container.Size = UDim2.new(0, 400, 0, 6)
-    container.Position = UDim2.new(0.5, -200, 0.6, 0)
-    container.BackgroundColor3 = CONFIG.colors.dark
-    container.BorderSizePixel = 0
-    createUICorner(container, UDim.new(0, 3))
-    container.Parent = parent
-    
-    local fill = Instance.new("Frame")
-    fill.Name = "Fill"
-    fill.Size = UDim2.new(0, 0, 1, 0)
-    fill.BackgroundColor3 = CONFIG.colors.primary
-    fill.BorderSizePixel = 0
-    createUICorner(fill, UDim.new(0, 3))
-    fill.Parent = container
-    
-    local shine = Instance.new("Frame")
-    shine.Name = "Shine"
-    shine.Size = UDim2.new(0, 100, 1, 0)
-    shine.Position = UDim2.new(0, -100, 0, 0)
-    shine.BackgroundColor3 = Color3.new(1, 1, 1)
-    shine.BackgroundTransparency = 0.9
-    shine.BorderSizePixel = 0
-    createUICorner(shine, UDim.new(0, 3))
-    shine.Parent = fill
-    
-    local status = Instance.new("TextLabel")
-    status.Name = "Status"
-    status.Size = UDim2.new(0, 400, 0, 30)
-    status.Position = UDim2.new(0.5, -200, 0.6, 20)
-    status.BackgroundTransparency = 1
-    status.Text = "Inicializando..."
-    status.TextColor3 = CONFIG.colors.text
-    status.TextSize = 14
-    status.Font = Enum.Font.GothamMedium
-    status.Parent = parent
-    
-    local percent = Instance.new("TextLabel")
-    percent.Name = "Percent"
-    percent.Size = UDim2.new(0, 100, 0, 30)
-    percent.Position = UDim2.new(0.5, -50, 0.6, -35)
-    percent.BackgroundTransparency = 1
-    percent.Text = "0%"
-    percent.TextColor3 = CONFIG.colors.primary
-    percent.TextSize = 24
-    percent.Font = Enum.Font.GothamBold
-    percent.Parent = parent
-    
-    return {
-        container = container,
-        fill = fill,
-        shine = shine,
-        status = status,
-        percent = percent
-    }
-end
-
-function LoadingSystem:animateLoading(loadingBar, callback)
-    local steps = {
-        {text = "Carregando recursos...", percent = 0.2, delay = 0.5},
-        {text = "Verificando sistema...", percent = 0.4, delay = 0.5},
-        {text = "Preparando interface...", percent = 0.6, delay = 0.5},
-        {text = "Quase pronto...", percent = 0.8, delay = 0.5},
-        {text = "Concluído!", percent = 1, delay = 0.3}
-    }
-    
-    spawn(function()
-        for _, step in ipairs(steps) do
-            loadingBar.status.Text = step.text
-            tween(loadingBar.fill, {Size = UDim2.new(step.percent, 0, 1, 0)}, step.delay):Play()
-            tween(loadingBar.shine, {Position = UDim2.new(step.percent, -100, 0, 0)}, step.delay):Play()
-            
-            local targetPercent = math.floor(step.percent * 100)
-            for i = tonumber(loadingBar.percent.Text:gsub("%%", "")), targetPercent do
-                loadingBar.percent.Text = i .. "%"
-                wait(0.02)
-            end
-            
-            wait(step.delay)
-        end
-        
-        wait(0.5)
-        if callback then callback() end
-    end)
-end
-
-function LoadingSystem:show(callback)
-    local screen = self:createScreen()
-    local bg = self:createBackground(screen)
-    local avatar = self:createAvatar(bg)
-    local loadingBar = self:createLoadingBar(bg)
-    
-    local logo = Instance.new("TextLabel")
-    logo.Name = "Logo"
-    logo.Size = UDim2.new(0, 400, 0, 50)
-    logo.Position = UDim2.new(0.5, -200, 0.15, 0)
-    logo.BackgroundTransparency = 1
-    logo.Text = "⚡ CAFUXZ1"
-    logo.TextColor3 = CONFIG.colors.text
-    logo.TextSize = 42
-    logo.Font = Enum.Font.GothamBlack
-    logo.Parent = bg
-    
-    local subtitle = Instance.new("TextLabel")
-    subtitle.Name = "Subtitle"
-    subtitle.Size = UDim2.new(0, 400, 0, 20)
-    subtitle.Position = UDim2.new(0.5, -200, 0.15, 45)
-    subtitle.BackgroundTransparency = 1
-    subtitle.Text = "SISTEMA DE LOADING"
-    subtitle.TextColor3 = CONFIG.colors.primary
-    subtitle.TextSize = 12
-    subtitle.Font = Enum.Font.GothamBold
-    subtitle.Parent = bg
-    
-    local welcome = Instance.new("TextLabel")
-    welcome.Name = "Welcome"
-    welcome.Size = UDim2.new(0, 400, 0, 25)
-    welcome.Position = UDim2.new(0.5, -200, 0.35, CONFIG.avatarSize/2 + 10)
-    welcome.BackgroundTransparency = 1
-    welcome.Text = "Bem-vindo, " .. LocalPlayer.DisplayName
-    welcome.TextColor3 = CONFIG.colors.text
-    welcome.TextSize = 16
-    welcome.Font = Enum.Font.GothamBold
-    welcome.Parent = bg
-    
-    local username = Instance.new("TextLabel")
-    username.Name = "Username"
-    username.Size = UDim2.new(0, 400, 0, 20)
-    username.Position = UDim2.new(0.5, -200, 0.35, CONFIG.avatarSize/2 + 35)
-    username.BackgroundTransparency = 1
-    username.Text = "@" .. LocalPlayer.Name
-    username.TextColor3 = CONFIG.colors.text
-    username.TextTransparency = 0.5
-    username.TextSize = 12
-    username.Font = Enum.Font.Gotham
-    username.Parent = bg
-    
-    logo.Position = UDim2.new(0.5, -200, -0.2, 0)
-    tween(logo, {Position = UDim2.new(0.5, -200, 0.15, 0)}, 0.8, Enum.EasingStyle.Back):Play()
-    
-    avatar.Container.Size = UDim2.new(0, 0, 0, 0)
-    tween(avatar.Container, {Size = UDim2.new(0, CONFIG.avatarSize, 0, CONFIG.avatarSize)}, 0.8, Enum.EasingStyle.Back):Play()
-    
-    wait(1)
-    self:animateLoading(loadingBar, function()
-        if callback then callback(screen) end
-    end)
-    
-    return screen
-end
-
--- ============================================
--- SISTEMA DE KEY (KEY: CADUCOSXZ)
--- ============================================
-local KeySystem = {}
-
-function KeySystem:show(previousScreen, onSuccess)
-    if previousScreen then
-        tween(previousScreen:FindFirstChild("Background"), {BackgroundTransparency = 1}, 0.5).Completed:Wait()
-        previousScreen:Destroy()
-    end
-    
-    local screen = Instance.new("ScreenGui")
-    screen.Name = "CAFUXZ1_KeySystem"
-    screen.ResetOnSpawn = false
-    screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screen.Parent = PlayerGui
-    
-    local bg = Instance.new("Frame")
-    bg.Name = "Background"
-    bg.Size = UDim2.new(1, 0, 1, 0)
-    bg.BackgroundColor3 = CONFIG.colors.darker
-    bg.BorderSizePixel = 0
-    bg.BackgroundTransparency = 1
-    bg.Parent = screen
-    
-    tween(bg, {BackgroundTransparency = 0}, 0.5):Play()
-    
-    local container = Instance.new("Frame")
-    container.Name = "KeyContainer"
-    container.Size = UDim2.new(0, 450, 0, 300)
-    container.Position = UDim2.new(0.5, -225, 0.5, -150)
-    container.BackgroundColor3 = CONFIG.colors.dark
-    container.BorderSizePixel = 0
-    createUICorner(container, UDim.new(0, 16))
-    createUIStroke(container, CONFIG.colors.primary, 2)
-    container.Parent = bg
-    
-    local icon = Instance.new("TextLabel")
-    icon.Name = "LockIcon"
-    icon.Size = UDim2.new(0, 60, 0, 60)
-    icon.Position = UDim2.new(0.5, -30, 0, 30)
-    icon.BackgroundTransparency = 1
-    icon.Text = "🔒"
-    icon.TextSize = 50
-    icon.Parent = container
-    
+    -- Título
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Size = UDim2.new(1, 0, 0, 30)
-    title.Position = UDim2.new(0, 0, 0, 100)
+    title.Size = UDim2.new(1, 0, 0, 40)
+    title.Position = UDim2.new(0, 0, 0, 160)
     title.BackgroundTransparency = 1
-    title.Text = "SISTEMA DE ACESSO"
+    title.Text = "CAFUXZ1"
     title.TextColor3 = CONFIG.colors.text
-    title.TextSize = 20
+    title.TextSize = 36
     title.Font = Enum.Font.GothamBlack
     title.Parent = container
     
+    -- Subtítulo
     local subtitle = Instance.new("TextLabel")
     subtitle.Name = "Subtitle"
-    subtitle.Size = UDim2.new(1, -40, 0, 40)
-    subtitle.Position = UDim2.new(0, 20, 0, 135)
+    subtitle.Size = UDim2.new(1, 0, 0, 20)
+    subtitle.Position = UDim2.new(0, 0, 0, 200)
     subtitle.BackgroundTransparency = 1
-    subtitle.Text = "Digite a key de acesso para continuar"
-    subtitle.TextColor3 = CONFIG.colors.text
-    subtitle.TextTransparency = 0.4
-    subtitle.TextSize = 14
-    subtitle.Font = Enum.Font.Gotham
+    subtitle.Text = "TITANIUM HUB EDITION"
+    subtitle.TextColor3 = CONFIG.colors.primary
+    subtitle.TextSize = 12
+    subtitle.Font = Enum.Font.GothamBold
     subtitle.Parent = container
     
-    local inputBg = Instance.new("Frame")
-    inputBg.Name = "InputBg"
-    inputBg.Size = UDim2.new(0, 350, 0, 45)
-    inputBg.Position = UDim2.new(0.5, -175, 0, 190)
-    inputBg.BackgroundColor3 = CONFIG.colors.darker
-    inputBg.BorderSizePixel = 0
-    createUICorner(inputBg, UDim.new(0, 8))
-    createUIStroke(inputBg, CONFIG.colors.primary, 1)
-    inputBg.Parent = container
+    -- Barra de progresso container
+    local barBg = Instance.new("Frame")
+    barBg.Name = "BarBg"
+    barBg.Size = UDim2.new(0, 400, 0, 8)
+    barBg.Position = UDim2.new(0.5, -200, 0, 260)
+    barBg.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    barBg.BorderSizePixel = 0
+    createCorner(barBg, UDim.new(0, 4))
+    barBg.Parent = container
     
-    local input = Instance.new("TextBox")
-    input.Name = "KeyInput"
-    input.Size = UDim2.new(1, -20, 1, 0)
-    input.Position = UDim2.new(0, 10, 0, 0)
-    input.BackgroundTransparency = 1
-    input.Text = ""
-    input.PlaceholderText = "Digite a key aqui..."
-    input.TextColor3 = CONFIG.colors.text
-    input.PlaceholderColor3 = CONFIG.colors.text
-    input.TextTransparency = 0.5
-    input.TextSize = 14
-    input.Font = Enum.Font.GothamMedium
-    input.ClearTextOnFocus = false
-    input.Parent = inputBg
+    -- Fill da barra
+    local barFill = Instance.new("Frame")
+    barFill.Name = "BarFill"
+    barFill.Size = UDim2.new(0, 0, 1, 0)
+    barFill.BackgroundColor3 = CONFIG.colors.primary
+    barFill.BorderSizePixel = 0
+    createCorner(barFill, UDim.new(0, 4))
+    barFill.Parent = barBg
     
-    local btn = Instance.new("TextButton")
-    btn.Name = "VerifyBtn"
-    btn.Size = UDim2.new(0, 350, 0, 45)
-    btn.Position = UDim2.new(0.5, -175, 0, 245)
-    btn.BackgroundColor3 = CONFIG.colors.primary
-    btn.Text = "VERIFICAR KEY"
-    btn.TextColor3 = CONFIG.colors.text
-    btn.TextSize = 16
-    btn.Font = Enum.Font.GothamBold
-    createUICorner(btn, UDim.new(0, 8))
-    btn.Parent = container
+    -- Brilho na barra
+    local barShine = Instance.new("Frame")
+    barShine.Name = "BarShine"
+    barShine.Size = UDim2.new(0, 80, 1, 0)
+    barShine.Position = UDim2.new(0, -80, 0, 0)
+    barShine.BackgroundColor3 = Color3.new(1, 1, 1)
+    barShine.BackgroundTransparency = 0.8
+    barShine.BorderSizePixel = 0
+    createCorner(barShine, UDim.new(0, 4))
+    barShine.Parent = barFill
     
-    btn.MouseEnter:Connect(function()
-        tween(btn, {BackgroundColor3 = CONFIG.colors.secondary}, 0.2):Play()
-    end)
+    -- Texto de porcentagem
+    local percentText = Instance.new("TextLabel")
+    percentText.Name = "Percent"
+    percentText.Size = UDim2.new(0, 100, 0, 30)
+    percentText.Position = UDim2.new(0.5, -50, 0, 275)
+    percentText.BackgroundTransparency = 1
+    percentText.Text = "0%"
+    percentText.TextColor3 = CONFIG.colors.text
+    percentText.TextSize = 18
+    percentText.Font = Enum.Font.GothamBold
+    percentText.Parent = container
     
-    btn.MouseLeave:Connect(function()
-        tween(btn, {BackgroundColor3 = CONFIG.colors.primary}, 0.2):Play()
-    end)
+    -- Status text
+    local statusText = Instance.new("TextLabel")
+    statusText.Name = "Status"
+    statusText.Size = UDim2.new(1, 0, 0, 20)
+    statusText.Position = UDim2.new(0, 0, 0, 305)
+    statusText.BackgroundTransparency = 1
+    statusText.Text = "Inicializando..."
+    statusText.TextColor3 = CONFIG.colors.text
+    statusText.TextTransparency = 0.5
+    statusText.TextSize = 12
+    statusText.Font = Enum.Font.GothamMedium
+    statusText.Parent = container
     
-    local errorMsg = Instance.new("TextLabel")
-    errorMsg.Name = "ErrorMsg"
-    errorMsg.Size = UDim2.new(1, 0, 0, 20)
-    errorMsg.Position = UDim2.new(0, 0, 1, -25)
-    errorMsg.BackgroundTransparency = 1
-    errorMsg.Text = ""
-    errorMsg.TextColor3 = CONFIG.colors.danger
-    errorMsg.TextSize = 12
-    errorMsg.Font = Enum.Font.GothamBold
-    errorMsg.Parent = container
+    -- Partículas decorativas (poucas, otimizadas)
+    local particles = Instance.new("Frame")
+    particles.Name = "Particles"
+    particles.Size = UDim2.new(1, 0, 1, 0)
+    particles.BackgroundTransparency = 1
+    particles.Parent = bg
     
-    container.Position = UDim2.new(0.5, -225, 0.5, -100)
-    container.BackgroundTransparency = 1
-    tween(container, {Position = UDim2.new(0.5, -225, 0.5, -150), BackgroundTransparency = 0}, 0.6, Enum.EasingStyle.Back):Play()
-    
-    local function verifyKey()
-        local enteredKey = input.Text:gsub("%s+", "")
+    for i = 1, 6 do
+        local p = Instance.new("Frame")
+        p.Size = UDim2.new(0, 3, 0, 3)
+        p.Position = UDim2.new(math.random(), 0, math.random(), 0)
+        p.BackgroundColor3 = CONFIG.colors.primary
+        p.BackgroundTransparency = 0.7
+        p.BorderSizePixel = 0
+        createCorner(p, UDim.new(1, 0))
+        p.Parent = particles
         
-        if enteredKey == "" then
-            errorMsg.Text = "⚠️ Digite uma key!"
-            tween(errorMsg, {TextTransparency = 0}, 0.2):Play()
-            wait(2)
-            tween(errorMsg, {TextTransparency = 1}, 0.2):Play()
-            return
-        end
-        
-        if enteredKey == CONFIG.key then
-            errorMsg.Text = "✓ Key válida! Carregando..."
-            errorMsg.TextColor3 = CONFIG.colors.success
-            tween(errorMsg, {TextTransparency = 0}, 0.2):Play()
-            
-            tween(btn, {BackgroundColor3 = CONFIG.colors.success}, 0.3):Play()
-            btn.Text = "ACESSO CONCEDIDO!"
-            
-            wait(1)
-            
-            tween(container, {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)}, 0.5):Play()
-            tween(bg, {BackgroundTransparency = 1}, 0.5).Completed:Wait()
-            
-            screen:Destroy()
-            if onSuccess then onSuccess() end
-        else
-            errorMsg.Text = "✗ Key inválida! Tente novamente."
-            tween(errorMsg, {TextTransparency = 0}, 0.2):Play()
-            
-            local originalPos = container.Position
-            for i = 1, 5 do
-                container.Position = originalPos + UDim2.new(0, math.random(-10, 10), 0, 0)
-                wait(0.05)
+        -- Movimento suave
+        spawn(function()
+            while p and p.Parent do
+                tween(p, {
+                    Position = UDim2.new(math.random(), 0, math.random(), 0),
+                    BackgroundTransparency = math.random() * 0.6 + 0.2
+                }, math.random(4, 8)):Play()
+                wait(math.random(4, 8))
             end
-            container.Position = originalPos
-            
-            input.Text = ""
-            input:CaptureFocus()
-            
-            wait(2)
-            tween(errorMsg, {TextTransparency = 1}, 0.2):Play()
-        end
+        end)
     end
     
-    btn.MouseButton1Click:Connect(verifyKey)
+    -- Animações de entrada
+    container.Position = UDim2.new(0.5, -250, 0.5, -100)
+    container.BackgroundTransparency = 1
     
-    input.FocusLost:Connect(function(enterPressed)
-        if enterPressed then
-            verifyKey()
-        end
-    end)
+    tween(container, {
+        Position = UDim2.new(0.5, -250, 0.5, -175),
+        BackgroundTransparency = 0.3
+    }, 0.8, Enum.EasingStyle.Back):Play()
     
-    input:CaptureFocus()
+    logoContainer.Size = UDim2.new(0, 0, 0, 0)
+    tween(logoContainer, {Size = UDim2.new(0, 120, 0, 120)}, 0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out):Play()
+    
+    title.TextTransparency = 1
+    tween(title, {TextTransparency = 0}, 0.5):Play()
+    
+    return {
+        screen = screen,
+        barFill = barFill,
+        barShine = barShine,
+        percentText = percentText,
+        statusText = statusText,
+        container = container,
+        bg = bg
+    }
 end
 
--- ============================================
--- LOADING FINAL
--- ============================================
-local FinalLoading = {}
-
-function FinalLoading:show(callback)
-    local screen = Instance.new("ScreenGui")
-    screen.Name = "CAFUXZ1_FinalLoading"
-    screen.ResetOnSpawn = false
-    screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screen.Parent = PlayerGui
+function Intro:simulateLoading(ui, onComplete)
+    ProgressSystem:init()
     
-    local bg = Instance.new("Frame")
-    bg.Name = "Background"
-    bg.Size = UDim2.new(1, 0, 1, 0)
-    bg.BackgroundColor3 = CONFIG.colors.darker
-    bg.BorderSizePixel = 0
-    bg.Parent = screen
+    local steps = {
+        {status = "Conectando ao servidor...", progress = 15, delay = 0.8},
+        {status = "Autenticando usuário...", progress = 35, delay = 0.6},
+        {status = "Carregando recursos...", progress = 55, delay = 0.8},
+        {status = "Compilando scripts...", progress = 75, delay = 0.7},
+        {status = "Finalizando...", progress = 90, delay = 0.5},
+        {status = "Pronto!", progress = 100, delay = 0.4}
+    }
     
-    local logo = Instance.new("TextLabel")
-    logo.Name = "Logo"
-    logo.Size = UDim2.new(0, 400, 0, 80)
-    logo.Position = UDim2.new(0.5, -200, 0.4, -40)
-    logo.BackgroundTransparency = 1
-    logo.Text = "⚡ CAFUXZ1"
-    logo.TextColor3 = CONFIG.colors.text
-    logo.TextSize = 56
-    logo.Font = Enum.Font.GothamBlack
-    logo.Parent = bg
-    
-    local spinner = Instance.new("Frame")
-    spinner.Name = "Spinner"
-    spinner.Size = UDim2.new(0, 60, 0, 60)
-    spinner.Position = UDim2.new(0.5, -30, 0.6, 0)
-    spinner.BackgroundTransparency = 1
-    spinner.Parent = bg
-    
-    for i = 1, 8 do
-        local dot = Instance.new("Frame")
-        dot.Size = UDim2.new(0, 8, 0, 8)
-        dot.Position = UDim2.new(0.5 + 0.35 * math.cos(i * math.pi / 4) - 0.1, 0, 0.5 + 0.35 * math.sin(i * math.pi / 4) - 0.1, 0)
-        dot.BackgroundColor3 = CONFIG.colors.primary
-        dot.BackgroundTransparency = i / 10
-        dot.BorderSizePixel = 0
-        createUICorner(dot, UDim.new(1, 0))
-        dot.Parent = spinner
-    end
-    
-    spawn(function()
-        while spinner and spinner.Parent do
-            tween(spinner, {Rotation = spinner.Rotation + 45}, 0.1, Enum.EasingStyle.Linear):Play()
-            wait(0.1)
-        end
+    -- Conectar atualização da UI ao progresso
+    ProgressSystem:onUpdate(function(progress)
+        -- Atualizar barra
+        ui.barFill.Size = UDim2.new(progress/100, 0, 1, 0)
+        -- Atualizar shine
+        ui.barShine.Position = UDim2.new(progress/100, -80, 0, 0)
+        -- Atualizar texto (inteiro)
+        ui.percentText.Text = math.floor(progress) .. "%"
     end)
     
-    local status = Instance.new("TextLabel")
-    status.Name = "Status"
-    status.Size = UDim2.new(0, 400, 0, 30)
-    status.Position = UDim2.new(0.5, -200, 0.6, 70)
-    status.BackgroundTransparency = 1
-    status.Text = "Carregando CAFUXZ1 Hub..."
-    status.TextColor3 = CONFIG.colors.primary
-    status.TextSize = 14
-    status.Font = Enum.Font.GothamMedium
-    status.Parent = bg
-    
-    logo.Position = UDim2.new(0.5, -200, 0.3, -40)
-    tween(logo, {Position = UDim2.new(0.5, -200, 0.4, -40)}, 0.8, Enum.EasingStyle.Back):Play()
-    
+    -- Executar etapas sequencialmente
     spawn(function()
-        local messages = {
-            "Conectando ao servidor...",
-            "Baixando recursos...",
-            "Compilando scripts...",
-            "Inicializando módulos...",
-            "Quase lá..."
-        }
-        
-        for _, msg in ipairs(messages) do
-            status.Text = msg
-            wait(0.4)
+        for i, step in ipairs(steps) do
+            -- Atualizar status
+            ui.statusText.Text = step.status
+            
+            -- Definir target do progresso
+            ProgressSystem:setTarget(step.progress)
+            
+            -- Aguardar delay da etapa
+            wait(step.delay)
         end
         
-        status.Text = "CAFUXZ1 Hub carregado!"
-        status.TextColor3 = CONFIG.colors.success
+        -- Aguardar progresso chegar a 100%
+        repeat wait() until ProgressSystem.current >= 99
         
-        wait(0.5)
+        wait(0.3)
         
-        tween(logo, {Position = UDim2.new(0.5, -200, -0.2, -40)}, 0.5):Play()
-        tween(spinner, {ImageTransparency = 1}, 0.5):Play()
-        tween(bg, {BackgroundTransparency = 1}, 0.5).Completed:Wait()
+        -- Animação de saída
+        ui.statusText.Text = "EXECUTANDO..."
+        ui.statusText.TextColor3 = CONFIG.colors.success
         
-        screen:Destroy()
-        if callback then callback() end
+        tween(ui.container, {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            Rotation = 360
+        }, 0.6, Enum.EasingStyle.Back, Enum.EasingDirection.In):Play()
+        
+        tween(ui.bg, {BackgroundTransparency = 1}, 0.6).Completed:Wait()
+        
+        ui.screen:Destroy()
+        
+        if onComplete then onComplete() end
     end)
 end
 
 -- ============================================
--- HUB CAFUXZ1
+-- CARREGADOR DO SCRIPT
 -- ============================================
-local HubLoader = {}
+local ScriptLoader = {}
 
-function HubLoader:load()
-    StarterGui:SetCore("SendNotification", {
-        Title = "⚡ CAFUXZ1 Hub",
-        Text = "v14.9 Carregando script...",
-        Duration = 3
-    })
+function ScriptLoader:execute()
+    -- Notificação
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "⚡ CAFUXZ1",
+            Text = "Carregando Titanium Hub...",
+            Duration = 3
+        })
+    end)
     
-    -- SÓ O LINK DO SCRIPT - sem loadstring do Titanium Hub
+    -- Executar script em pcall para não travar se der erro
     local success, err = pcall(function()
         loadstring(game:HttpGet(CONFIG.scriptUrl))()
     end)
     
     if not success then
-        warn("Erro ao carregar CAFUXZ1 Hub: " .. tostring(err))
-        StarterGui:SetCore("SendNotification", {
-            Title = "⚠️ Erro",
-            Text = "Falha ao carregar: " .. tostring(err):sub(1, 50),
-            Duration = 5
-        })
+        warn("[CAFUXZ1] Erro ao carregar: " .. tostring(err))
+        pcall(function()
+            StarterGui:SetCore("SendNotification", {
+                Title = "⚠️ Erro",
+                Text = "Falha ao carregar script",
+                Duration = 5
+            })
+        end)
     end
 end
 
 -- ============================================
--- EXECUÇÃO PRINCIPAL
+-- INICIAR SISTEMA
 -- ============================================
-local function startSystem()
-    -- 1. Loading com avatar
-    LoadingSystem:show(function(screen)
-        -- 2. Key System (Key: CADUCOSXZ)
-        KeySystem:show(screen, function()
-            -- 3. Loading final
-            FinalLoading:show(function()
-                -- 4. Carregar Hub
-                HubLoader:load()
-            end)
-        end)
+local function main()
+    local ui = Intro:create()
+    
+    Intro:simulateLoading(ui, function()
+        ScriptLoader:execute()
     end)
 end
 
-startSystem()
+main()
 
-print("🚀 CAFUXZ1 Loader v1.1 - Key: CADUCOSXZ - Usuário: " .. LocalPlayer.Name)
+print("⚡ CAFUXZ1 Intro v2.0 iniciado para " .. LocalPlayer.Name)
