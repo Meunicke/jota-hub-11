@@ -1,6 +1,6 @@
 --[[
-    CAFUXZ1 Hub v14.3 - Ultimate Edition + Skybox System
-    ====================================================
+    CAFUXZ1 Hub v14.4 - Ultimate Edition + Skybox Fix + Customização
+    ================================================================
     
     CRIADORES OFICIAIS:
     - Bazuka: Reconstrução total, integração WindUI + CADUXX137
@@ -23,13 +23,13 @@
     - Double touch e triple touch
     - Auto-skills para botões de futebol
     - Estatísticas em tempo real
-    - Temas dark/light/auto
+    - Temas dark/light/auto + CUSTOMIZAÇÃO DE CORES
     - Atalhos de teclado (F1, F2, F3, F4, F5, F6, F7)
-    - NOVO: Sistema Anti Lag completo
-    - NOVO: Morph Avatar (Char) integrado com 4 pré-definidos
-    - NOVO: Sistema Skybox v1.0 com 16 céus
+    - Sistema Anti Lag completo
+    - Morph Avatar (Char) integrado com 5 pré-definidos
+    - Sistema Skybox v2.0 corrigido (16 céus)
     
-    VERSÃO: v14.3 Ultimate
+    VERSÃO: v14.4 Ultimate
     STATUS: Produção
 ]]
 
@@ -56,13 +56,13 @@ local RootPart = nil
 local Camera = Workspace.CurrentCamera
 
 -- ============================================
--- CONFIGURAÇÕES CAFUXZ1 v14.3 ULTIMATE
+-- CONFIGURAÇÕES CAFUXZ1 v14.4 ULTIMATE
 -- ============================================
 local CONFIG = {
     -- Dimensões
-    width = 580,
-    height = 420,
-    sidebarWidth = 85,
+    width = 600,
+    height = 450,
+    sidebarWidth = 90,
     
     -- Core Ball Reach
     reach = 15,
@@ -76,11 +76,11 @@ local CONFIG = {
     -- Reach GK (NOVO)
     reachGK = 25,
     reachGKEnabled = false,
-    reachGKColor = Color3.fromRGB(255, 255, 0), -- Amarelo padrão
+    reachGKColor = Color3.fromRGB(255, 255, 0),
     reachGKTransparency = 0.8,
     reachGKShow = true,
     
-    -- Anti Lag Settings (NOVO)
+    -- Anti Lag Settings
     antiLag = {
         enabled = false,
         textures = true,
@@ -91,7 +91,7 @@ local CONFIG = {
         fullBright = false
     },
     
-    -- Morph Settings (NOVO)
+    -- Morph Settings
     morph = {
         minimized = false,
         draggingTitleBar = false,
@@ -99,16 +99,36 @@ local CONFIG = {
         startPos = nil
     },
     
-    -- Sistema de temas
-    theme = "dark",
+    -- Sistema de temas e CUSTOMIZAÇÃO DE CORES
+    theme = "custom",
     accentColor = Color3.fromRGB(99, 102, 241),
     particleEffects = true,
     soundEffects = true,
     showStats = true,
     autoUpdate = true,
     
+    -- Cores personalizáveis (NOVO v14.4)
+    customColors = {
+        primary = Color3.fromRGB(99, 102, 241),
+        secondary = Color3.fromRGB(139, 92, 246),
+        accent = Color3.fromRGB(14, 165, 233),
+        success = Color3.fromRGB(34, 197, 94),
+        danger = Color3.fromRGB(239, 68, 68),
+        warning = Color3.fromRGB(245, 158, 11),
+        info = Color3.fromRGB(59, 130, 246),
+        
+        bgDark = Color3.fromRGB(12, 12, 20),
+        bgCard = Color3.fromRGB(28, 28, 42),
+        bgElevated = Color3.fromRGB(42, 42, 62),
+        bgGlass = Color3.fromRGB(22, 22, 36),
+        
+        textPrimary = Color3.fromRGB(252, 252, 255),
+        textSecondary = Color3.fromRGB(170, 180, 210),
+        textMuted = Color3.fromRGB(130, 140, 170),
+    },
+    
     -- IDs das imagens atualizadas (Bazuka)
-    iconImage = "rbxassetid://88380080222477",      -- Ícone do botão
+    iconImage = "rbxassetid://88380080222477",
     
     -- Lista expandida de bolas (CADUXX137)
     ballNames = { 
@@ -119,30 +139,32 @@ local CONFIG = {
         " bola", "Bola", "BALL", "SOCCER", "FOOTBALL", "SoccerBall"
     },
     
-    -- Cores tema Dark
-    primary = Color3.fromRGB(99, 102, 241),
-    secondary = Color3.fromRGB(139, 92, 246),
-    accent = Color3.fromRGB(14, 165, 233),
-    success = Color3.fromRGB(34, 197, 94),
-    danger = Color3.fromRGB(239, 68, 68),
-    warning = Color3.fromRGB(245, 158, 11),
-    info = Color3.fromRGB(59, 130, 246),
-    
-    bgDark = Color3.fromRGB(12, 12, 20),
-    bgCard = Color3.fromRGB(28, 28, 42),
-    bgElevated = Color3.fromRGB(42, 42, 62),
-    bgGlass = Color3.fromRGB(22, 22, 36),
-    
-    textPrimary = Color3.fromRGB(252, 252, 255),
-    textSecondary = Color3.fromRGB(170, 180, 210),
-    textMuted = Color3.fromRGB(130, 140, 170),
-    
-    -- Cores tema Light
+    -- Cores tema Light (backup)
     lightBg = Color3.fromRGB(245, 245, 250),
     lightCard = Color3.fromRGB(255, 255, 255),
     lightText = Color3.fromRGB(30, 30, 40),
     lightMuted = Color3.fromRGB(100, 110, 130)
 }
+
+-- Atualizar cores principais baseadas nas customizáveis
+local function updateThemeColors()
+    CONFIG.primary = CONFIG.customColors.primary
+    CONFIG.secondary = CONFIG.customColors.secondary
+    CONFIG.accent = CONFIG.customColors.accent
+    CONFIG.success = CONFIG.customColors.success
+    CONFIG.danger = CONFIG.customColors.danger
+    CONFIG.warning = CONFIG.customColors.warning
+    CONFIG.info = CONFIG.customColors.info
+    CONFIG.bgDark = CONFIG.customColors.bgDark
+    CONFIG.bgCard = CONFIG.customColors.bgCard
+    CONFIG.bgElevated = CONFIG.customColors.bgElevated
+    CONFIG.bgGlass = CONFIG.customColors.bgGlass
+    CONFIG.textPrimary = CONFIG.customColors.textPrimary
+    CONFIG.textSecondary = CONFIG.customColors.textSecondary
+    CONFIG.textMuted = CONFIG.customColors.textMuted
+end
+
+updateThemeColors()
 
 -- ============================================
 -- ESTATÍSTICAS E LOGS (CAFUXZ1)
@@ -201,6 +223,8 @@ local antiLagActive = false
 local originalStates = {}
 local antiLagConnection = nil
 local morphGui = nil
+local currentSkybox = nil
+local originalSkybox = nil
 
 local skillButtonNames = {
     "Shoot", "Pass", "Long", "Tackle", "Dribble", "GK", "Throw",
@@ -257,7 +281,6 @@ local function applyAntiLag()
     local Stuff = {}
     
     for _, v in next, game:GetDescendants() do
-        -- Parts Material
         if CONFIG.antiLag.parts then
             if v:IsA("Part") or v:IsA("Union") or v:IsA("BasePart") then
                 saveOriginalState(v, "Material", v.Material)
@@ -266,7 +289,6 @@ local function applyAntiLag()
             end
         end
         
-        -- Particles
         if CONFIG.antiLag.particles then
             if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Explosion") or v:IsA("Sparkles") or v:IsA("Fire") then
                 saveOriginalState(v, "Enabled", v.Enabled)
@@ -275,7 +297,6 @@ local function applyAntiLag()
             end
         end
         
-        -- Visual Effects
         if CONFIG.antiLag.visualEffects then
             if v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("SunRaysEffect") then
                 saveOriginalState(v, "Enabled", v.Enabled)
@@ -284,7 +305,6 @@ local function applyAntiLag()
             end
         end
         
-        -- Textures
         if CONFIG.antiLag.textures then
             if v:IsA("Decal") or v:IsA("Texture") then
                 saveOriginalState(v, "Texture", v.Texture)
@@ -293,7 +313,6 @@ local function applyAntiLag()
             end
         end
         
-        -- Sky
         if CONFIG.antiLag.sky then
             if v:IsA("Sky") then
                 saveOriginalState(v, "Parent", v.Parent)
@@ -303,7 +322,6 @@ local function applyAntiLag()
         end
     end
     
-    -- Full Bright
     if CONFIG.antiLag.fullBright then
         saveOriginalState(Lighting, "FogColor", Lighting.FogColor)
         saveOriginalState(Lighting, "FogEnd", Lighting.FogEnd)
@@ -330,10 +348,8 @@ local function applyAntiLag()
     TestService:Message("CAFUXZ1 Anti Lag: Desativados " .. #Stuff .. " efeitos/assets")
     addLog("Anti Lag ATIVADO - " .. #Stuff .. " itens otimizados", "success")
     
-    -- Monitorar novos objetos
     antiLagConnection = game.DescendantAdded:Connect(function(v)
         if not antiLagActive then return end
-        
         task.wait(0.1)
         
         if CONFIG.antiLag.parts and (v:IsA("Part") or v:IsA("Union") or v:IsA("BasePart")) then
@@ -367,7 +383,6 @@ local function disableAntiLag()
         antiLagConnection = nil
     end
     
-    -- Restaurar estados originais
     for obj, properties in pairs(originalStates) do
         if obj and obj.Parent then
             for prop, value in pairs(properties) do
@@ -388,7 +403,7 @@ local function disableAntiLag()
 end
 
 -- ============================================
--- SISTEMA DE MORPH AVATAR (4 PRÉ-DEFINIDOS)
+-- SISTEMA DE MORPH AVATAR (5 PRÉ-DEFINIDOS)
 -- ============================================
 local PRESET_MORPHS = {
     { name = "Miguelcalebegamer202", userId = nil, displayName = "Miguelcalebegamer202" },
@@ -398,7 +413,6 @@ local PRESET_MORPHS = {
     { name = "AlissonGkBe", userId = nil, displayName = "AlissonGkBe (extra,gk)" }
 }
 
--- Resolver UserIds dos presets
 task.spawn(function()
     for _, preset in ipairs(PRESET_MORPHS) do
         task.spawn(function()
@@ -423,7 +437,7 @@ local function applyMorphEffect(character)
     particleEmitter.Speed = NumberRange.new(5, 10)
     particleEmitter.Lifetime = NumberRange.new(0.5, 1)
     particleEmitter.SpreadAngle = Vector2.new(360, 360)
-    particleEmitter.Color = ColorSequence.new(Color3.fromRGB(200, 50, 50))
+    particleEmitter.Color = ColorSequence.new(CONFIG.customColors.danger)
     particleEmitter.Parent = rootPart
 
     local explosion = Instance.new("Explosion")
@@ -470,7 +484,6 @@ local function morphToUser(userId, targetName)
         return
     end
 
-    -- Remove roupas atuais
     for _, obj in ipairs(character:GetChildren()) do
         if obj:IsA("Shirt") or obj:IsA("Pants") or obj:IsA("ShirtGraphic") or
            obj:IsA("Accessory") or obj:IsA("BodyColors") then
@@ -580,10 +593,9 @@ local function processReachGK()
 end
 
 -- ============================================
--- SISTEMA SKYBOX v1.0 (NOVO v14.3)
+-- SISTEMA SKYBOX v2.0 CORRIGIDO
 -- ============================================
 local SkyboxDatabase = {
-    -- Categoria 1: Cosmos/Noturnos (6 itens)
     { id = 14828385099, name = "Night Sky With Moon HD", category = "1" },
     { id = 109488540432307, name = "Cosmic Sky A", category = "1" },
     { id = 109844440994380, name = "Cosmic Sky B", category = "1" },
@@ -591,21 +603,126 @@ local SkyboxDatabase = {
     { id = 6681543281, name = "Deep Space", category = "1" },
     { id = 77407612452946, name = "Galaxy Nebula", category = "1" },
     
-    -- Categoria 2: Atmosféricos/Natureza (3 itens)
     { id = 2900944368, name = "Space/Sci-Fi Sky", category = "2" },
     { id = 290982885, name = "Atmospheric Sky", category = "2" },
     { id = 295604372, name = "Cloudy/Weather Sky", category = "2" },
     
-    -- Categoria 3: Custom/Variados (4 itens)
     { id = 17124418086, name = "Custom Sky A", category = "3" },
     { id = 17480150596, name = "Custom Sky B", category = "3" },
     { id = 16553683517, name = "Custom Sky C", category = "3" },
-        { id = 16553683517, name = "Custom Sky C", category = "3" },
-    { id = 16887161729, name = "Custom Sky D", category = "3" }
+    { id = 264910951, name = "Vintage/Retro Sky", category = "3" },
+    
+    { id = 119314959302386, name = "Special Effect Sky", category = "4" },
+    { id = 109488540432307, name = "Cosmic Sky A (Alt)", category = "4" },
+    { id = 0, name = "Slot Reservado", category = "4" },
 }
 
-local currentSkybox = nil
-local originalSkybox = nil
+local function ClearSkies()
+    for _, child in pairs(Lighting:GetChildren()) do
+        if child:IsA("Sky") then
+            child:Destroy()
+        end
+    end
+end
+
+local function ApplySkybox(assetId, skyName)
+    if assetId == 0 then return false end
+    
+    ClearSkies()
+    
+    print("[Skybox] Aplicando: " .. (skyName or "ID " .. assetId))
+    addLog("Aplicando skybox: " .. (skyName or assetId), "info")
+    
+    -- Método 1: game:GetObjects
+    local success = pcall(function()
+        local objects = game:GetObjects("rbxassetid://" .. assetId)
+        if objects and #objects > 0 then
+            local source = objects[1]
+            if source:IsA("Sky") then
+                local sky = source:Clone()
+                sky.Name = "CAFUXZ1_Sky_" .. assetId
+                sky.Parent = Lighting
+                return true
+            end
+            if source:IsA("Model") or source:IsA("Folder") then
+                for _, child in pairs(source:GetDescendants()) do
+                    if child:IsA("Sky") then
+                        local sky = child:Clone()
+                        sky.Name = "CAFUXZ1_Sky_" .. assetId
+                        sky.Parent = Lighting
+                        source:Destroy()
+                        return true
+                    end
+                end
+                source:Destroy()
+            end
+        end
+        return false
+    end)
+    
+    if success then 
+        currentSkybox = assetId
+        return true 
+    end
+    
+    -- Método 2: InsertService
+    success = pcall(function()
+        local InsertService = game:GetService("InsertService")
+        local model = InsertService:LoadAsset(assetId)
+        if model then
+            for _, child in pairs(model:GetDescendants()) do
+                if child:IsA("Sky") then
+                    local sky = child:Clone()
+                    sky.Name = "CAFUXZ1_Sky_" .. assetId
+                    sky.Parent = Lighting
+                    model:Destroy()
+                    return true
+                end
+            end
+            model:Destroy()
+        end
+        return false
+    end)
+    
+    if success then 
+        currentSkybox = assetId
+        return true 
+    end
+    
+    -- Método 3: Sky genérico (fallback)
+    success = pcall(function()
+        local sky = Instance.new("Sky")
+        sky.Name = "CAFUXZ1_Sky_Generic_" .. assetId
+        local url = "rbxassetid://" .. assetId
+        sky.SkyboxBk = url
+        sky.SkyboxDn = url
+        sky.SkyboxFt = url
+        sky.SkyboxLf = url
+        sky.SkyboxRt = url
+        sky.SkyboxUp = url
+        sky.StarCount = 3000
+        sky.SunAngularSize = 11
+        sky.MoonAngularSize = 11
+        sky.Parent = Lighting
+        return true
+    end)
+    
+    if success then
+        currentSkybox = assetId
+    end
+    
+    return success
+end
+
+local function restoreOriginalSkybox()
+    ClearSkies()
+    if originalSkybox then
+        originalSkybox.Parent = Lighting
+        originalSkybox = nil
+    end
+    currentSkybox = nil
+    addLog("Skybox restaurado ao original", "info")
+end
 
 local function saveOriginalSkybox()
     if not originalSkybox then
@@ -616,48 +733,6 @@ local function saveOriginalSkybox()
             end
         end
     end
-end
-
-local function applySkybox(skyboxId)
-    saveOriginalSkybox()
-    
-    -- Remove skybox atual
-    for _, child in ipairs(Lighting:GetChildren()) do
-        if child:IsA("Sky") then
-            child:Destroy()
-        end
-    end
-    
-    -- Cria novo skybox
-    local sky = Instance.new("Sky")
-    sky.Name = "CAFUXZ1_Skybox_v14"
-    sky.SkyboxBk = "rbxassetid://" .. skyboxId
-    sky.SkyboxDn = "rbxassetid://" .. skyboxId
-    sky.SkyboxFt = "rbxassetid://" .. skyboxId
-    sky.SkyboxLf = "rbxassetid://" .. skyboxId
-    sky.SkyboxRt = "rbxassetid://" .. skyboxId
-    sky.SkyboxUp = "rbxassetid://" .. skyboxId
-    sky.Parent = Lighting
-    
-    currentSkybox = skyboxId
-    addLog("Skybox aplicado: ID " .. skyboxId, "success")
-    notify("Skybox System", "Céu alterado com sucesso!", 2)
-end
-
-local function restoreOriginalSkybox()
-    for _, child in ipairs(Lighting:GetChildren()) do
-        if child:IsA("Sky") and child.Name == "CAFUXZ1_Skybox_v14" then
-            child:Destroy()
-        end
-    end
-    
-    if originalSkybox then
-        originalSkybox.Parent = Lighting
-        originalSkybox = nil
-    end
-    
-    currentSkybox = nil
-    addLog("Skybox restaurado ao original", "info")
 end
 
 -- ============================================
@@ -704,16 +779,17 @@ local function scanForBalls()
                     particle.Lifetime = NumberRange.new(0.5, 1)
                     particle.Speed = NumberRange.new(2, 5)
                     particle.SpreadAngle = Vector2.new(180, 180)
-                    particle.Color = ColorSequence.new(CONFIG.accentColor)
+                    particle.Color = ColorSequence.new(CONFIG.primary)
                     particle.Size = NumberSequence.new(0.5, 0)
                     particle.Parent = attachment
+                    
+                    balls[obj].attachment = attachment
                 end
             end
             newBalls[obj] = balls[obj]
         end
     end
     
-    -- Limpa bolas que não existem mais
     for obj, data in pairs(balls) do
         if not newBalls[obj] then
             if data.attachment then
@@ -777,6 +853,7 @@ local function updateReachSphere()
     if RootPart and RootPart.Parent then
         reachSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
         reachSphere.CFrame = RootPart.CFrame
+        reachSphere.Color = CONFIG.primary
     end
 end
 
@@ -815,7 +892,6 @@ local function processAutoTouch()
                     STATS.totalTouches = STATS.totalTouches + 1
                     STATS.ballsTouched = STATS.ballsTouched + 1
                     
-                    -- Double/Triple touch
                     if CONFIG.autoSecondTouch then
                         task.delay(0.15, function()
                             for _, touchPart in ipairs(touchParts) do
@@ -864,10 +940,12 @@ local function activateSkillButton()
 end
 
 -- ============================================
--- INTERFACE WINDUI - CAFUXZ1 HUB
+-- INTERFACE WINDUI - CAFUXZ1 HUB v14.4
 -- ============================================
 local function createWindUI()
-    -- ScreenGui principal
+    -- Atualizar cores antes de criar
+    updateThemeColors()
+    
     mainGui = Instance.new("ScreenGui")
     mainGui.Name = "CAFUXZ1_Hub_v14"
     mainGui.ResetOnSpawn = false
@@ -885,19 +963,16 @@ local function createWindUI()
     mainFrame.ClipsDescendants = true
     mainFrame.Parent = mainGui
     
-    -- Cantos arredondados
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 12)
     corner.Parent = mainFrame
     
-    -- Stroke/Borda
     local stroke = Instance.new("UIStroke")
     stroke.Color = CONFIG.primary
     stroke.Thickness = 2
     stroke.Transparency = 0.5
     stroke.Parent = mainFrame
     
-    -- Gradiente de fundo
     local gradient = Instance.new("UIGradient")
     gradient.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, CONFIG.bgDark),
@@ -936,7 +1011,7 @@ local function createWindUI()
     versionLabel.Size = UDim2.new(1, 0, 0, 20)
     versionLabel.Position = UDim2.new(0, 0, 0, 55)
     versionLabel.BackgroundTransparency = 1
-    versionLabel.Text = "v14.3"
+    versionLabel.Text = "v14.4"
     versionLabel.TextColor3 = CONFIG.textMuted
     versionLabel.TextSize = 12
     versionLabel.Font = Enum.Font.Gotham
@@ -949,6 +1024,7 @@ local function createWindUI()
         {name = "visual", icon = "👁️", label = "Visual"},
         {name = "char", icon = "👤", label = "Char"},
         {name = "sky", icon = "☁️", label = "Sky"},
+        {name = "config", icon = "⚙️", label = "Config"},
         {name = "stats", icon = "📊", label = "Stats"},
         {name = "logs", icon = "📝", label = "Logs"}
     }
@@ -975,7 +1051,6 @@ local function createWindUI()
         
         tabButtons[tab.name] = btn
         
-        -- Frame de conteúdo
         local content = Instance.new("ScrollingFrame")
         content.Name = tab.name .. "Content"
         content.Size = UDim2.new(1, -CONFIG.sidebarWidth - 10, 1, -60)
@@ -1007,14 +1082,14 @@ local function createWindUI()
     headerTitle.Size = UDim2.new(0.6, 0, 1, 0)
     headerTitle.Position = UDim2.new(0, 15, 0, 0)
     headerTitle.BackgroundTransparency = 1
-    headerTitle.Text = "CAFUXZ1 Hub v14.3 Ultimate"
+    headerTitle.Text = "CAFUXZ1 Hub v14.4 Ultimate"
     headerTitle.TextColor3 = CONFIG.textPrimary
     headerTitle.TextSize = 18
     headerTitle.Font = Enum.Font.GothamBold
     headerTitle.TextXAlignment = Enum.TextXAlignment.Left
     headerTitle.Parent = header
     
-    -- Botões de controle (minimizar, fechar)
+    -- Botões de controle
     local minimizeBtn = Instance.new("TextButton")
     minimizeBtn.Name = "Minimize"
     minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -1045,7 +1120,7 @@ local function createWindUI()
     closeCorner.CornerRadius = UDim.new(0, 6)
     closeCorner.Parent = closeBtn
     
-    -- Função para criar seções
+    -- Funções auxiliares para criar elementos
     local function createSection(parent, title)
         local section = Instance.new("Frame")
         section.Size = UDim2.new(0.95, 0, 0, 0)
@@ -1085,7 +1160,6 @@ local function createWindUI()
         return section, sectionContent
     end
     
-    -- Função para criar toggle
     local function createToggle(parent, text, default, callback)
         local toggleFrame = Instance.new("Frame")
         toggleFrame.Size = UDim2.new(1, 0, 0, 35)
@@ -1128,7 +1202,6 @@ local function createWindUI()
         return toggleFrame, toggleBtn
     end
     
-    -- Função para criar slider
     local function createSlider(parent, text, min, max, default, callback)
         local sliderFrame = Instance.new("Frame")
         sliderFrame.Size = UDim2.new(1, 0, 0, 50)
@@ -1222,7 +1295,6 @@ local function createWindUI()
         return sliderFrame
     end
     
-    -- Função para criar botão
     local function createButton(parent, text, color, callback)
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(1, 0, 0, 35)
@@ -1247,6 +1319,91 @@ local function createWindUI()
         return btn
     end
     
+    local function createColorPicker(parent, labelText, defaultColor, callback)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 0, 40)
+        frame.BackgroundTransparency = 1
+        frame.Parent = parent
+        
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.6, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = labelText
+        label.TextColor3 = CONFIG.textSecondary
+        label.TextSize = 13
+        label.Font = Enum.Font.Gotham
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = frame
+        
+        local colorBtn = Instance.new("TextButton")
+        colorBtn.Size = UDim2.new(0, 60, 0, 30)
+        colorBtn.Position = UDim2.new(1, -60, 0.5, -15)
+        colorBtn.BackgroundColor3 = defaultColor
+        colorBtn.Text = "🎨"
+        colorBtn.TextSize = 18
+        colorBtn.Parent = frame
+        
+        local colorCorner = Instance.new("UICorner")
+        colorCorner.CornerRadius = UDim.new(0, 6)
+        colorCorner.Parent = colorBtn
+        
+        -- RGB Inputs simplificados
+        local rgbFrame = Instance.new("Frame")
+        rgbFrame.Size = UDim2.new(1, 0, 0, 30)
+        rgbFrame.Position = UDim2.new(0, 0, 0, 40)
+        rgbFrame.BackgroundTransparency = 1
+        rgbFrame.Visible = false
+        rgbFrame.Parent = frame
+        
+        local rInput = Instance.new("TextBox")
+        rInput.Size = UDim2.new(0.3, -4, 1, 0)
+        rInput.BackgroundColor3 = CONFIG.bgElevated
+        rInput.Text = tostring(math.floor(defaultColor.R * 255))
+        rInput.TextColor3 = Color3.new(1, 0, 0)
+        rInput.PlaceholderText = "R"
+        rInput.Parent = rgbFrame
+        
+        local gInput = Instance.new("TextBox")
+        gInput.Size = UDim2.new(0.3, -4, 1, 0)
+        gInput.Position = UDim2.new(0.35, 0, 0, 0)
+        gInput.BackgroundColor3 = CONFIG.bgElevated
+        gInput.Text = tostring(math.floor(defaultColor.G * 255))
+        gInput.TextColor3 = Color3.fromRGB(0, 255, 0)
+        gInput.PlaceholderText = "G"
+        gInput.Parent = rgbFrame
+        
+        local bInput = Instance.new("TextBox")
+        bInput.Size = UDim2.new(0.3, -4, 1, 0)
+        bInput.Position = UDim2.new(0.7, 0, 0, 0)
+        bInput.BackgroundColor3 = CONFIG.bgElevated
+        bInput.Text = tostring(math.floor(defaultColor.B * 255))
+        bInput.TextColor3 = Color3.fromRGB(0, 100, 255)
+        bInput.PlaceholderText = "B"
+        bInput.Parent = rgbFrame
+        
+        for _, inp in ipairs({rInput, gInput, bInput}) do
+            local inpCorner = Instance.new("UICorner")
+            inpCorner.CornerRadius = UDim.new(0, 4)
+            inpCorner.Parent = inp
+            
+            inp.FocusLost:Connect(function()
+                local r = math.clamp(tonumber(rInput.Text) or 0, 0, 255)
+                local g = math.clamp(tonumber(gInput.Text) or 0, 0, 255)
+                local b = math.clamp(tonumber(bInput.Text) or 0, 0, 255)
+                local newColor = Color3.fromRGB(r, g, b)
+                colorBtn.BackgroundColor3 = newColor
+                if callback then callback(newColor) end
+            end)
+        end
+        
+        colorBtn.MouseButton1Click:Connect(function()
+            rgbFrame.Visible = not rgbFrame.Visible
+            frame.Size = rgbFrame.Visible and UDim2.new(1, 0, 0, 75) or UDim2.new(1, 0, 0, 40)
+        end)
+        
+        return frame, colorBtn
+    end
+    
     -- POPULAR ABAS
     
     -- ABA REACH
@@ -1259,7 +1416,6 @@ local function createWindUI()
     
     createToggle(reachContent, "Full Body Touch", CONFIG.fullBodyTouch, function(val)
         CONFIG.fullBodyTouch = val
-        addLog("Full Body Touch " .. (val and "ativado" or "desativado"), "info")
     end)
     
     createToggle(reachContent, "Double/Triple Touch", CONFIG.autoSecondTouch, function(val)
@@ -1283,7 +1439,7 @@ local function createWindUI()
         CONFIG.scanCooldown = val
     end)
     
-    -- ABA GK (Goleiro)
+    -- ABA GK
     local gkSection, gkContent = createSection(contentFrames.gk, "Sistema GK v14")
     
     createToggle(gkContent, "Ativar Reach GK", CONFIG.reachGKEnabled, function(val)
@@ -1292,7 +1448,6 @@ local function createWindUI()
             reachGKCube:Destroy()
             reachGKCube = nil
         end
-        addLog("Reach GK " .. (val and "ativado" or "desativado"), "warning")
     end)
     
     createToggle(gkContent, "Mostrar Cubo GK", CONFIG.reachGKShow, function(val)
@@ -1303,8 +1458,12 @@ local function createWindUI()
         CONFIG.reachGK = val
     end)
     
-    createSlider(gkContent, "Transparência", 0, 0.9, CONFIG.reachGKTransparency, function(val)
+    createSlider(gkContent, "Transparência GK", 0, 0.9, CONFIG.reachGKTransparency, function(val)
         CONFIG.reachGKTransparency = val
+    end)
+    
+    createColorPicker(gkContent, "Cor do Cubo GK", CONFIG.reachGKColor, function(color)
+        CONFIG.reachGKColor = color
     end)
     
     -- ABA VISUAL
@@ -1334,7 +1493,6 @@ local function createWindUI()
     -- ABA CHAR (MORPH)
     local charSection, charContent = createSection(contentFrames.char, "Morph Avatar v14")
     
-    -- Input para username customizado
     local usernameFrame = Instance.new("Frame")
     usernameFrame.Size = UDim2.new(1, 0, 0, 60)
     usernameFrame.BackgroundTransparency = 1
@@ -1396,7 +1554,6 @@ local function createWindUI()
         end
     end)
     
-    -- Presets
     local presetsLabel = Instance.new("TextLabel")
     presetsLabel.Size = UDim2.new(1, 0, 0, 25)
     presetsLabel.BackgroundTransparency = 1
@@ -1430,8 +1587,8 @@ local function createWindUI()
         addLog("Avatar resetado", "warning")
     end)
     
-    -- ABA SKYBOX
-    local skySection, skyContent = createSection(contentFrames.sky, "Skybox System v1.0")
+    -- ABA SKYBOX (CORRIGIDA v2.0)
+    local skySection, skyContent = createSection(contentFrames.sky, "Skybox System v2.0")
     
     local skyLabel = Instance.new("TextLabel")
     skyLabel.Size = UDim2.new(1, 0, 0, 30)
@@ -1442,33 +1599,217 @@ local function createWindUI()
     skyLabel.Font = Enum.Font.Gotham
     skyLabel.Parent = skyContent
     
-    -- Categorias
-    local categories = {
-        {name = "🌌 Cosmos/Noturnos", cat = "1"},
-        {name = "🌅 Atmosféricos", cat = "2"},
-        {name = "🎨 Custom/Variados", cat = "3"}
+    local CategoryColors = {
+        ["1"] = Color3.fromRGB(0, 120, 255),
+        ["2"] = Color3.fromRGB(0, 200, 100),
+        ["3"] = Color3.fromRGB(255, 170, 0),
+        ["4"] = Color3.fromRGB(180, 0, 220),
     }
     
-    for _, category in ipairs(categories) do
-        local catBtn = createButton(skyContent, category.name, CONFIG.bgElevated, function()
-            -- Mostrar skyboxes da categoria
-            for _, child in ipairs(skyContent:GetChildren()) do
-                if child.Name:find("Skybox_") then child:Destroy() end
+    local categories = {
+        {name = "🌌 Cosmos/Noturnos", cat = "1", desc = "6 skyboxes"},
+        {name = "🌅 Atmosféricos", cat = "2", desc = "3 skyboxes"},
+        {name = "🎨 Custom/Variados", cat = "3", desc = "4 skyboxes"},
+        {name = "✨ Especiais", cat = "4", desc = "3 skyboxes"}
+    }
+    
+    local skyItemsFrame = Instance.new("Frame")
+    skyItemsFrame.Size = UDim2.new(1, 0, 0, 0)
+    skyItemsFrame.AutomaticSize = Enum.AutomaticSize.Y
+    skyItemsFrame.BackgroundTransparency = 1
+    skyItemsFrame.Parent = skyContent
+    
+    local function loadSkyCategory(categoryNum)
+        -- Limpa items anteriores
+        for _, child in ipairs(skyItemsFrame:GetChildren()) do
+            if child:IsA("TextButton") then child:Destroy() end
+        end
+        
+        for _, sky in ipairs(SkyboxDatabase) do
+            if sky.category == categoryNum and sky.id ~= 0 then
+                local skyBtn = createButton(skyItemsFrame, "☁️ " .. sky.name .. " (ID: " .. sky.id .. ")", CategoryColors[categoryNum], function()
+                    saveOriginalSkybox()
+                    local success = ApplySkybox(sky.id, sky.name)
+                    if success then
+                        notify("Skybox", sky.name .. " aplicado!", 2)
+                    else
+                        notify("Skybox", "Falha ao aplicar " .. sky.name, 2)
+                    end
+                end)
             end
-            
-            for _, skybox in ipairs(SkyboxDatabase) do
-                if skybox.category == category.cat then
-                    createButton(skyContent, "☁️ " .. skybox.name, CONFIG.info, function()
-                        applySkybox(skybox.id)
-                    end).Name = "Skybox_" .. skybox.id
-                end
-            end
-        end)
-        catBtn.Name = "Category_" .. category.cat
+        end
     end
     
-    createButton(skyContent, "↩️ Restaurar Céu Original", CONFIG.danger, function()
+    for _, category in ipairs(categories) do
+        createButton(skyContent, category.name .. " - " .. category.desc, CategoryColors[category.cat], function()
+            loadSkyCategory(category.cat)
+        end)
+    end
+    
+    -- Input para ID Custom
+    local customSkyFrame = Instance.new("Frame")
+    customSkyFrame.Size = UDim2.new(1, 0, 0, 70)
+    customSkyFrame.BackgroundTransparency = 1
+    customSkyFrame.Parent = skyContent
+    
+    local customSkyLabel = Instance.new("TextLabel")
+    customSkyLabel.Size = UDim2.new(1, 0, 0, 20)
+    customSkyLabel.BackgroundTransparency = 1
+    customSkyLabel.Text = "ID Custom:"
+    customSkyLabel.TextColor3 = CONFIG.textSecondary
+    customSkyLabel.TextSize = 12
+    customSkyLabel.Font = Enum.Font.Gotham
+    customSkyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    customSkyLabel.Parent = customSkyFrame
+    
+    local customSkyInput = Instance.new("TextBox")
+    customSkyInput.Size = UDim2.new(0.6, -5, 0, 30)
+    customSkyInput.Position = UDim2.new(0, 0, 0, 25)
+    customSkyInput.BackgroundColor3 = CONFIG.bgElevated
+    customSkyInput.Text = ""
+    customSkyInput.PlaceholderText = "Digite o Asset ID..."
+    customSkyInput.TextColor3 = CONFIG.textPrimary
+    customSkyInput.PlaceholderColor3 = CONFIG.textMuted
+    customSkyInput.TextSize = 12
+    customSkyInput.Font = Enum.Font.Gotham
+    customSkyInput.Parent = customSkyFrame
+    
+    local customInputCorner = Instance.new("UICorner")
+    customInputCorner.CornerRadius = UDim.new(0, 6)
+    customInputCorner.Parent = customSkyInput
+    
+    local applyCustomBtn = Instance.new("TextButton")
+    applyCustomBtn.Size = UDim2.new(0.4, -5, 0, 30)
+    applyCustomBtn.Position = UDim2.new(0.6, 5, 0, 25)
+    applyCustomBtn.BackgroundColor3 = CONFIG.info
+    applyCustomBtn.Text = "Aplicar ID"
+    applyCustomBtn.TextColor3 = Color3.new(1, 1, 1)
+    applyCustomBtn.TextSize = 12
+    applyCustomBtn.Font = Enum.Font.GothamBold
+    applyCustomBtn.Parent = customSkyFrame
+    
+    local applyCustomCorner = Instance.new("UICorner")
+    applyCustomCorner.CornerRadius = UDim.new(0, 6)
+    applyCustomCorner.Parent = applyCustomBtn
+    
+    applyCustomBtn.MouseButton1Click:Connect(function()
+        local id = tonumber(customSkyInput.Text)
+        if id then
+            saveOriginalSkybox()
+            local success = ApplySkybox(id, "Custom")
+            if success then
+                notify("Skybox", "ID " .. id .. " aplicado!", 2)
+            else
+                notify("Skybox", "Falha ao aplicar ID " .. id, 2)
+            end
+        end
+    end)
+    
+    createButton(skyContent, "↩️ Resetar Céu Original", CONFIG.danger, function()
         restoreOriginalSkybox()
+    end)
+    
+    skyItemsFrame.Parent = skyContent
+    
+    -- ABA CONFIG (NOVA - Personalização)
+    local configSection, configContent = createSection(contentFrames.config, "Personalização de Cores v14.4")
+    
+    local themeLabel = Instance.new("TextLabel")
+    themeLabel.Size = UDim2.new(1, 0, 0, 25)
+    themeLabel.BackgroundTransparency = 1
+    themeLabel.Text = "◆ Cores Principais"
+    themeLabel.TextColor3 = CONFIG.accent
+    themeLabel.TextSize = 14
+    themeLabel.Font = Enum.Font.GothamBold
+    themeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    themeLabel.Parent = configContent
+    
+    createColorPicker(configContent, "Cor Primária", CONFIG.customColors.primary, function(color)
+        CONFIG.customColors.primary = color
+        updateThemeColors()
+        notify("Config", "Cor primária atualizada! Reinicie a UI para aplicar totalmente.", 3)
+    end)
+    
+    createColorPicker(configContent, "Cor Secundária", CONFIG.customColors.secondary, function(color)
+        CONFIG.customColors.secondary = color
+        updateThemeColors()
+    end)
+    
+    createColorPicker(configContent, "Cor de Destaque", CONFIG.customColors.accent, function(color)
+        CONFIG.customColors.accent = color
+        updateThemeColors()
+    end)
+    
+    createColorPicker(configContent, "Cor de Sucesso", CONFIG.customColors.success, function(color)
+        CONFIG.customColors.success = color
+        updateThemeColors()
+    end)
+    
+    createColorPicker(configContent, "Cor de Erro", CONFIG.customColors.danger, function(color)
+        CONFIG.customColors.danger = color
+        updateThemeColors()
+    end)
+    
+    createColorPicker(configContent, "Cor de Aviso", CONFIG.customColors.warning, function(color)
+        CONFIG.customColors.warning = color
+        updateThemeColors()
+    end)
+    
+    local bgLabel = Instance.new("TextLabel")
+    bgLabel.Size = UDim2.new(1, 0, 0, 25)
+    bgLabel.BackgroundTransparency = 1
+    bgLabel.Text = "◆ Cores de Fundo"
+    bgLabel.TextColor3 = CONFIG.accent
+    bgLabel.TextSize = 14
+    bgLabel.Font = Enum.Font.GothamBold
+    bgLabel.TextXAlignment = Enum.TextXAlignment.Left
+    bgLabel.Parent = configContent
+    
+    createColorPicker(configContent, "Fundo Escuro", CONFIG.customColors.bgDark, function(color)
+        CONFIG.customColors.bgDark = color
+        updateThemeColors()
+    end)
+    
+    createColorPicker(configContent, "Fundo Card", CONFIG.customColors.bgCard, function(color)
+        CONFIG.customColors.bgCard = color
+        updateThemeColors()
+    end)
+    
+    createColorPicker(configContent, "Fundo Elevado", CONFIG.customColors.bgElevated, function(color)
+        CONFIG.customColors.bgElevated = color
+        updateThemeColors()
+    end)
+    
+    createColorPicker(configContent, "Texto Principal", CONFIG.customColors.textPrimary, function(color)
+        CONFIG.customColors.textPrimary = color
+        updateThemeColors()
+    end)
+    
+    -- Botão para salvar tema
+    createButton(configContent, "💾 Salvar Tema Atual", CONFIG.success, function()
+        notify("Config", "Tema salvo na memória!", 2)
+        addLog("Tema personalizado salvo", "success")
+    end)
+    
+    createButton(configContent, "🔄 Resetar para Padrão", CONFIG.warning, function()
+        CONFIG.customColors = {
+            primary = Color3.fromRGB(99, 102, 241),
+            secondary = Color3.fromRGB(139, 92, 246),
+            accent = Color3.fromRGB(14, 165, 233),
+            success = Color3.fromRGB(34, 197, 94),
+            danger = Color3.fromRGB(239, 68, 68),
+            warning = Color3.fromRGB(245, 158, 11),
+            info = Color3.fromRGB(59, 130, 246),
+            bgDark = Color3.fromRGB(12, 12, 20),
+            bgCard = Color3.fromRGB(28, 28, 42),
+            bgElevated = Color3.fromRGB(42, 42, 62),
+            bgGlass = Color3.fromRGB(22, 22, 36),
+            textPrimary = Color3.fromRGB(252, 252, 255),
+            textSecondary = Color3.fromRGB(170, 180, 210),
+            textMuted = Color3.fromRGB(130, 140, 170),
+        }
+        updateThemeColors()
+        notify("Config", "Tema resetado para padrão!", 2)
     end)
     
     -- ABA STATS
@@ -1615,7 +1956,9 @@ local function createWindUI()
     local function minimize()
         isMinimized = true
         tween(mainFrame, {Size = UDim2.new(0, CONFIG.width, 0, 50)}, 0.3)
-        contentFrames[currentTab].Visible = false
+        for _, frame in pairs(contentFrames) do
+            frame.Visible = false
+        end
         sidebar.Visible = false
         headerTitle.Visible = false
     end
@@ -1744,8 +2087,8 @@ local function createWindUI()
     
     createIconGui()
     
-    addLog("CAFUXZ1 Hub v14.3 iniciado com sucesso!", "success")
-    notify("CAFUXZ1 Hub v14.3", "Sistema carregado! Pressione F1-F7 para atalhos.", 5)
+    addLog("CAFUXZ1 Hub v14.4 iniciado com sucesso!", "success")
+    notify("CAFUXZ1 Hub v14.4", "Sistema carregado! Pressione F1-F7 para atalhos.", 5)
 end
 
 -- ============================================
@@ -1880,19 +2223,13 @@ task.spawn(mainLoop)
 -- Mensagem final
 print([[ 
     ╔══════════════════════════════════════════════════════════════╗
-    ║           CAFUXZ1 Hub v14.3 Ultimate - Loaded                  ║
+    ║           CAFUXZ1 Hub v14.4 Ultimate - Loaded                  ║
     ║           Created by: Bazuka | Cafuxz1 | CADUXX137           ║
     ║                                                                ║
-    ║  Features: Ball Reach GK | Anti Lag | Morph | Skybox          ║
+    ║  Features: Ball Reach GK | Anti Lag | Morph | Skybox v2.0     ║
+    ║  Custom Colors | Auto Skills | Stats | Logs                    ║
     ║  Hotkeys: F1-F7 | Insert to toggle UI                         ║
     ╚══════════════════════════════════════════════════════════════╝
 ]])
 
-addLog("Sistema inicializado - Bem-vindo ao CAFUXZ1 Hub v14.3!", "success")
-    
-    
-    
-    
-    
-    
-                                                    
+addLog("Sistema inicializado - Bem-vindo ao CAFUXZ1 Hub v14.4!", "success")
