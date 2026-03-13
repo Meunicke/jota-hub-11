@@ -1,13 +1,14 @@
 --[[
-    CAFUXZ1 Hub v14.9.1 - WindUI Edition + Reach Sphere Fix
-    ========================================================
+    CAFUXZ1 Hub v15.0 - Intro Edition + Input Numbers
+    =================================================
     
-    CORREÇÕES v14.9.1:
-    - Reach volta a ser esfera como na v14.8
-    - Slider simplificado: clica e arrasta direto
-    - Performance mantida
+    NOVIDADES v15.0:
+    - Input numérico para Reach (digita o valor)
+    - Reach GK padrão: 100 (cubo/quadrado)
+    - Intro animada ao iniciar
+    - Ícone flutuante sempre arrastável
     
-    VERSÃO: v14.9.1 WindUI Fix
+    VERSÃO: v15.0 Intro Edition
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -29,16 +30,19 @@ local LocalPlayer = Players.LocalPlayer
 -- ============================================
 -- VERIFICAÇÃO ANTI-DUPLICAÇÃO
 -- ============================================
-if CoreGui:FindFirstChild("CAFUXZ1_Hub_v14") then
-    CoreGui:FindFirstChild("CAFUXZ1_Hub_v14"):Destroy()
+if CoreGui:FindFirstChild("CAFUXZ1_Hub_v15") then
+    CoreGui:FindFirstChild("CAFUXZ1_Hub_v15"):Destroy()
 end
-if CoreGui:FindFirstChild("CAFUXZ1_Icon_v14") then
-    CoreGui:FindFirstChild("CAFUXZ1_Icon_v14"):Destroy()
+if CoreGui:FindFirstChild("CAFUXZ1_Icon_v15") then
+    CoreGui:FindFirstChild("CAFUXZ1_Icon_v15"):Destroy()
+end
+if CoreGui:FindFirstChild("CAFUXZ1_Intro") then
+    CoreGui:FindFirstChild("CAFUXZ1_Intro"):Destroy()
 end
 
 -- Limpar spheres antigos
 for _, obj in ipairs(Workspace:GetChildren()) do
-    if obj.Name == "CAFUXZ1_ReachSphere_v14" or obj.Name == "CAFUXZ1_ReachGK_v14" then
+    if obj.Name == "CAFUXZ1_ReachSphere_v15" or obj.Name == "CAFUXZ1_ReachGK_v15" then
         obj:Destroy()
     end
 end
@@ -59,7 +63,8 @@ local CONFIG = {
     scanCooldown = 2.0,
     autoScanEnabled = false,
     
-    reachGK = 25,
+    -- GK PADRÃO 100 (cubo/quadrado)
+    reachGK = 100,
     reachGKEnabled = false,
     reachGKColor = Color3.fromRGB(255, 255, 0),
     reachGKTransparency = 0.8,
@@ -145,6 +150,7 @@ local isClosed = false
 local mainGui = nil
 local mainFrame = nil
 local iconGui = nil
+local introGui = nil
 local currentTab = "reach"
 local autoSkills = true
 local lastSkillActivation = 0
@@ -158,21 +164,10 @@ local originalSkybox = nil
 local skyItemsFrame = nil
 local loopRunning = false
 local heartbeatConnection = nil
-
--- Cache
-local cachedCharacter = nil
-local cachedHumanoid = nil
-local cachedRootPart = nil
-local lastCharacterUpdate = 0
-local characterCacheTime = 0.1
-
--- Throttling
 local lastSkillCheck = 0
 local skillCheckInterval = 0.1
 local lastStatsUpdate = 0
 local statsUpdateInterval = 1
-
--- Pool de logs
 local logLabelPool = {}
 
 local skillButtonNames = {
@@ -212,41 +207,185 @@ local function tween(obj, props, time, style, dir, callback)
 end
 
 -- ============================================
--- GET CHARACTER (COM CACHE)
+-- INTRO ANIMADA
 -- ============================================
-local function updateCharacterCache()
-    local now = tick()
-    if now - lastCharacterUpdate < characterCacheTime then
-        return cachedCharacter, cachedHumanoid, cachedRootPart
+local function createIntro()
+    introGui = Instance.new("ScreenGui")
+    introGui.Name = "CAFUXZ1_Intro"
+    introGui.ResetOnSpawn = false
+    introGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    introGui.Parent = CoreGui
+    
+    -- Fundo escuro
+    local bg = Instance.new("Frame")
+    bg.Name = "Background"
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.new(0, 0, 0)
+    bg.BackgroundTransparency = 0
+    bg.BorderSizePixel = 0
+    bg.Parent = introGui
+    
+    -- Container central
+    local container = Instance.new("Frame")
+    container.Name = "Container"
+    container.Size = UDim2.new(0, 500, 0, 400)
+    container.Position = UDim2.new(0.5, -250, 0.5, -200)
+    container.BackgroundTransparency = 1
+    container.Parent = bg
+    
+    -- Logo/Ícone
+    local icon = Instance.new("TextLabel")
+    icon.Name = "Icon"
+    icon.Size = UDim2.new(0, 100, 0, 100)
+    icon.Position = UDim2.new(0.5, -50, 0, 20)
+    icon.BackgroundTransparency = 1
+    icon.Text = "⚡"
+    icon.TextColor3 = CONFIG.customColors.primary
+    icon.TextSize = 80
+    icon.Font = Enum.Font.GothamBold
+    icon.Parent = container
+    
+    -- Título
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.Position = UDim2.new(0, 0, 0, 130)
+    title.BackgroundTransparency = 1
+    title.Text = "CAFUXZ1 Hub"
+    title.TextColor3 = CONFIG.customColors.textPrimary
+    title.TextSize = 36
+    title.Font = Enum.Font.GothamBold
+    title.Parent = container
+    
+    -- Versão
+    local version = Instance.new("TextLabel")
+    version.Name = "Version"
+    version.Size = UDim2.new(1, 0, 0, 30)
+    version.Position = UDim2.new(0, 0, 0, 180)
+    version.BackgroundTransparency = 1
+    version.Text = "Versão 15.0 - Intro Edition"
+    version.TextColor3 = CONFIG.customColors.primary
+    version.TextSize = 18
+    version.Font = Enum.Font.Gotham
+    version.Parent = container
+    
+    -- Linha divisória
+    local line = Instance.new("Frame")
+    line.Name = "Line"
+    line.Size = UDim2.new(0, 0, 0, 2)
+    line.Position = UDim2.new(0.5, 0, 0, 220)
+    line.BackgroundColor3 = CONFIG.customColors.primary
+    line.BorderSizePixel = 0
+    line.Parent = container
+    
+    -- Texto de atualizações
+    local updatesText = Instance.new("TextLabel")
+    updatesText.Name = "Updates"
+    updatesText.Size = UDim2.new(1, -40, 0, 120)
+    updatesText.Position = UDim2.new(0, 20, 0, 240)
+    updatesText.BackgroundTransparency = 1
+    updatesText.Text = "🆕 NOVIDADES:\n\n" ..
+                       "• Input numérico para Reach\n" ..
+                       "• Reach GK padrão: 100 (cubo)\n" ..
+                       "• Ícone arrastável\n" ..
+                       "• Suporte mobile aprimorado\n\n" ..
+                       "📱 ARRASTE O ÍCONE ⚡ PARA MOVER"
+    updatesText.TextColor3 = CONFIG.customColors.textSecondary
+    updatesText.TextSize = 14
+    updatesText.Font = Enum.Font.Gotham
+    updatesText.TextWrapped = true
+    updatesText.TextYAlignment = Enum.TextYAlignment.Top
+    updatesText.Parent = container
+    
+    -- Botão "Entrar"
+    local enterBtn = Instance.new("TextButton")
+    enterBtn.Name = "EnterBtn"
+    enterBtn.Size = UDim2.new(0, 200, 0, 45)
+    enterBtn.Position = UDim2.new(0.5, -100, 1, -60)
+    enterBtn.BackgroundColor3 = CONFIG.customColors.primary
+    enterBtn.Text = "ENTRAR NO HUB"
+    enterBtn.TextColor3 = Color3.new(1, 1, 1)
+    enterBtn.TextSize = 18
+    enterBtn.Font = Enum.Font.GothamBold
+    enterBtn.Parent = container
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 10)
+    btnCorner.Parent = enterBtn
+    
+    -- Animações iniciais
+    icon.TextTransparency = 1
+    title.TextTransparency = 1
+    version.TextTransparency = 1
+    updatesText.TextTransparency = 1
+    enterBtn.BackgroundTransparency = 1
+    enterBtn.TextTransparency = 1
+    
+    -- Sequência de animação
+    task.wait(0.2)
+    
+    tween(icon, {TextTransparency = 0}, 0.5)
+    task.wait(0.3)
+    
+    tween(title, {TextTransparency = 0}, 0.5)
+    task.wait(0.2)
+    
+    tween(version, {TextTransparency = 0}, 0.5)
+    task.wait(0.2)
+    
+    tween(line, {Size = UDim2.new(0.8, 0, 0, 2)}, 0.6)
+    task.wait(0.3)
+    
+    tween(updatesText, {TextTransparency = 0}, 0.5)
+    task.wait(0.3)
+    
+    tween(enterBtn, {BackgroundTransparency = 0.2, TextTransparency = 0}, 0.5)
+    
+    -- Efeito pulsar no botão
+    task.spawn(function()
+        while enterBtn and enterBtn.Parent do
+            tween(enterBtn, {Size = UDim2.new(0, 205, 0, 47)}, 0.5)
+            task.wait(0.5)
+            if not enterBtn or not enterBtn.Parent then break end
+            tween(enterBtn, {Size = UDim2.new(0, 200, 0, 45)}, 0.5)
+            task.wait(0.5)
+        end
+    end)
+    
+    -- Função para fechar intro
+    local function closeIntro()
+        tween(bg, {BackgroundTransparency = 1}, 0.5)
+        tween(container, {Position = UDim2.new(0.5, -250, 0.5, -100), Size = UDim2.new(0, 500, 0, 0)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In, function()
+            introGui:Destroy()
+            introGui = nil
+        end)
     end
     
-    local char = LocalPlayer.Character
-    if not char then
-        cachedCharacter = nil
-        cachedHumanoid = nil
-        cachedRootPart = nil
-        return nil, nil, nil
-    end
+    enterBtn.MouseButton1Click:Connect(closeIntro)
     
-    if char ~= cachedCharacter then
-        cachedCharacter = char
-        cachedHumanoid = char:FindFirstChild("Humanoid")
-        cachedRootPart = char:FindFirstChild("HumanoidRootPart")
-    end
-    
-    if cachedHumanoid and cachedHumanoid.Health <= 0 then
-        cachedCharacter = nil
-        cachedHumanoid = nil
-        cachedRootPart = nil
-        return nil, nil, nil
-    end
-    
-    lastCharacterUpdate = now
-    return cachedCharacter, cachedHumanoid, cachedRootPart
+    -- Auto-fechar após 10 segundos
+    task.delay(10, function()
+        if introGui and introGui.Parent then
+            closeIntro()
+        end
+    end)
 end
 
+-- ============================================
+-- GET CHARACTER
+-- ============================================
 local function getCharacter()
-    return updateCharacterCache()
+    local char = LocalPlayer.Character
+    if not char then return nil, nil, nil end
+    
+    local humanoid = char:FindFirstChild("Humanoid")
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    
+    if humanoid and humanoid.Health <= 0 then
+        return nil, nil, nil
+    end
+    
+    return char, humanoid, rootPart
 end
 
 -- ============================================
@@ -427,14 +566,14 @@ local function morphToUser(userId, targetName)
 end
 
 -- ============================================
--- SISTEMA REACH GK
+-- SISTEMA REACH GK (CUBO PADRÃO 100)
 -- ============================================
 local function createReachGK()
     if reachGKCube and reachGKCube.Parent then return end
     
     reachGKCube = Instance.new("Part")
-    reachGKCube.Name = "CAFUXZ1_ReachGK_v14"
-    reachGKCube.Shape = Enum.PartType.Block
+    reachGKCube.Name = "CAFUXZ1_ReachGK_v15"
+    reachGKCube.Shape = Enum.PartType.Block -- CUBO/QUADRADO
     reachGKCube.Anchored = true
     reachGKCube.CanCollide = false
     reachGKCube.Transparency = CONFIG.reachGKTransparency
@@ -449,7 +588,7 @@ local function createReachGK()
     selectionBox.LineThickness = 0.08
     selectionBox.Parent = reachGKCube
     
-    addLog("GK Sphere criada", "success")
+    addLog("GK Cube criado (Tamanho: " .. CONFIG.reachGK .. ")", "success")
 end
 
 local function destroyReachGK()
@@ -475,6 +614,7 @@ local function updateReachGK()
         createReachGK()
     end
     
+    -- CUBO com tamanho 100 padrão
     reachGKCube.Size = Vector3.new(CONFIG.reachGK, CONFIG.reachGK, CONFIG.reachGK)
     reachGKCube.CFrame = RootPart.CFrame
     reachGKCube.Color = CONFIG.reachGKColor
@@ -727,13 +867,13 @@ local function scanForBalls()
 end
 
 -- ============================================
--- SISTEMA REACH PRINCIPAL (ESFERA - VERSÃO ORIGINAL)
+-- SISTEMA REACH PRINCIPAL (ESFERA)
 -- ============================================
 local function createReachSphere()
     if reachSphere and reachSphere.Parent then return end
     
     reachSphere = Instance.new("Part")
-    reachSphere.Name = "CAFUXZ1_ReachSphere_v14"
+    reachSphere.Name = "CAFUXZ1_ReachSphere_v15"
     reachSphere.Shape = Enum.PartType.Ball
     reachSphere.Anchored = true
     reachSphere.CanCollide = false
@@ -820,7 +960,6 @@ local function processAutoTouch()
         table.insert(touchParts, RootPart)
     end
     
-    -- Usar GetPartsInPart se sphere existir
     if reachSphere and reachSphere.Parent then
         local overlapParams = OverlapParams.new()
         overlapParams.FilterDescendantsInstances = {Character}
@@ -859,7 +998,6 @@ local function processAutoTouch()
             end
         end
     else
-        -- Fallback: verificar distância manualmente
         for ballObj, ballData in pairs(balls) do
             if ballObj and ballObj.Parent then
                 local distance = (ballObj.Position - RootPart.Position).Magnitude
@@ -968,25 +1106,36 @@ local function updateAllColors()
 end
 
 -- ============================================
--- INTERFACE WINDUI (SLIDER SIMPLIFICADO)
+-- INTERFACE WINDUI (COM INPUT NUMÉRICO)
 -- ============================================
 local function createWindUI()
-    if CoreGui:FindFirstChild("CAFUXZ1_Hub_v14") then
-        CoreGui:FindFirstChild("CAFUXZ1_Hub_v14"):Destroy()
+    if CoreGui:FindFirstChild("CAFUXZ1_Hub_v15") then
+        CoreGui:FindFirstChild("CAFUXZ1_Hub_v15"):Destroy()
     end
     
     isClosed = false
     
     mainGui = Instance.new("ScreenGui")
-    mainGui.Name = "CAFUXZ1_Hub_v14"
+    mainGui.Name = "CAFUXZ1_Hub_v15"
     mainGui.ResetOnSpawn = false
     mainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    if UserInputService.TouchEnabled then
+        mainGui.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
+    end
+    
     mainGui.Parent = CoreGui
     
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, CONFIG.width, 0, CONFIG.height)
-    mainFrame.Position = UDim2.new(0.5, -CONFIG.width/2, 0.5, -CONFIG.height/2)
+    
+    if UserInputService.TouchEnabled then
+        mainFrame.Size = UDim2.new(0, 350, 0, 400)
+    else
+        mainFrame.Size = UDim2.new(0, CONFIG.width, 0, CONFIG.height)
+    end
+    
+    mainFrame.Position = UDim2.new(0.5, -mainFrame.Size.X.Offset/2, 0.5, -mainFrame.Size.Y.Offset/2)
     mainFrame.BackgroundColor3 = CONFIG.customColors.bgGlass
     mainFrame.BackgroundTransparency = 0.2
     mainFrame.BorderSizePixel = 0
@@ -1040,7 +1189,7 @@ local function createWindUI()
     versionLabel.Size = UDim2.new(1, 0, 0, 20)
     versionLabel.Position = UDim2.new(0, 0, 0, 55)
     versionLabel.BackgroundTransparency = 1
-    versionLabel.Text = "v14.9.1"
+    versionLabel.Text = "v15.0"
     versionLabel.TextColor3 = CONFIG.customColors.textMuted
     versionLabel.TextSize = 12
     versionLabel.Font = Enum.Font.Gotham
@@ -1074,6 +1223,10 @@ local function createWindUI()
         btn.Font = Enum.Font.GothamBold
         btn.Parent = sidebar
         
+        if UserInputService.TouchEnabled then
+            btn.Size = UDim2.new(0.9, 0, 0, 45)
+        end
+        
         local btnCorner = Instance.new("UICorner")
         btnCorner.CornerRadius = UDim.new(0, 8)
         btnCorner.Parent = btn
@@ -1086,13 +1239,13 @@ local function createWindUI()
         content.Position = UDim2.new(0, CONFIG.sidebarWidth + 5, 0, 50)
         content.BackgroundTransparency = 1
         content.BorderSizePixel = 0
-        content.ScrollBarThickness = 4
+        content.ScrollBarThickness = 6
         content.ScrollBarImageColor3 = CONFIG.customColors.primary
         content.Visible = false
         content.Parent = mainFrame
         
         local layout = Instance.new("UIListLayout")
-        layout.Padding = UDim.new(0, 10)
+        layout.Padding = UDim.new(0, 12)
         layout.Parent = content
         
         contentFrames[tab.name] = content
@@ -1111,7 +1264,7 @@ local function createWindUI()
     headerTitle.Size = UDim2.new(0.6, 0, 1, 0)
     headerTitle.Position = UDim2.new(0, 15, 0, 0)
     headerTitle.BackgroundTransparency = 1
-    headerTitle.Text = "CAFUXZ1 Hub v14.9.1"
+    headerTitle.Text = "CAFUXZ1 Hub v15.0"
     headerTitle.TextColor3 = CONFIG.customColors.textPrimary
     headerTitle.TextSize = 18
     headerTitle.Font = Enum.Font.GothamBold
@@ -1120,32 +1273,32 @@ local function createWindUI()
     
     local minimizeBtn = Instance.new("TextButton")
     minimizeBtn.Name = "MinimizeBtn"
-    minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-    minimizeBtn.Position = UDim2.new(1, -70, 0, 5)
+    minimizeBtn.Size = UDim2.new(0, 35, 0, 35)
+    minimizeBtn.Position = UDim2.new(1, -80, 0, 2)
     minimizeBtn.BackgroundColor3 = CONFIG.customColors.warning
     minimizeBtn.Text = "−"
     minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
-    minimizeBtn.TextSize = 20
+    minimizeBtn.TextSize = 24
     minimizeBtn.Font = Enum.Font.GothamBold
     minimizeBtn.Parent = header
     
     local minCorner = Instance.new("UICorner")
-    minCorner.CornerRadius = UDim.new(0, 6)
+    minCorner.CornerRadius = UDim.new(0, 8)
     minCorner.Parent = minimizeBtn
     
     local closeBtn = Instance.new("TextButton")
     closeBtn.Name = "CloseBtn"
-    closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(1, -35, 0, 5)
+    closeBtn.Size = UDim2.new(0, 35, 0, 35)
+    closeBtn.Position = UDim2.new(1, -40, 0, 2)
     closeBtn.BackgroundColor3 = CONFIG.customColors.danger
     closeBtn.Text = "×"
     closeBtn.TextColor3 = Color3.new(1, 1, 1)
-    closeBtn.TextSize = 20
+    closeBtn.TextSize = 24
     closeBtn.Font = Enum.Font.GothamBold
     closeBtn.Parent = header
     
     local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 6)
+    closeCorner.CornerRadius = UDim.new(0, 8)
     closeCorner.Parent = closeBtn
     
     -- Funções auxiliares
@@ -1182,7 +1335,7 @@ local function createWindUI()
         sectionContent.Parent = section
         
         local sectionLayout = Instance.new("UIListLayout")
-        sectionLayout.Padding = UDim.new(0, 8)
+        sectionLayout.Padding = UDim.new(0, 10)
         sectionLayout.Parent = sectionContent
         
         return section, sectionContent
@@ -1190,7 +1343,7 @@ local function createWindUI()
     
     local function createToggle(parent, text, default, callback)
         local toggleFrame = Instance.new("Frame")
-        toggleFrame.Size = UDim2.new(1, 0, 0, 35)
+        toggleFrame.Size = UDim2.new(1, 0, 0, 40)
         toggleFrame.BackgroundTransparency = 1
         toggleFrame.Parent = parent
         
@@ -1205,17 +1358,17 @@ local function createWindUI()
         label.Parent = toggleFrame
         
         local toggleBtn = Instance.new("TextButton")
-        toggleBtn.Size = UDim2.new(0, 50, 0, 25)
-        toggleBtn.Position = UDim2.new(1, -50, 0.5, -12.5)
+        toggleBtn.Size = UDim2.new(0, 55, 0, 30)
+        toggleBtn.Position = UDim2.new(1, -55, 0.5, -15)
         toggleBtn.BackgroundColor3 = default and CONFIG.customColors.success or CONFIG.customColors.bgElevated
         toggleBtn.Text = default and "ON" or "OFF"
         toggleBtn.TextColor3 = Color3.new(1, 1, 1)
-        toggleBtn.TextSize = 12
+        toggleBtn.TextSize = 14
         toggleBtn.Font = Enum.Font.GothamBold
         toggleBtn.Parent = toggleFrame
         
         local toggleCorner = Instance.new("UICorner")
-        toggleCorner.CornerRadius = UDim.new(0, 12)
+        toggleCorner.CornerRadius = UDim.new(0, 15)
         toggleCorner.Parent = toggleBtn
         
         local enabled = default
@@ -1231,123 +1384,106 @@ local function createWindUI()
     end
     
     -- ==========================================
-    -- SLIDER SIMPLIFICADO - ARRASTA DIRETO
+    -- INPUT NUMÉRICO PARA REACH (IGUAL AO CHAR)
     -- ==========================================
-    local function createSlider(parent, text, min, max, default, callback)
-        local sliderFrame = Instance.new("Frame")
-        sliderFrame.Size = UDim2.new(1, 0, 0, 50)
-        sliderFrame.BackgroundTransparency = 1
-        sliderFrame.Parent = parent
+    local function createNumberInput(parent, labelText, defaultValue, min, max, callback)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 0, 70)
+        frame.BackgroundTransparency = 1
+        frame.Parent = parent
         
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.6, 0, 0, 20)
+        label.Size = UDim2.new(1, 0, 0, 25)
         label.BackgroundTransparency = 1
-        label.Text = text .. ": " .. default
+        label.Text = labelText
         label.TextColor3 = CONFIG.customColors.textSecondary
         label.TextSize = 13
         label.Font = Enum.Font.Gotham
         label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = sliderFrame
+        label.Parent = frame
         
-        -- Fundo do slider
-        local sliderBg = Instance.new("TextButton")
-        sliderBg.Name = "SliderBg"
-        sliderBg.Size = UDim2.new(1, 0, 0, 12)
-        sliderBg.Position = UDim2.new(0, 0, 0, 28)
-        sliderBg.BackgroundColor3 = CONFIG.customColors.bgElevated
-        sliderBg.Text = ""
-        sliderBg.AutoButtonColor = false
-        sliderBg.Parent = sliderFrame
+        -- Container do input + botão
+        local inputContainer = Instance.new("Frame")
+        inputContainer.Size = UDim2.new(1, 0, 0, 35)
+        inputContainer.Position = UDim2.new(0, 0, 0, 30)
+        inputContainer.BackgroundTransparency = 1
+        inputContainer.Parent = frame
         
-        local sliderBgCorner = Instance.new("UICorner")
-        sliderBgCorner.CornerRadius = UDim.new(0, 6)
-        sliderBgCorner.Parent = sliderBg
+        -- Input de número
+        local input = Instance.new("TextBox")
+        input.Size = UDim2.new(0.6, -5, 1, 0)
+        input.BackgroundColor3 = CONFIG.customColors.bgElevated
+        input.Text = tostring(defaultValue)
+        input.PlaceholderText = "Digite o valor..."
+        input.TextColor3 = CONFIG.customColors.textPrimary
+        input.TextSize = 16
+        input.Font = Enum.Font.GothamBold
+        input.ClearTextOnFocus = true
+        input.Parent = inputContainer
         
-        -- Preenchimento
-        local sliderFill = Instance.new("Frame")
-        sliderFill.Name = "SliderFill"
-        sliderFill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-        sliderFill.BackgroundColor3 = CONFIG.customColors.primary
-        sliderFill.BorderSizePixel = 0
-        sliderFill.Parent = sliderBg
+        local inputCorner = Instance.new("UICorner")
+        inputCorner.CornerRadius = UDim.new(0, 8)
+        inputCorner.Parent = input
         
-        local sliderFillCorner = Instance.new("UICorner")
-        sliderFillCorner.CornerRadius = UDim.new(0, 6)
-        sliderFillCorner.Parent = sliderFill
+        -- Botão aplicar
+        local applyBtn = Instance.new("TextButton")
+        applyBtn.Size = UDim2.new(0.4, -5, 1, 0)
+        applyBtn.Position = UDim2.new(0.6, 10, 0, 0)
+        applyBtn.BackgroundColor3 = CONFIG.customColors.primary
+        applyBtn.Text = "APLICAR"
+        applyBtn.TextColor3 = Color3.new(1, 1, 1)
+        applyBtn.TextSize = 14
+        applyBtn.Font = Enum.Font.GothamBold
+        applyBtn.Parent = inputContainer
         
-        -- Bolinha do slider
-        local knob = Instance.new("Frame")
-        knob.Name = "Knob"
-        knob.Size = UDim2.new(0, 18, 0, 18)
-        knob.Position = UDim2.new((default - min) / (max - min), -9, 0.5, -9)
-        knob.BackgroundColor3 = Color3.new(1, 1, 1)
-        knob.BorderSizePixel = 0
-        knob.Parent = sliderBg
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        btnCorner.Parent = applyBtn
         
-        local knobCorner = Instance.new("UICorner")
-        knobCorner.CornerRadius = UDim.new(1, 0)
-        knobCorner.Parent = knob
+        -- Valor atual (mostra abaixo)
+        local currentLabel = Instance.new("TextLabel")
+        currentLabel.Size = UDim2.new(1, 0, 0, 20)
+        currentLabel.Position = UDim2.new(0, 0, 0, 68)
+        currentLabel.BackgroundTransparency = 1
+        currentLabel.Text = "Valor atual: " .. defaultValue
+        currentLabel.TextColor3 = CONFIG.customColors.textMuted
+        currentLabel.TextSize = 11
+        currentLabel.Font = Enum.Font.Gotham
+        currentLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentLabel.Parent = frame
         
-        local currentValue = default
-        local isDragging = false
-        
-        local function updateFromInput(input)
-            local absPos = sliderBg.AbsolutePosition.X
-            local absSize = sliderBg.AbsoluteSize.X
-            local mouseX = input.Position.X
-            
-            local percent = math.clamp((mouseX - absPos) / absSize, 0, 1)
-            local value = math.floor(min + (percent * (max - min)))
-            
-            sliderFill.Size = UDim2.new(percent, 0, 1, 0)
-            knob.Position = UDim2.new(percent, -9, 0.5, -9)
-            
-            if value ~= currentValue then
-                currentValue = value
-                label.Text = text .. ": " .. value
-                if callback then callback(value) end
+        local function applyValue()
+            local num = tonumber(input.Text)
+            if num then
+                num = math.clamp(math.floor(num), min, max)
+                input.Text = tostring(num)
+                currentLabel.Text = "Valor atual: " .. num
+                if callback then callback(num) end
+                addLog(labelText .. " alterado para: " .. num, "success")
+            else
+                input.Text = tostring(defaultValue)
+                notify("Erro", "Digite um número válido!", 2)
             end
         end
         
-        -- Clique direto no fundo
-        sliderBg.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                isDragging = true
-                updateFromInput(input)
+        applyBtn.MouseButton1Click:Connect(applyValue)
+        
+        input.FocusLost:Connect(function(enterPressed)
+            if enterPressed then
+                applyValue()
             end
         end)
         
-        -- Arrastar a bolinha
-        knob.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                isDragging = true
-            end
-        end)
-        
-        -- Movimento do mouse
-        UserInputService.InputChanged:Connect(function(input)
-            if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                updateFromInput(input)
-            end
-        end)
-        
-        -- Soltar
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                isDragging = false
-            end
-        end)
-        
-        return sliderFrame
+        return frame
     end
     
     local function createButton(parent, text, color, callback)
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0, 35)
+        btn.Size = UDim2.new(1, 0, 0, 40)
         btn.BackgroundColor3 = color or CONFIG.customColors.primary
         btn.Text = text
         btn.TextColor3 = Color3.new(1, 1, 1)
-        btn.TextSize = 13
+        btn.TextSize = 14
         btn.Font = Enum.Font.GothamBold
         btn.Parent = parent
         
@@ -1355,11 +1491,19 @@ local function createWindUI()
         btnCorner.CornerRadius = UDim.new(0, 8)
         btnCorner.Parent = btn
         
-        btn.MouseButton1Click:Connect(function()
-            tween(btn, {Size = UDim2.new(0.95, 0, 0, 33)}, 0.1)
-            task.wait(0.1)
-            tween(btn, {Size = UDim2.new(1, 0, 0, 35)}, 0.1)
-            if callback then callback() end
+        btn.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+               input.UserInputType == Enum.UserInputType.Touch then
+                tween(btn, {Size = UDim2.new(0.97, 0, 0, 38)}, 0.05)
+            end
+        end)
+        
+        btn.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+               input.UserInputType == Enum.UserInputType.Touch then
+                tween(btn, {Size = UDim2.new(1, 0, 0, 40)}, 0.1)
+                if callback then callback() end
+            end
         end)
         
         return btn
@@ -1367,7 +1511,7 @@ local function createWindUI()
     
     local function createColorPicker(parent, labelText, defaultColor, callback)
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, 0, 0, 40)
+        frame.Size = UDim2.new(1, 0, 0, 45)
         frame.BackgroundTransparency = 1
         frame.Parent = parent
         
@@ -1382,50 +1526,53 @@ local function createWindUI()
         label.Parent = frame
         
         local colorBtn = Instance.new("TextButton")
-        colorBtn.Size = UDim2.new(0, 60, 0, 30)
-        colorBtn.Position = UDim2.new(1, -60, 0.5, -15)
+        colorBtn.Size = UDim2.new(0, 70, 0, 35)
+        colorBtn.Position = UDim2.new(1, -70, 0.5, -17)
         colorBtn.BackgroundColor3 = defaultColor
         colorBtn.Text = "🎨"
-        colorBtn.TextSize = 18
+        colorBtn.TextSize = 20
         colorBtn.Parent = frame
         
         local colorCorner = Instance.new("UICorner")
-        colorCorner.CornerRadius = UDim.new(0, 6)
+        colorCorner.CornerRadius = UDim.new(0, 8)
         colorCorner.Parent = colorBtn
         
         local rgbFrame = Instance.new("Frame")
-        rgbFrame.Size = UDim2.new(1, 0, 0, 30)
-        rgbFrame.Position = UDim2.new(0, 0, 0, 40)
+        rgbFrame.Size = UDim2.new(1, 0, 0, 35)
+        rgbFrame.Position = UDim2.new(0, 0, 0, 45)
         rgbFrame.BackgroundTransparency = 1
         rgbFrame.Visible = false
         rgbFrame.Parent = frame
         
         local rInput = Instance.new("TextBox")
-        rInput.Size = UDim2.new(0.3, -4, 1, 0)
+        rInput.Size = UDim2.new(0.3, -5, 1, 0)
         rInput.BackgroundColor3 = CONFIG.customColors.bgElevated
         rInput.Text = tostring(math.floor(defaultColor.R * 255))
         rInput.TextColor3 = Color3.new(1, 0, 0)
+        rInput.TextSize = 14
         rInput.Parent = rgbFrame
         
         local gInput = Instance.new("TextBox")
-        gInput.Size = UDim2.new(0.3, -4, 1, 0)
+        gInput.Size = UDim2.new(0.3, -5, 1, 0)
         gInput.Position = UDim2.new(0.35, 0, 0, 0)
         gInput.BackgroundColor3 = CONFIG.customColors.bgElevated
         gInput.Text = tostring(math.floor(defaultColor.G * 255))
         gInput.TextColor3 = Color3.fromRGB(0, 255, 0)
+        gInput.TextSize = 14
         gInput.Parent = rgbFrame
         
         local bInput = Instance.new("TextBox")
-        bInput.Size = UDim2.new(0.3, -4, 1, 0)
+        bInput.Size = UDim2.new(0.3, -5, 1, 0)
         bInput.Position = UDim2.new(0.7, 0, 0, 0)
         bInput.BackgroundColor3 = CONFIG.customColors.bgElevated
         bInput.Text = tostring(math.floor(defaultColor.B * 255))
         bInput.TextColor3 = Color3.fromRGB(0, 100, 255)
+        bInput.TextSize = 14
         bInput.Parent = rgbFrame
         
         for _, inp in ipairs({rInput, gInput, bInput}) do
             local inpCorner = Instance.new("UICorner")
-            inpCorner.CornerRadius = UDim.new(0, 4)
+            inpCorner.CornerRadius = UDim.new(0, 6)
             inpCorner.Parent = inp
             
             inp.FocusLost:Connect(function()
@@ -1440,7 +1587,7 @@ local function createWindUI()
         
         colorBtn.MouseButton1Click:Connect(function()
             rgbFrame.Visible = not rgbFrame.Visible
-            frame.Size = rgbFrame.Visible and UDim2.new(1, 0, 0, 75) or UDim2.new(1, 0, 0, 40)
+            frame.Size = rgbFrame.Visible and UDim2.new(1, 0, 0, 85) or UDim2.new(1, 0, 0, 45)
         end)
         
         return frame
@@ -1470,29 +1617,31 @@ local function createWindUI()
         if val then notify("Aviso", "Auto Scan pode causar lag!", 3) end
     end)
     
-    createSlider(reachContent, "Alcance Reach", 5, 50, CONFIG.reach, function(val)
+    -- INPUT NUMÉRICO PARA REACH
+    createNumberInput(reachContent, "Alcance Reach (esfera)", CONFIG.reach, 5, 100, function(val)
         CONFIG.reach = val
     end)
     
-    -- ABA GK
-    local gkSection, gkContent = createSection(contentFrames.gk, "Sistema GK")
+    -- ABA GK (CUBO PADRÃO 100)
+    local gkSection, gkContent = createSection(contentFrames.gk, "Sistema GK (Cubo)")
     
     createToggle(gkContent, "Ativar Reach GK", CONFIG.reachGKEnabled, function(val)
         CONFIG.reachGKEnabled = val
         addLog("GK Reach: " .. (val and "ON" or "OFF"), val and "success" or "warning")
     end)
     
-    createToggle(gkContent, "Mostrar Esfera GK", CONFIG.reachGKShow, function(val)
+    createToggle(gkContent, "Mostrar Cubo GK", CONFIG.reachGKShow, function(val)
         CONFIG.reachGKShow = val
         if not val then destroyReachGK() end
-        addLog("GK Sphere: " .. (val and "VISÍVEL" or "OCULTO"), "info")
+        addLog("GK Cube: " .. (val and "VISÍVEL" or "OCULTO"), "info")
     end)
     
-    createSlider(gkContent, "Alcance GK", 10, 60, CONFIG.reachGK, function(val)
+    -- Input para GK (padrão 100)
+    createNumberInput(gkContent, "Tamanho do Cubo GK", CONFIG.reachGK, 10, 200, function(val)
         CONFIG.reachGK = val
     end)
     
-    createSlider(gkContent, "Transparência GK", 0, 100, math.floor(CONFIG.reachGKTransparency * 100), function(val)
+    createNumberInput(gkContent, "Transparência GK (0-100)", math.floor(CONFIG.reachGKTransparency * 100), 0, 100, function(val)
         CONFIG.reachGKTransparency = val / 100
     end)
     
@@ -1508,15 +1657,16 @@ local function createWindUI()
     local charSection, charContent = createSection(contentFrames.char, "Morph Avatar")
     
     local usernameInput = Instance.new("TextBox")
-    usernameInput.Size = UDim2.new(1, 0, 0, 30)
+    usernameInput.Size = UDim2.new(1, 0, 0, 35)
     usernameInput.BackgroundColor3 = CONFIG.customColors.bgElevated
     usernameInput.Text = ""
     usernameInput.PlaceholderText = "Username..."
     usernameInput.TextColor3 = CONFIG.customColors.textPrimary
+    usernameInput.TextSize = 14
     usernameInput.Parent = charContent
     
     local inputCorner = Instance.new("UICorner")
-    inputCorner.CornerRadius = UDim.new(0, 6)
+    inputCorner.CornerRadius = UDim.new(0, 8)
     inputCorner.Parent = usernameInput
     
     createButton(charContent, "Aplicar Morph", CONFIG.customColors.primary, function()
@@ -1614,7 +1764,7 @@ local function createWindUI()
         {k="morphsDone", l="Morphs Realizados"}
     }) do
         local f = Instance.new("Frame")
-        f.Size = UDim2.new(1, 0, 0, 30)
+        f.Size = UDim2.new(1, 0, 0, 35)
         f.BackgroundTransparency = 1
         f.Parent = statsContent
         
@@ -1623,7 +1773,7 @@ local function createWindUI()
         lbl.BackgroundTransparency = 1
         lbl.Text = item.l .. ":"
         lbl.TextColor3 = CONFIG.customColors.textSecondary
-        lbl.TextSize = 13
+        lbl.TextSize = 14
         lbl.Font = Enum.Font.Gotham
         lbl.Parent = f
         
@@ -1633,11 +1783,12 @@ local function createWindUI()
         val.BackgroundTransparency = 1
         val.Text = "0"
         val.TextColor3 = CONFIG.customColors.primary
-        val.TextSize = 14
+        val.TextSize = 16
         val.Font = Enum.Font.GothamBold
         val.Parent = f
         
-        statsLabels[item.k] = val
+        statsLabels
+[item.k] = val
     end
     
     task.spawn(function()
@@ -1661,20 +1812,20 @@ local function createWindUI()
     logsList.BackgroundColor3 = CONFIG.customColors.bgDark
     logsList.BackgroundTransparency = 0.5
     logsList.BorderSizePixel = 0
-    logsList.ScrollBarThickness = 4
+    logsList.ScrollBarThickness = 6
     logsList.Parent = logsContent
     
     local logsCorner = Instance.new("UICorner")
-    logsCorner.CornerRadius = UDim.new(0, 6)
+    logsCorner.CornerRadius = UDim.new(0, 8)
     logsCorner.Parent = logsList
     
     for i = 1, 20 do
         local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, -10, 0, 20)
-        lbl.Position = UDim2.new(0, 5, 0, (i-1) * 22)
+        lbl.Size = UDim2.new(1, -10, 0, 22)
+        lbl.Position = UDim2.new(0, 5, 0, (i-1) * 24)
         lbl.BackgroundTransparency = 1
         lbl.Text = ""
-        lbl.TextSize = 11
+        lbl.TextSize = 12
         lbl.Font = Enum.Font.Code
         lbl.Visible = false
         lbl.Parent = logsList
@@ -1694,7 +1845,7 @@ local function createWindUI()
                 end
             end
             
-            logsList.CanvasSize = UDim2.new(0, 0, 0, math.min(#LOGS, 20) * 22)
+            logsList.CanvasSize = UDim2.new(0, 0, 0, math.min(#LOGS, 20) * 24)
             task.wait(0.5)
         end
     end)
@@ -1744,86 +1895,140 @@ local function createWindUI()
     minimizeBtn.MouseButton1Click:Connect(minimizeUI)
     closeBtn.MouseButton1Click:Connect(minimizeUI)
     
-    -- Drag
+    -- Drag (PC e Mobile)
     local dragging = false
     local dragStart, startPos
     
-    header.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    local function onDragStart(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = mainFrame.Position
         end
-    end)
+    end
     
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+    local function onDragMove(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+                        input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - dragStart
             mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
-    end)
+    end
     
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    local function onDragEnd(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
-    end)
+    end
     
-    -- ÍCONE FLUTUANTE
+    header.InputBegan:Connect(onDragStart)
+    UserInputService.InputChanged:Connect(onDragMove)
+    UserInputService.InputEnded:Connect(onDragEnd)
+    
+    -- ÍCONE FLUTUANTE (SEMPRE ARRASTÁVEL)
     function createIconGui()
-        if CoreGui:FindFirstChild("CAFUXZ1_Icon_v14") then
-            CoreGui:FindFirstChild("CAFUXZ1_Icon_v14"):Destroy()
+        if CoreGui:FindFirstChild("CAFUXZ1_Icon_v15") then
+            CoreGui:FindFirstChild("CAFUXZ1_Icon_v15"):Destroy()
         end
         
         iconGui = Instance.new("ScreenGui")
-        iconGui.Name = "CAFUXZ1_Icon_v14"
+        iconGui.Name = "CAFUXZ1_Icon_v15"
         iconGui.ResetOnSpawn = false
+        iconGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         iconGui.Parent = CoreGui
+        
+        -- Frame container para facilitar o drag
+        local iconContainer = Instance.new("Frame")
+        iconContainer.Name = "IconContainer"
+        iconContainer.Size = UDim2.new(0, 70, 0, 70)
+        iconContainer.Position = UDim2.new(0, 20, 0.5, -35)
+        iconContainer.BackgroundTransparency = 1
+        iconContainer.Parent = iconGui
         
         local iconBtn = Instance.new("TextButton")
         iconBtn.Name = "IconButton"
-        iconBtn.Size = UDim2.new(0, 50, 0, 50)
-        iconBtn.Position = UDim2.new(0, 20, 0.5, -25)
+        iconBtn.Size = UDim2.new(0, 60, 0, 60)
+        iconBtn.Position = UDim2.new(0.5, -30, 0.5, -30)
         iconBtn.BackgroundColor3 = CONFIG.customColors.primary
         iconBtn.Text = "⚡"
         iconBtn.TextColor3 = Color3.new(1, 1, 1)
-        iconBtn.TextSize = 24
+        iconBtn.TextSize = 32
         iconBtn.Font = Enum.Font.GothamBold
-        iconBtn.Parent = iconGui
+        iconBtn.Parent = iconContainer
         
         local iconCorner = Instance.new("UICorner")
         iconCorner.CornerRadius = UDim.new(1, 0)
         iconCorner.Parent = iconBtn
         
+        -- Sombra
+        local shadow = Instance.new("ImageLabel")
+        shadow.Name = "Shadow"
+        shadow.Size = UDim2.new(1.3, 0, 1.3, 0)
+        shadow.Position = UDim2.new(-0.15, 0, -0.15, 0)
+        shadow.BackgroundTransparency = 1
+        shadow.Image = "rbxassetid://1316045217"
+        shadow.ImageColor3 = Color3.new(0, 0, 0)
+        shadow.ImageTransparency = 0.5
+        shadow.ZIndex = -1
+        shadow.Parent = iconBtn
+        
+        -- Label "Arraste"
+        local dragLabel = Instance.new("TextLabel")
+        dragLabel.Size = UDim2.new(1, 0, 0, 20)
+        dragLabel.Position = UDim2.new(0, 0, 1, -10)
+        dragLabel.BackgroundTransparency = 1
+        dragLabel.Text = "Arraste"
+        dragLabel.TextColor3 = CONFIG.customColors.textMuted
+        dragLabel.TextSize = 10
+        dragLabel.Font = Enum.Font.Gotham
+        dragLabel.Parent = iconContainer
+        
         iconBtn.MouseButton1Click:Connect(restoreUI)
         
+        -- Drag do ícone (PC e Mobile)
         local iconDragging = false
         local iconDragStart, iconStartPos
         
-        iconBtn.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local function onIconDragStart(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+               input.UserInputType == Enum.UserInputType.Touch then
                 iconDragging = true
                 iconDragStart = input.Position
-                iconStartPos = iconBtn.Position
+                iconStartPos = iconContainer.Position
+                
+                -- Efeito visual
+                tween(iconBtn, {Size = UDim2.new(0, 65, 0, 65), Position = UDim2.new(0.5, -32.5, 0.5, -32.5)}, 0.1)
             end
-        end)
+        end
         
-        UserInputService.InputChanged:Connect(function(input)
-            if iconDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local function onIconDragMove(input)
+            if iconDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+                                input.UserInputType == Enum.UserInputType.Touch) then
                 local delta = input.Position - iconDragStart
-                iconBtn.Position = UDim2.new(iconStartPos.X.Scale, iconStartPos.X.Offset + delta.X, iconStartPos.Y.Scale, iconStartPos.Y.Offset + delta.Y)
+                iconContainer.Position = UDim2.new(iconStartPos.X.Scale, iconStartPos.X.Offset + delta.X, 
+                                                     iconStartPos.Y.Scale, iconStartPos.Y.Offset + delta.Y)
             end
-        end)
+        end
         
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local function onIconDragEnd(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+               input.UserInputType == Enum.UserInputType.Touch then
                 iconDragging = false
+                
+                -- Efeito visual
+                tween(iconBtn, {Size = UDim2.new(0, 60, 0, 60), Position = UDim2.new(0.5, -30, 0.5, -30)}, 0.1)
             end
-        end)
+        end
+        
+        iconBtn.InputBegan:Connect(onIconDragStart)
+        UserInputService.InputChanged:Connect(onIconDragMove)
+        UserInputService.InputEnded:Connect(onIconDragEnd)
     end
     
-    addLog("Hub v14.9.1 iniciado! (Reach Sphere + Slider Fix)", "success")
-    notify("CAFUXZ1 Hub", "v14.9.1 - Reach e Slider corrigidos!", 5)
+    addLog("Hub v15.0 iniciado! (Input + Intro + Icon Drag)", "success")
+    notify("CAFUXZ1 Hub", "v15.0 - Input numérico, Intro e Ícone arrastável!", 5)
 end
 
 -- ============================================
@@ -1902,9 +2107,15 @@ end)
 LocalPlayer.CharacterAdded:Connect(function(char)
     addLog("Character respawned - reconectando...", "info")
     
-    cachedCharacter = nil
-    cachedHumanoid = nil
-    cachedRootPart = nil
+    -- Resetar esferas
+    if reachSphere then
+        reachSphere:Destroy()
+        reachSphere = nil
+    end
+    if reachGKCube then
+        reachGKCube:Destroy()
+        reachGKCube = nil
+    end
     
     task.delay(1, function()
         if CONFIG.antiLag.enabled then
@@ -1914,7 +2125,10 @@ LocalPlayer.CharacterAdded:Connect(function(char)
 end)
 
 -- Iniciar
-createWindUI()
-mainLoop()
+createIntro()
+task.delay(0.5, function()
+    createWindUI()
+    mainLoop()
+end)
 
-print("CAFUXZ1 Hub v14.9.1 - WindUI Loaded | Reach Sphere + Slider Simples")
+print("CAFUXZ1 Hub v15.0 - Intro + Input Numbers + Draggable Icon Loaded!")
