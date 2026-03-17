@@ -1,12 +1,12 @@
 --[[
-    CAFUXZ1 Hub v15.1 - CADUXX137 Edition
+    CAFUXZ1 Hub v15.2 - Pure Sphere Edition
     =================================================
     
-    NOVIDADES v15.1:
-    - Lógica de reach do CADUXX137 integrada
-    - Sistema GK removido (cubo apagado)
-    - Apenas esfera de reach mantida
-    - Melhor performance e detecção de bolas
+    NOVIDADES v15.2:
+    - Lógica CADUXX137 integrada
+    - Sistema GK removido completamente
+    - Apenas ESFERA PURA (sem SelectionBox/cubo)
+    - Visual limpo e otimizado
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -46,14 +46,13 @@ for _, obj in ipairs(Workspace:GetChildren()) do
 end
 
 -- ============================================
--- CONFIGURAÇÕES (Mistura CAFUXZ1 + CADUXX137)
+-- CONFIGURAÇÕES
 -- ============================================
 local CONFIG = {
     width = 600,
     height = 450,
     sidebarWidth = 90,
     
-    -- Reach system (lógica CADUXX137)
     reach = 15,
     showReachSphere = true,
     autoTouch = true,
@@ -61,7 +60,6 @@ local CONFIG = {
     autoSecondTouch = true,
     scanCooldown = 1.5,
     
-    -- Anti Lag
     antiLag = {
         enabled = false,
         textures = true,
@@ -72,7 +70,6 @@ local CONFIG = {
         fullBright = false
     },
     
-    -- Cores CAFUXZ1
     customColors = {
         primary = Color3.fromRGB(99, 102, 241),
         secondary = Color3.fromRGB(139, 92, 246),
@@ -90,7 +87,6 @@ local CONFIG = {
         textMuted = Color3.fromRGB(130, 140, 170),
     },
     
-    -- Lista de bolas unificada
     ballNames = { 
         "TPS", "TCS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ",
         "Ball", "Soccer", "Football", "Basketball", "Baseball", 
@@ -107,9 +103,6 @@ local STATS = {
     totalTouches = 0,
     ballsTouched = 0,
     sessionStart = tick(),
-    lastUpdate = tick(),
-    touchesPerMinute = 0,
-    peakReach = 0,
     skillsActivated = 0,
     antiLagItems = 0,
     morphsDone = 0
@@ -130,7 +123,7 @@ local function addLog(message, type)
 end
 
 -- ============================================
--- VARIÁVEIS GLOBAIS (Lógica CADUXX137)
+-- VARIÁVEIS GLOBAIS
 -- ============================================
 local balls = {}
 local ballConnections = {}
@@ -253,7 +246,7 @@ local function createIntro()
     version.Size = UDim2.new(1, 0, 0, 30)
     version.Position = UDim2.new(0, 0, 0, 180)
     version.BackgroundTransparency = 1
-    version.Text = "Versão 15.1 - CADUXX137 Edition"
+    version.Text = "Versão 15.2 - Pure Sphere"
     version.TextColor3 = CONFIG.customColors.primary
     version.TextSize = 18
     version.Font = Enum.Font.Gotham
@@ -272,11 +265,11 @@ local function createIntro()
     updatesText.Size = UDim2.new(1, -40, 0, 120)
     updatesText.Position = UDim2.new(0, 20, 0, 240)
     updatesText.BackgroundTransparency = 1
-    updatesText.Text = "🆕 NOVIDADES v15.1:\n\n" ..
-                       "• Lógica CADUXX137 integrada\n" ..
-                       "• Sistema GK removido\n" ..
-                       "• Apenas esfera de reach\n" ..
-                       "• Melhor detecção de bolas\n\n" ..
+    updatesText.Text = "🆕 NOVIDADES v15.2:\n\n" ..
+                       "• Esfera PURA (sem cubo)\n" ..
+                       "• Visual limpo e otimizado\n" ..
+                       "• Sistema CADUXX137\n" ..
+                       "• Sem GK, apenas reach\n\n" ..
                        "📱 ARRASTE O ÍCONE ⚡ PARA MOVER"
     updatesText.TextColor3 = CONFIG.customColors.textSecondary
     updatesText.TextSize = 14
@@ -339,7 +332,7 @@ local function createIntro()
 end
 
 -- ============================================
--- SISTEMA ANTI LAG (CAFUXZ1)
+-- SISTEMA ANTI LAG
 -- ============================================
 local function saveOriginalState(obj, property, value)
     if not originalStates[obj] then originalStates[obj] = {} end
@@ -459,7 +452,7 @@ local function disableAntiLag()
 end
 
 -- ============================================
--- SISTEMA DE MORPH (CAFUXZ1)
+-- SISTEMA DE MORPH
 -- ============================================
 local PRESET_MORPHS = {
     { name = "Miguelcalebegamer202", userId = nil, displayName = "Miguelcalebegamer202" },
@@ -516,7 +509,7 @@ local function morphToUser(userId, targetName)
 end
 
 -- ============================================
--- SISTEMA SKYBOX (CAFUXZ1)
+-- SISTEMA SKYBOX
 -- ============================================
 local SkyboxDatabase = {
     { id = 14828385099, name = "Night Sky With Moon HD", category = "1" },
@@ -633,10 +626,9 @@ local function saveOriginalSkybox()
 end
 
 -- ============================================
--- SISTEMA DE BOLAS E REACH (LÓGICA CADUXX137)
+-- SISTEMA DE BOLAS E REACH (ESFERA PURA)
 -- ============================================
 
--- Atualização constante de personagem (CADUXX137)
 local function updateCharacter()
     local newChar = LocalPlayer.Character
     if newChar ~= char then
@@ -652,7 +644,6 @@ local function updateCharacter()
     end
 end
 
--- Detecção de bolas (CADUXX137 style)
 local function findBalls()
     local now = tick()
     if now - lastBallUpdate < CONFIG.scanCooldown then return #balls end
@@ -682,7 +673,6 @@ local function findBalls()
     return #balls
 end
 
--- Pegar partes do corpo (CADUXX137)
 local function getBodyParts()
     if not char then return {} end
     local parts = {}
@@ -698,7 +688,9 @@ local function getBodyParts()
     return parts
 end
 
--- Criar/Atualizar esfera de reach
+-- ============================================
+-- ESFERA PURA (SEM CUBO/SELECTIONBOX)
+-- ============================================
 local function createReachSphere()
     if reachSphere and reachSphere.Parent then return end
     
@@ -712,12 +704,8 @@ local function createReachSphere()
     reachSphere.Color = CONFIG.customColors.primary
     reachSphere.Parent = Workspace
     
-    local selectionBox = Instance.new("SelectionBox")
-    selectionBox.Name = "ReachSelectionBox"
-    selectionBox.Adornee = reachSphere
-    selectionBox.Color3 = CONFIG.customColors.primary
-    selectionBox.LineThickness = 0.05
-    selectionBox.Parent = reachSphere
+    -- ❌ NENHUM CUBO - Apenas a esfera pura
+    -- SelectionBox removido completamente
 end
 
 local function destroyReachSphere()
@@ -742,14 +730,10 @@ local function updateReachSphere()
         reachSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
         reachSphere.Color = CONFIG.customColors.primary
         
-        local selectionBox = reachSphere:FindFirstChild("ReachSelectionBox")
-        if selectionBox then
-            selectionBox.Color3 = CONFIG.customColors.primary
-        end
+        -- ❌ Não há SelectionBox para atualizar
     end
 end
 
--- Sistema de touch (CADUXX137)
 local function doTouch(ball, part)
     if not ball or not ball.Parent or not part or not part.Parent then return end
     
@@ -770,7 +754,6 @@ local function doTouch(ball, part)
     end)
 end
 
--- Processar auto touch (lógica CADUXX137)
 local function processAutoTouch()
     if not CONFIG.autoTouch then return end
     if not HRP then return end
@@ -810,7 +793,7 @@ local function processAutoTouch()
 end
 
 -- ============================================
--- AUTO SKILLS (CADUXX137 style)
+-- AUTO SKILLS
 -- ============================================
 local cachedSkillButtons = nil
 local lastSkillCache = 0
@@ -881,7 +864,6 @@ local function processAutoSkills()
         lastSkillCache = now
     end
     
-    -- Verificar se tem bola no range
     if not HRP then return end
     local hrpPos = HRP.Position
     local ballInRange = false
@@ -930,8 +912,7 @@ local function updateAllColors()
     
     if reachSphere then
         reachSphere.Color = CONFIG.customColors.primary
-        local selectionBox = reachSphere:FindFirstChild("ReachSelectionBox")
-        if selectionBox then selectionBox.Color3 = CONFIG.customColors.primary end
+        -- ❌ Não há SelectionBox para atualizar
     end
     
     if iconGui then
@@ -943,7 +924,7 @@ local function updateAllColors()
 end
 
 -- ============================================
--- INTERFACE WINDUI (CAFUXZ1 style)
+-- INTERFACE WINDUI
 -- ============================================
 local function createWindUI()
     if CoreGui:FindFirstChild("CAFUXZ1_Hub_v15") then
@@ -1026,7 +1007,7 @@ local function createWindUI()
     versionLabel.Size = UDim2.new(1, 0, 0, 20)
     versionLabel.Position = UDim2.new(0, 0, 0, 55)
     versionLabel.BackgroundTransparency = 1
-    versionLabel.Text = "v15.1"
+    versionLabel.Text = "v15.2"
     versionLabel.TextColor3 = CONFIG.customColors.textMuted
     versionLabel.TextSize = 12
     versionLabel.Font = Enum.Font.Gotham
@@ -1100,7 +1081,7 @@ local function createWindUI()
     headerTitle.Size = UDim2.new(0.6, 0, 1, 0)
     headerTitle.Position = UDim2.new(0, 15, 0, 0)
     headerTitle.BackgroundTransparency = 1
-    headerTitle.Text = "CAFUXZ1 Hub v15.1"
+    headerTitle.Text = "CAFUXZ1 Hub v15.2"
     headerTitle.TextColor3 = CONFIG.customColors.textPrimary
     headerTitle.TextSize = 18
     headerTitle.Font = Enum.Font.GothamBold
@@ -1829,12 +1810,12 @@ local function createWindUI()
         UserInputService.InputEnded:Connect(onIconDragEnd)
     end
     
-    addLog("Hub v15.1 iniciado! (CADUXX137 Edition)", "success")
-    notify("CAFUXZ1 Hub", "v15.1 - Lógica CADUXX137 integrada!", 5)
+    addLog("Hub v15.2 iniciado! (Pure Sphere)", "success")
+    notify("CAFUXZ1 Hub", "v15.2 - Esfera pura, sem cubos!", 5)
 end
 
 -- ============================================
--- LOOP PRINCIPAL (Lógica CADUXX137)
+-- LOOP PRINCIPAL
 -- ============================================
 local function mainLoop()
     if loopRunning then return end
@@ -1843,21 +1824,14 @@ local function mainLoop()
     heartbeatConnection = RunService.Heartbeat:Connect(function()
         if isClosed then return end
         
-        -- Atualizar personagem (CADUXX137)
         updateCharacter()
-        
-        -- Atualizar esfera de reach
         updateReachSphere()
-        
-        -- Encontrar bolas
         findBalls()
         
-        -- Processar touch se personagem existe
         if HRP and HRP.Parent then
             processAutoTouch()
             processAutoSkills()
         else
-            -- Destruir esfera se não há personagem
             if reachSphere then
                 reachSphere:Destroy()
                 reachSphere = nil
@@ -1865,7 +1839,7 @@ local function mainLoop()
         end
     end)
     
-    addLog("Sistema Reach CADUXX137 iniciado", "success")
+    addLog("Sistema Reach iniciado - Esfera pura!", "success")
 end
 
 -- ============================================
@@ -1893,7 +1867,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     elseif input.KeyCode == Enum.KeyCode.Insert then
         if mainGui and mainGui.Parent then
             if mainGui.Enabled then
-                -- Minimizar
                 local header = mainFrame:FindFirstChild("Header")
                 if header then
                     local minimizeBtn = header:FindFirstChild("MinimizeBtn")
@@ -1916,17 +1889,14 @@ end)
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     addLog("Character respawned - reconectando...", "info")
     
-    -- Resetar variáveis
     char = newChar
     HRP = nil
     
-    -- Resetar esfera
     if reachSphere then
         reachSphere:Destroy()
         reachSphere = nil
     end
     
-    -- Aguardar HumanoidRootPart
     task.spawn(function()
         HRP = newChar:WaitForChild("HumanoidRootPart", 5)
         if HRP then
@@ -1948,5 +1918,5 @@ task.delay(0.5, function()
     mainLoop()
 end)
 
-print("CAFUXZ1 Hub v15.1 - CADUXX137 Edition Loaded!")
-print("Sistema de reach otimizado - Sem GK, apenas esfera!")
+print("CAFUXZ1 Hub v15.2 - Pure Sphere Edition Loaded!")
+print("✅ Apenas esfera pura - Nenhum cubo/SelectionBox!")
