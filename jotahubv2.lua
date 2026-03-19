@@ -36,6 +36,7 @@ local CONFIG = {
     arthurReach = 10,  -- Arthur (igual)
     showSpheres = true,
     autoTouch = true,
+    detectBalls = true, -- NOVO: Detecção de bolas
     doubleTouch = true,
     color1 = Color3.fromRGB(99, 102, 241), -- Principal (Roxo)
     color2 = Color3.fromRGB(0, 255, 255),   -- Arthur (Cyan)
@@ -119,9 +120,20 @@ local BallNames = {
 local balls = {}
 local lastTouch = 0
 local touchDebounce = {}
+local lastBallUpdate = 0
 
--- Encontrar bolas no workspace
+-- Encontrar bolas no workspace (só se detecção estiver ON)
 local function getBalls()
+    if not CONFIG.detectBalls then
+        return {}
+    end
+    
+    local now = tick()
+    if now - lastBallUpdate < 1 then -- Atualiza a cada 1 segundo
+        return balls
+    end
+    lastBallUpdate = now
+    
     local list = {}
     for _, v in pairs(Workspace:GetDescendants()) do
         if v:IsA("BasePart") then
@@ -133,7 +145,9 @@ local function getBalls()
             end
         end
     end
-    return list
+    
+    balls = list
+    return balls
 end
 
 -- Função de touch com debounce
@@ -190,8 +204,13 @@ local function processReach()
         return 
     end
     
-    -- Procurar bolas dentro do alcance
+    -- Procurar bolas (só se detecção estiver ON)
     balls = getBalls()
+    
+    -- Se detecção estiver desativada, não procura bolas
+    if not CONFIG.detectBalls then
+        return
+    end
     
     for _, ball in ipairs(balls) do
         if ball and ball.Parent then
@@ -221,8 +240,8 @@ gui.ResetOnSpawn = false
 gui.Parent = CoreGui
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 320, 0, 420)
-main.Position = UDim2.new(0.5, -160, 0.5, -210)
+main.Size = UDim2.new(0, 320, 0, 480) -- Aumentado para caber novo botão
+main.Position = UDim2.new(0.5, -160, 0.5, -240)
 main.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 main.BorderSizePixel = 0
 main.Parent = gui
@@ -361,6 +380,14 @@ createToggle("Auto Touch", CONFIG.autoTouch, function(v)
     CONFIG.autoTouch = v
 end)
 
+-- NOVO: Toggle para detecção de bolas
+createToggle("🔍 Detectar Bolas", CONFIG.detectBalls, function(v)
+    CONFIG.detectBalls = v
+    if not v then
+        balls = {} -- Limpa lista de bolas quando desativa
+    end
+end)
+
 createToggle("Mostrar Esferas", CONFIG.showSpheres, function(v)
     CONFIG.showSpheres = v
     updateSpheres()
@@ -496,7 +523,7 @@ RunService.RenderStepped:Connect(function()
     -- Atualizar esferas em tempo real (SEGUEM O JOGADOR)
     updateSpheres()
     
-    -- Processar reach (LÓGICA DO SCRIPT ANTIGO)
+    -- Processar reach (só se detecção estiver ON)
     processReach()
 end)
 
@@ -516,6 +543,7 @@ print("CAFUXZ1 Hub v15.2 - Reach Fix")
 print("========================================")
 print("🟣 Esfera Principal: " .. CONFIG.reach)
 print("🔵 Esfera Arthur: " .. CONFIG.arthurReach)
+print("🔍 Detectar Bolas: " .. (CONFIG.detectBalls and "ON" or "OFF"))
 print("========================================")
 print("Reach funcionando com lógica original!")
 print("========================================")
