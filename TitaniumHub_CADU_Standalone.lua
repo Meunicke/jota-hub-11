@@ -1,3 +1,4 @@
+
 --[[
     CAFUXZ1 Hub v15.2 - Double Sphere Edition
     =================================================
@@ -10,7 +11,10 @@
     - Sistema GK removido completamente
 ]]
 
-if not game:IsLoaded() then game.Loaded:Wait() end
+-- Verificação segura de carregamento
+if not game or not game:IsLoaded() then
+    repeat task.wait() until game and game:IsLoaded()
+end
 
 -- ============================================
 -- SERVIÇOS
