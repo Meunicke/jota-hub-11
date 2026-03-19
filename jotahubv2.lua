@@ -1,5 +1,5 @@
 --[[
-    CAFUXZ1 Hub v15.2 - Mobile Tote System
+    CAFUXZ1 Hub v15.2 - Mobile Tote System (FIXED)
     Chute de lado (Tote) adaptado para mobile
 ]]
 
@@ -12,18 +12,25 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
-local ContextActionService = game:GetService("ContextActionService")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
+if not player then
+    warn("CAFUXZ1: Player não encontrado")
+    return
+end
+
 local char = player.Character or player.CharacterAdded:Wait()
 local hrp = char:WaitForChild("HumanoidRootPart")
 
 -- Limpar GUIs antigas
-for _, obj in ipairs(CoreGui:GetChildren()) do
-    if obj.Name == "CAFUXZ1_Hub" or obj.Name == "CAFUXZ1_Icon" or obj.Name == "CAFUXZ1_Mobile" then
-        obj:Destroy()
+pcall(function()
+    for _, obj in ipairs(CoreGui:GetChildren()) do
+        if obj.Name == "CAFUXZ1_Hub" or obj.Name == "CAFUXZ1_Icon" or obj.Name == "CAFUXZ1_Mobile" then
+            obj:Destroy()
+        end
     end
-end
+end)
 
 -- Configurações
 local CONFIG = {
@@ -33,8 +40,8 @@ local CONFIG = {
     autoTouch = true,
     detectBalls = true,
     doubleTouch = true,
-    toteEnabled = true, -- Sistema de tote ativo
-    toteKey = "R", -- Tecla padrão do tote
+    toteEnabled = true,
+    toteKey = "R",
     color1 = Color3.fromRGB(99, 102, 241),
     color2 = Color3.fromRGB(0, 255, 255),
 }
@@ -44,49 +51,53 @@ local sphere1, sphere2 = nil, nil
 
 -- Criar esferas
 local function createSpheres()
-    if sphere1 then sphere1:Destroy() end
-    if sphere2 then sphere2:Destroy() end
-    
-    sphere1 = Instance.new("Part")
-    sphere1.Name = "CAFUXZ1_Sphere1"
-    sphere1.Shape = Enum.PartType.Ball
-    sphere1.Anchored = true
-    sphere1.CanCollide = false
-    sphere1.Material = Enum.Material.ForceField
-    sphere1.Transparency = 0.88
-    sphere1.Color = CONFIG.color1
-    sphere1.Parent = Workspace
-    
-    sphere2 = Instance.new("Part")
-    sphere2.Name = "CAFUXZ1_Sphere2"
-    sphere2.Shape = Enum.PartType.Ball
-    sphere2.Anchored = true
-    sphere2.CanCollide = false
-    sphere2.Material = Enum.Material.ForceField
-    sphere2.Transparency = CONFIG.doubleTouch and 0.75 or 1
-    sphere2.Color = CONFIG.color2
-    sphere2.Parent = Workspace
+    pcall(function()
+        if sphere1 then sphere1:Destroy() end
+        if sphere2 then sphere2:Destroy() end
+        
+        sphere1 = Instance.new("Part")
+        sphere1.Name = "CAFUXZ1_Sphere1"
+        sphere1.Shape = Enum.PartType.Ball
+        sphere1.Anchored = true
+        sphere1.CanCollide = false
+        sphere1.Material = Enum.Material.ForceField
+        sphere1.Transparency = 0.88
+        sphere1.Color = CONFIG.color1
+        sphere1.Parent = Workspace
+        
+        sphere2 = Instance.new("Part")
+        sphere2.Name = "CAFUXZ1_Sphere2"
+        sphere2.Shape = Enum.PartType.Ball
+        sphere2.Anchored = true
+        sphere2.CanCollide = false
+        sphere2.Material = Enum.Material.ForceField
+        sphere2.Transparency = CONFIG.doubleTouch and 0.75 or 1
+        sphere2.Color = CONFIG.color2
+        sphere2.Parent = Workspace
+    end)
 end
 
 -- Atualizar esferas
 local function updateSpheres()
-    if not sphere1 or not sphere2 then createSpheres() end
-    if not CONFIG.showSpheres then
-        sphere1.Transparency = 1
-        sphere2.Transparency = 1
-        return
-    end
-    if hrp and hrp.Parent then
-        sphere1.Position = hrp.Position
-        sphere1.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
-        sphere2.Position = hrp.Position
-        sphere2.Size = Vector3.new(CONFIG.arthurReach * 2, CONFIG.arthurReach * 2, CONFIG.arthurReach * 2)
-        sphere2.Transparency = CONFIG.doubleTouch and 0.75 or 1
-    end
+    pcall(function()
+        if not sphere1 or not sphere2 then createSpheres() end
+        if not CONFIG.showSpheres then
+            if sphere1 then sphere1.Transparency = 1 end
+            if sphere2 then sphere2.Transparency = 1 end
+            return
+        end
+        if hrp and hrp.Parent then
+            sphere1.Position = hrp.Position
+            sphere1.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
+            sphere2.Position = hrp.Position
+            sphere2.Size = Vector3.new(CONFIG.arthurReach * 2, CONFIG.arthurReach * 2, CONFIG.arthurReach * 2)
+            sphere2.Transparency = CONFIG.doubleTouch and 0.75 or 1
+        end
+    end)
 end
 
 -- Sistema de Reach
-local BallNames = { "TPS", "TCS", "ESA", "MRS", "PRS", "MPS", "SSS", "Ball", "Soccer", "Bola" }
+local BallNames = { "TPS", "TCS", "ESA", "MRS", "PRS", "MPS", "SSS", "Ball", "Soccer", "Bola", "Football" }
 local balls = {}
 local lastTouch = 0
 local touchDebounce = {}
@@ -94,22 +105,24 @@ local touchDebounce = {}
 local function getBalls()
     if not CONFIG.detectBalls then return {} end
     local list = {}
-    for _, v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("BasePart") then
-            for _, b in ipairs(BallNames) do
-                if v.Name == b or v.Name:find(b, 1, true) then
-                    table.insert(list, v)
-                    break
+    pcall(function()
+        for _, v in pairs(Workspace:GetDescendants()) do
+            if v:IsA("BasePart") and v.Parent then
+                for _, b in ipairs(BallNames) do
+                    if v.Name == b or (v.Name and v.Name:find(b, 1, true)) then
+                        table.insert(list, v)
+                        break
+                    end
                 end
             end
         end
-    end
+    end)
     return list
 end
 
 local function doTouch(ball, part)
     if not ball or not ball.Parent or not part or not part.Parent then return end
-    local key = ball.Name .. "_" .. part.Name .. "_" .. tostring(ball)
+    local key = tostring(ball) .. "_" .. tostring(part)
     if touchDebounce[key] and tick() - touchDebounce[key] < 0.1 then return end
     touchDebounce[key] = tick()
     
@@ -126,66 +139,72 @@ local function doTouch(ball, part)
 end
 
 -- ============================================
--- SISTEMA DE TOTE (CHUTE DE LADO)
+-- SISTEMA DE TOTE (CHUTE DE LADO) - CORRIGIDO
 -- ============================================
 
-local isCharging = false
-local toteDirection = "R" -- "R" = direita, "F" = esquerda
-
--- Função para executar o tote
+-- Função para executar o tote (sem BodyVelocity - não funciona em executores)
 local function executeTote(direction)
     if not CONFIG.toteEnabled then return end
+    
+    -- Atualizar character reference
+    if player.Character and player.Character ~= char then
+        char = player.Character
+        hrp = char:FindFirstChild("HumanoidRootPart")
+    end
+    
+    if not hrp or not hrp.Parent then return end
     
     -- Procurar bola próxima
     local nearestBall = nil
     local nearestDist = math.huge
     
-    for _, ball in ipairs(getBalls()) do
-        if ball and ball.Parent then
-            local dist = (ball.Position - hrp.Position).Magnitude
-            if dist < nearestDist and dist <= CONFIG.reach + 5 then
-                nearestDist = dist
-                nearestBall = ball
+    pcall(function()
+        for _, ball in ipairs(getBalls()) do
+            if ball and ball.Parent and ball.Position then
+                local dist = (ball.Position - hrp.Position).Magnitude
+                if dist < nearestDist and dist <= CONFIG.reach + 5 then
+                    nearestDist = dist
+                    nearestBall = ball
+                end
             end
         end
-    end
+    end)
     
     if not nearestBall then return end
     
     -- Calcular direção do tote
     local characterCFrame = hrp.CFrame
-    local ballPosition = nearestBall.Position
-    
-    -- Direção lateral baseada em R ou F
     local sideDirection = nil
+    
     if direction == "R" then
-        -- Tote para direita (90 graus)
-        sideDirection = (characterCFrame.RightVector * 10) + (characterCFrame.LookVector * 5)
+        -- Tote para direita
+        sideDirection = (characterCFrame.RightVector * 15) + (characterCFrame.LookVector * 8)
     else
-        -- Tote para esquerda (-90 graus)
-        sideDirection = (characterCFrame.RightVector * -10) + (characterCFrame.LookVector * 5)
+        -- Tote para esquerda
+        sideDirection = (characterCFrame.RightVector * -15) + (characterCFrame.LookVector * 8)
     end
     
-    -- Executar o chute de lado
+    -- Executar o chute de lado usando CFrame manipulation (client-side)
     pcall(function()
-        -- Primeiro touch normal
+        local originalCFrame = nearestBall.CFrame
+        
+        -- Primeiro touch
         firetouchinterest(nearestBall, hrp, 0)
-        
-        -- Aplicar impulso lateral na bola
-        local bodyVelocity = Instance.new("BodyVelocity")
-        bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
-        bodyVelocity.Velocity = sideDirection * 50
-        bodyVelocity.Parent = nearestBall
-        
-        task.wait(0.1)
+        task.wait(0.05)
         firetouchinterest(nearestBall, hrp, 1)
         
-        -- Remover body velocity após o chute
-        task.delay(0.3, function()
-            if bodyVelocity and bodyVelocity.Parent then
-                bodyVelocity:Destroy()
-            end
-        end)
+        -- Aplicar "impulso" via CFrame (efeito visual local)
+        -- Nota: Isso só funciona se o executor tiver permissões de network/physics
+        for i = 1, 5 do
+            task.wait(0.02)
+            local newPos = nearestBall.Position + (sideDirection * 0.3)
+            nearestBall.CFrame = CFrame.new(newPos)
+        end
+        
+        -- Double touch para garantir
+        task.wait(0.1)
+        firetouchinterest(nearestBall, hrp, 0)
+        firetouchinterest(nearestBall, hrp, 1)
     end)
     
     print("Tote executado: " .. direction)
@@ -198,6 +217,7 @@ end
 local gui = Instance.new("ScreenGui")
 gui.Name = "CAFUXZ1_Mobile"
 gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = CoreGui
 
 -- Frame principal
@@ -206,9 +226,12 @@ main.Size = UDim2.new(0, 350, 0, 500)
 main.Position = UDim2.new(0.5, -175, 0.5, -250)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 main.BorderSizePixel = 0
+main.Active = true
 main.Parent = gui
 
-Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = main
 
 -- Título
 local title = Instance.new("TextLabel")
@@ -232,7 +255,10 @@ minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
 minimizeBtn.TextSize = 24
 minimizeBtn.Font = Enum.Font.GothamBold
 minimizeBtn.Parent = main
-Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0, 8)
+
+local corner1 = Instance.new("UICorner")
+corner1.CornerRadius = UDim.new(0, 8)
+corner1.Parent = minimizeBtn
 
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 35, 0, 35)
@@ -243,7 +269,10 @@ closeBtn.TextColor3 = Color3.new(1, 1, 1)
 closeBtn.TextSize = 20
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.Parent = main
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
+
+local corner2 = Instance.new("UICorner")
+corner2.CornerRadius = UDim.new(0, 8)
+corner2.Parent = closeBtn
 
 -- Container de controles
 local container = Instance.new("Frame")
@@ -252,8 +281,9 @@ container.Position = UDim2.new(0, 10, 0, 50)
 container.BackgroundTransparency = 1
 container.Parent = main
 
-local layout = Instance.new("UIListLayout", container)
+local layout = Instance.new("UIListLayout")
 layout.Padding = UDim.new(0, 8)
+layout.Parent = container
 
 -- Info
 local info = Instance.new("TextLabel")
@@ -275,7 +305,10 @@ local function createToggle(text, default, callback)
     btn.TextSize = 13
     btn.Font = Enum.Font.GothamBold
     btn.Parent = container
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
     
     local enabled = default
     btn.MouseButton1Click:Connect(function()
@@ -312,7 +345,10 @@ local function createSlider(text, min, max, default, callback)
     input.TextSize = 16
     input.Font = Enum.Font.GothamBold
     input.Parent = frame
-    Instance.new("UICorner", input).CornerRadius = UDim.new(0, 8)
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = input
     
     input.FocusLost:Connect(function()
         local num = tonumber(input.Text)
@@ -365,24 +401,29 @@ toteLeft.TextColor3 = Color3.new(1, 1, 1)
 toteLeft.TextSize = 14
 toteLeft.Font = Enum.Font.GothamBold
 toteLeft.Parent = toteFrame
-Instance.new("UICorner", toteLeft).CornerRadius = UDim.new(0, 10)
 
--- Botão Tote Direita (R)
+local corner3 = Instance.new("UICorner")
+corner3.CornerRadius = UDim.new(0, 10)
+corner3.Parent = toteLeft
+
+-- Botão Tote Direita (R) - CORRIGIDO: removido parêntese extra
 local toteRight = Instance.new("TextButton")
 toteRight.Size = UDim2.new(0.48, 0, 0, 50)
 toteRight.Position = UDim2.new(0.52, 0, 0, 25)
 toteRight.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
 toteRight.Text = "TOTE (R) ➡️"
 toteRight.TextColor3 = Color3.new(1, 1, 1)
-toteRight.TextSize = 14)
+toteRight.TextSize = 14  -- CORRIGIDO: removido parêntese extra
 toteRight.Font = Enum.Font.GothamBold
 toteRight.Parent = toteFrame
-Instance.new("UICorner", toteRight).CornerRadius = UDim.new(0, 10)
+
+local corner4 = Instance.new("UICorner")
+corner4.CornerRadius = UDim.new(0, 10)
+corner4.Parent = toteRight
 
 -- Funções dos botões de tote
 toteLeft.MouseButton1Down:Connect(function()
     if not CONFIG.toteEnabled then return end
-    -- Efeito visual
     toteLeft.BackgroundColor3 = Color3.fromRGB(150, 150, 255)
     executeTote("F")
     task.wait(0.1)
@@ -391,7 +432,6 @@ end)
 
 toteRight.MouseButton1Down:Connect(function()
     if not CONFIG.toteEnabled then return end
-    -- Efeito visual
     toteRight.BackgroundColor3 = Color3.fromRGB(255, 150, 150)
     executeTote("R")
     task.wait(0.1)
@@ -409,6 +449,7 @@ end)
 local iconGui = Instance.new("ScreenGui")
 iconGui.Name = "CAFUXZ1_Icon"
 iconGui.ResetOnSpawn = false
+iconGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 iconGui.Enabled = false
 iconGui.Parent = CoreGui
 
@@ -421,7 +462,10 @@ iconBtn.TextColor3 = Color3.new(1, 1, 1)
 iconBtn.TextSize = 35
 iconBtn.Font = Enum.Font.GothamBold
 iconBtn.Parent = iconGui
-Instance.new("UICorner", iconBtn).CornerRadius = UDim.new(1, 0)
+
+local corner5 = Instance.new("UICorner")
+corner5.CornerRadius = UDim.new(1, 0)
+corner5.Parent = iconBtn
 
 -- Botões de tote flutuantes (quando minimizado)
 local toteContainer = Instance.new("Frame")
@@ -440,7 +484,10 @@ toteLeftFloat.TextColor3 = Color3.new(1, 1, 1)
 toteLeftFloat.TextSize = 40
 toteLeftFloat.Font = Enum.Font.GothamBold
 toteLeftFloat.Parent = toteContainer
-Instance.new("UICorner", toteLeftFloat).CornerRadius = UDim.new(0, 15)
+
+local corner6 = Instance.new("UICorner")
+corner6.CornerRadius = UDim.new(0, 15)
+corner6.Parent = toteLeftFloat
 
 local toteRightFloat = Instance.new("TextButton")
 toteRightFloat.Size = UDim2.new(0, 90, 0, 70)
@@ -452,7 +499,10 @@ toteRightFloat.TextColor3 = Color3.new(1, 1, 1)
 toteRightFloat.TextSize = 40
 toteRightFloat.Font = Enum.Font.GothamBold
 toteRightFloat.Parent = toteContainer
-Instance.new("UICorner", toteRightFloat).CornerRadius = UDim.new(0, 15)
+
+local corner7 = Instance.new("UICorner")
+corner7.CornerRadius = UDim.new(0, 15)
+corner7.Parent = toteRightFloat
 
 -- Funções dos botões flutuantes
 toteLeftFloat.MouseButton1Down:Connect(function()
@@ -483,107 +533,100 @@ local function restore()
 end
 
 minimizeBtn.MouseButton1Click:Connect(minimize)
-closeBtn.MouseButton1Click:Connect(minimize)
+closeBtn.MouseButton1Click:Connect(function()
+    minimize()
+    -- Opcional: desativar esferas ao fechar
+    CONFIG.showSpheres = false
+end)
 iconBtn.MouseButton1Click:Connect(restore)
 
--- Drag do ícone
-local iconDragging = false
-local iconDragStart, iconStartPos
-
-iconBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        iconDragging = true
-        iconDragStart = input.Position
-        iconStartPos = iconBtn.Position
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if iconDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+-- Sistema de Drag melhorado
+local function makeDraggable(frame, callback)
+    local dragging = false
+    local dragStart, startPos
+    
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    
+    local connection
+    connection = UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
                         input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - iconDragStart
-        local newPos = UDim2.new(iconStartPos.X.Scale, iconStartPos.X.Offset + delta.X,
-                                 iconStartPos.Y.Scale, iconStartPos.Y.Offset + delta.Y)
-        iconBtn.Position = newPos
-        toteContainer.Position = UDim2.new(newPos.X.Scale, newPos.X.Offset + 80, 
-                                           newPos.Y.Scale, newPos.Y.Offset - 5)
-    end
-end)
+            local delta = input.Position - dragStart
+            local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+                                     startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            frame.Position = newPos
+            if callback then callback(newPos) end
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
 
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        iconDragging = false
-    end
+-- Drag do ícone
+makeDraggable(iconBtn, function(newPos)
+    toteContainer.Position = UDim2.new(newPos.X.Scale, newPos.X.Offset + 80, 
+                                       newPos.Y.Scale, newPos.Y.Offset - 5)
 end)
 
 -- Drag da janela principal
-local dragging = false
-local dragStart, startPos
-
-main.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = main.Position
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
-                    input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-                                  startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
+makeDraggable(main)
 
 -- ============================================
--- LOOP PRINCIPAL
+-- LOOP PRINCIPAL - CORRIGIDO
 -- ============================================
-RunService.RenderStepped:Connect(function()
-    if player.Character and player.Character ~= char then
-        char = player.Character
-        hrp = char:WaitForChild("HumanoidRootPart")
-    end
-    
-    updateSpheres()
-    
-    -- Processar reach normal
-    if CONFIG.autoTouch and CONFIG.detectBalls then
-        balls = getBalls()
-        local now = tick()
-        if now - lastTouch >= 0.05 then
-            local hrpPos = hrp.Position
-            for _, ball in ipairs(balls) do
-                if ball and ball.Parent then
-                    local dist = (ball.Position - hrpPos).Magnitude
-                    if dist <= CONFIG.reach then
-                        lastTouch = now
-                        for _, part in ipairs(char:GetChildren()) do
-                            if part:IsA("BasePart") then
-                                doTouch(ball, part)
+local connection
+connection = RunService.RenderStepped:Connect(function()
+    pcall(function()
+        -- Atualizar character se mudar
+        if player.Character and player.Character ~= char then
+            char = player.Character
+            hrp = char:WaitForChild("HumanoidRootPart")
+        end
+        
+        -- Atualizar esferas
+        updateSpheres()
+        
+        -- Processar reach normal
+        if CONFIG.autoTouch and CONFIG.detectBalls and hrp and hrp.Parent then
+            balls = getBalls()
+            local now = tick()
+            if now - lastTouch >= 0.05 then
+                local hrpPos = hrp.Position
+                for _, ball in ipairs(balls) do
+                    if ball and ball.Parent and ball.Position then
+                        local dist = (ball.Position - hrpPos).Magnitude
+                        if dist <= CONFIG.reach then
+                            lastTouch = now
+                            for _, part in ipairs(char:GetChildren()) do
+                                if part:IsA("BasePart") then
+                                    doTouch(ball, part)
+                                end
                             end
+                            break
                         end
-                        break
                     end
                 end
             end
         end
-    end
+    end)
 end)
 
--- Tecla Insert para PC
-UserInputService.InputBegan:Connect(function(input)
+-- Teclas para PC
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
     if input.KeyCode == Enum.KeyCode.Insert then
         if gui.Enabled then minimize() else restore() end
     elseif input.KeyCode == Enum.KeyCode.R and CONFIG.toteEnabled then
@@ -593,13 +636,15 @@ UserInputService.InputBegan:Connect(function(input)
     end
 end)
 
+-- Cleanup ao morrer
+player.CharacterAdded:Connect(function(newChar)
+    char = newChar
+    hrp = newChar:WaitForChild("HumanoidRootPart")
+    task.wait(0.5)
+    createSpheres()
+end)
+
 print("========================================")
 print("CAFUXZ1 Hub v15.2 - Mobile Tote System")
-print("========================================")
-print("🎯 SISTEMA DE TOTE (Chute de Lado)")
-print("⬅️ F = Tote Esquerda")
-print("➡️ R = Tote Direita")
-print("========================================")
-print("Mobile: Botões na tela")
-print("PC: Teclas R e F")
+print("FIXED VERSION - Loaded Successfully")
 print("========================================")
