@@ -139,30 +139,90 @@ local function doTouch(ball, part)
 end
 
 -- ============================================
--- SISTEMA DE TOTE (CHUTE DE LADO) - CORRIGIDO
+-- SISTEMA DE TOTE (CHUTE DE LADO) - CORRIGIDO v2
 -- ============================================
 
--- Função para executar o tote (sem BodyVelocity - não funciona em executores)
+-- Configurações do Tote
+local TOTE_CONFIG = {
+    power = 60,           -- Força do chute
+    lift = 20,            -- Elevação (para cima)
+    sideForce = 40,       -- Força lateral (o "tote" em si)
+    smoothness = 0.08,    -- Quanto menor, mais suave (0.01-0.1)
+    duration = 0.4,       -- Duração do impulso em segundos
+    curve = true,         -- Ativar curva
+    curveIntensity = 15   -- Intensidade da curva
+}
+
+-- Variáveis de controle
+local isToting = false
+local lastToteTime = 0
+local toteCooldown = 0.5
+
+-- Função para calcular direção do tote (LATERAL + FRENTE)
+local function calculateToteDirection(direction)
+    if not hrp or not hrp.Parent then return nil end
+    
+    local charCF = hrp.CFrame
+    local lookVector = charCF.LookVector      -- Para frente
+    local rightVector = charCF.RightVector    -- Para direita
+    local upVector = charCF.UpVector          -- Para cima
+    
+    local sideMultiplier = (direction == "R") and 1 or -1
+    
+    -- DIREÇÃO DO TOTE:
+    -- 1. Principal: Lateral (direita/esquerda)
+    -- 2. Secundária: Frente (diagonal)
+    -- 3. Vertical: Um pouco para cima (lift)
+    
+    local toteDir = (rightVector * sideMultiplier * TOTE_CONFIG.sideForce) + 
+                    (lookVector * TOTE_CONFIG.power * 0.6) + 
+                    (upVector * TOTE_CONFIG.lift * 0.3)
+    
+    -- Normalizar e aplicar força
+    toteDir = toteDir.Unit * TOTE_CONFIG.power
+    
+    return toteDir
+end
+
+-- Função para executar o tote SUAVE
 local function executeTote(direction)
     if not CONFIG.toteEnabled then return end
+    if isToting then return end
     
-    -- Atualizar character reference
+    local now = tick()
+    if now - lastToteTime < toteCooldown then return end
+    lastToteTime = now
+    isToting = true
+    
+    -- Atualizar character
     if player.Character and player.Character ~= char then
         char = player.Character
         hrp = char:FindFirstChild("HumanoidRootPart")
     end
     
-    if not hrp or not hrp.Parent then return end
+    if not hrp or not hrp.Parent then 
+        isToting = false
+        return 
+    end
     
-    -- Procurar bola próxima
+    -- Procurar bola próxima com prioridade de distância
     local nearestBall = nil
     local nearestDist = math.huge
+    local hrpPos = hrp.Position
     
     pcall(function()
         for _, ball in ipairs(getBalls()) do
             if ball and ball.Parent and ball.Position then
-                local dist = (ball.Position - hrp.Position).Magnitude
-                if dist < nearestDist and dist <= CONFIG.reach + 5 then
+                local dist = (ball.Position - hrpPos).Magnitude
+                -- Prioriza bolas mais próximas e na frente do player
+                local ballPos = ball.Position
+                local toBall = (ballPos - hrpPos).Unit
+                local lookDot = toBall:Dot(hrp.CFrame.LookVector)
+                
+                -- Bonus para bolas na frente (lookDot > 0)
+                local score = dist - (lookDot > 0 and 5 or 0)
+                
+                if score < nearestDist and dist <= CONFIG.reach + 8 then
                     nearestDist = dist
                     nearestBall = ball
                 end
@@ -170,46 +230,163 @@ local function executeTote(direction)
         end
     end)
     
-    if not nearestBall then return end
-    
-    -- Calcular direção do tote
-    local characterCFrame = hrp.CFrame
-    local sideDirection = nil
-    
-    if direction == "R" then
-        -- Tote para direita
-        sideDirection = (characterCFrame.RightVector * 15) + (characterCFrame.LookVector * 8)
-    else
-        -- Tote para esquerda
-        sideDirection = (characterCFrame.RightVector * -15) + (characterCFrame.LookVector * 8)
+    if not nearestBall then 
+        isToting = false
+        return 
     end
     
-    -- Executar o chute de lado usando CFrame manipulation (client-side)
+    -- Calcular direção do tote
+    local toteDirection = calculateToteDirection(direction)
+    if not toteDirection then 
+        isToting = false
+        return 
+    end
+    
+    -- Executar tote com física suave
     pcall(function()
-        local originalCFrame = nearestBall.CFrame
+        local ball = nearestBall
+        local startPos = ball.Position
+        local startTime = tick()
         
-        -- Primeiro touch
-        firetouchinterest(nearestBall, hrp, 0)
-        task.wait(0.05)
-        firetouchinterest(nearestBall, hrp, 1)
+        -- Primeiro touch para "pegar" a bola
+        firetouchinterest(ball, hrp, 0)
+        task.wait(0.03)
+        firetouchinterest(ball, hrp, 1)
         
-        -- Aplicar "impulso" via CFrame (efeito visual local)
-        -- Nota: Isso só funciona se o executor tiver permissões de network/physics
-        for i = 1, 5 do
-            task.wait(0.02)
-            local newPos = nearestBall.Position + (sideDirection * 0.3)
-            nearestBall.CFrame = CFrame.new(newPos)
-        end
+        -- Aplicar impulso suave ao longo do tempo (não instantâneo)
+        local connection
+        connection = RunService.Heartbeat:Connect(function()
+            local elapsed = tick() - startTime
+            if elapsed > TOTE_CONFIG.duration or not ball or not ball.Parent then
+                if connection then connection:Disconnect() end
+                isToting = false
+                return
+            end
+            
+            -- Progresso 0 a 1
+            local progress = elapsed / TOTE_CONFIG.duration
+            
+            -- Easing function (suaviza início e fim)
+            local ease = 1 - (1 - progress) ^ 2  -- Ease out quad
+            
+            -- Calcular posição alvo com curva
+            local baseMovement = toteDirection * ease * 0.15
+            local curveOffset = Vector3.new(0, 0, 0)
+            
+            if TOTE_CONFIG.curve then
+                -- Adicionar curva lateral baseada no tempo
+                local curveDir = (direction == "R") and 1 or -1
+                curveOffset = hrp.CFrame.RightVector * curveDir * math.sin(progress * math.pi) * TOTE_CONFIG.curveIntensity * 0.1
+            end
+            
+            -- Aplicar movimento suave
+            local targetPos = ball.Position + baseMovement + curveOffset
+            
+            -- Usar Tween para suavidade máxima (se disponível) ou CFrame direto
+            ball.CFrame = CFrame.new(targetPos) * CFrame.Angles(
+                math.random() * 0.2,  -- Rotação aleatória suave
+                math.random() * 0.2, 
+                math.random() * 0.2
+            )
+        end)
         
-        -- Double touch para garantir
-        task.wait(0.1)
-        firetouchinterest(nearestBall, hrp, 0)
-        firetouchinterest(nearestBall, hrp, 1)
+        -- Double touch no meio do caminho para garantir hit
+        task.delay(TOTE_CONFIG.duration * 0.3, function()
+            pcall(function()
+                if ball and ball.Parent then
+                    firetouchinterest(ball, hrp, 0)
+                    task.wait(0.02)
+                    firetouchinterest(ball, hrp, 1)
+                end
+            end)
+        end)
+        
+        -- Finalizar
+        task.delay(TOTE_CONFIG.duration + 0.1, function()
+            isToting = false
+        end)
     end)
     
-    print("Tote executado: " .. direction)
+    -- Efeito visual de feedback
+    pcall(function()
+        local effect = Instance.new("Part")
+        effect.Anchored = true
+        effect.CanCollide = false
+        effect.Size = Vector3.new(1, 1, 1)
+        effect.Shape = Enum.PartType.Ball
+        effect.Color = (direction == "R") and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(100, 100, 255)
+        effect.Material = Enum.Material.Neon
+        effect.Transparency = 0.3
+        effect.Position = hrp.Position + hrp.CFrame.LookVector * 3
+        effect.Parent = Workspace
+        
+        local tween = TweenService:Create(effect, TweenInfo.new(0.3), {
+            Size = Vector3.new(0.1, 0.1, 0.1),
+            Transparency = 1,
+            Position = effect.Position + toteDirection.Unit * 5
+        })
+        tween:Play()
+        
+        task.delay(0.3, function()
+            effect:Destroy()
+        end)
+    end)
+    
+    print("✅ Tote " .. direction .. " executado suavemente")
 end
 
+-- ============================================
+-- ANIMAÇÃO DO PLAYER AO CHUTAR
+-- ============================================
+
+local function playToteAnimation(direction)
+    pcall(function()
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+        
+        -- Criar animação simples de chute lateral
+        local anim = Instance.new("Animation")
+        -- Usar animação de ataque leve como base ou criar pose
+        anim.AnimationId = "rbxassetid://507770453" -- Idle como fallback
+        
+        local track = humanoid:LoadAnimation(anim)
+        
+        -- Aplicar rotação do corpo na direção do tote
+        local rootJoint = hrp:FindFirstChild("RootJoint")
+        if rootJoint then
+            local originalC0 = rootJoint.C0
+            
+            -- Rotacionar corpo para lado do chute
+            local sideAngle = (direction == "R") and -0.5 or 0.5
+            local targetC0 = originalC0 * CFrame.Angles(0, 0, sideAngle)
+            
+            -- Tween rápido
+            local tween = TweenService:Create(rootJoint, TweenInfo.new(0.15), {C0 = targetC0})
+            tween:Play()
+            
+            -- Voltar ao normal
+            task.delay(0.3, function()
+                local tweenBack = TweenService:Create(rootJoint, TweenInfo.new(0.2), {C0 = originalC0})
+                tweenBack:Play()
+            end)
+        end
+        
+        track:Play()
+        task.delay(0.4, function()
+            track:Stop()
+            anim:Destroy()
+        end)
+    end)
+end
+
+-- Conectar animação aos botões
+local oldExecuteTote = executeTote
+executeTote = function(direction)
+    playToteAnimation(direction)
+    oldExecuteTote(direction)
+end
+
+        
 -- ============================================
 -- GUI MOBILE COM BOTÕES DE TOTE
 -- ============================================
