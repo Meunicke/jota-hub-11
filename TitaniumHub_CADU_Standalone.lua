@@ -3,15 +3,11 @@
     CAFUXZ1 Hub v15.2 - Double Sphere Edition
 ]]
 
--- Delay inicial para garantir que o ambiente está pronto
-task.wait(0.5)
+if not game:IsLoaded() then game.Loaded:Wait() end
 
--- Verificação simples de carregamento
-while not game:IsLoaded() do
-    task.wait()
-end
-
--- Serviços com verificação segura
+-- ============================================
+-- SERVIÇOS
+-- ============================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -20,27 +16,27 @@ local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
 local CoreGui = game:GetService("CoreGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 
--- Verificação anti-duplicação com delay
-task.wait(0.1)
-
-if CoreGui:FindFirstChild("CAFUXZ1_Hub_v15") then
-    CoreGui:FindFirstChild("CAFUXZ1_Hub_v15"):Destroy()
+-- ============================================
+-- VERIFICAÇÃO ANTI-DUPLICAÇÃO
+-- ============================================
+if CoreGui:FindFirstChild("CAFUXZ1_GK_Hub") then
+    CoreGui:FindFirstChild("CAFUXZ1_GK_Hub"):Destroy()
 end
-if CoreGui:FindFirstChild("CAFUXZ1_Icon_v15") then
-    CoreGui:FindFirstChild("CAFUXZ1_Icon_v15"):Destroy()
-end
-if CoreGui:FindFirstChild("CAFUXZ1_Intro") then
-    CoreGui:FindFirstChild("CAFUXZ1_Intro"):Destroy()
+if CoreGui:FindFirstChild("CAFUXZ1_GK_Icon") then
+    CoreGui:FindFirstChild("CAFUXZ1_GK_Icon"):Destroy()
 end
 
-
--- Verificação segura de carregamento
-if not game or not game:IsLoaded() then
-    repeat task.wait() until game and game:IsLoaded()
+-- Limpar objetos antigos
+for _, obj in ipairs(Workspace:GetChildren()) do
+    if obj.Name == "CAFUXZ1_GK_Cube" then
+        obj:Destroy()
+    end
 end
+
 
 
 -- ============================================
