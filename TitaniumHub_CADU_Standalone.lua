@@ -1,11 +1,11 @@
 --[[
-    CAFUXZ1 Hub v15.2 - Pure Sphere Edition
+    CAFUXZ1 Hub v15.2 - Dual Sphere Edition
     =================================================
     
     NOVIDADES v15.2:
+    - DUAS ESFERAS: Esfera Pura (original) + Esfera Arthur (cyan)
     - Lógica CADUXX137 integrada
     - Sistema GK removido completamente
-    - Apenas ESFERA PURA (sem SelectionBox/cubo)
     - Visual limpo e otimizado
 ]]
 
@@ -40,7 +40,7 @@ end
 
 -- Limpar spheres antigos
 for _, obj in ipairs(Workspace:GetChildren()) do
-    if obj.Name == "CAFUXZ1_ReachSphere_v15" or obj.Name == "CAFUXZ1_ReachGK_v15" then
+    if obj.Name == "CAFUXZ1_ReachSphere_v15" or obj.Name == "CAFUXZ1_ReachGK_v15" or obj.Name == "CAFUXZ1_ArthurSphere_v15" then
         obj:Destroy()
     end
 end
@@ -59,6 +59,15 @@ local CONFIG = {
     fullBodyTouch = true,
     autoSecondTouch = true,
     scanCooldown = 1.5,
+    
+    -- NOVO: Configurações da segunda esfera (Arthur)
+    arthurSphere = {
+        enabled = false,
+        reach = 10,
+        color = Color3.fromRGB(0, 255, 255), -- Cyan
+        transparency = 0.75,
+        material = Enum.Material.ForceField
+    },
     
     antiLag = {
         enabled = false,
@@ -127,7 +136,8 @@ end
 -- ============================================
 local balls = {}
 local ballConnections = {}
-local reachSphere = nil
+local reachSphere = nil -- Esfera PURA original (v15.2)
+local arthurSphere = nil -- NOVO: Esfera Arthur V2 (cyan)
 local HRP = nil
 local char = nil
 local touchDebounce = {}
@@ -246,7 +256,7 @@ local function createIntro()
     version.Size = UDim2.new(1, 0, 0, 30)
     version.Position = UDim2.new(0, 0, 0, 180)
     version.BackgroundTransparency = 1
-    version.Text = "Versão 15.2 - Pure Sphere"
+    version.Text = "Versão 15.2 - Dual Sphere"
     version.TextColor3 = CONFIG.customColors.primary
     version.TextSize = 18
     version.Font = Enum.Font.Gotham
@@ -266,8 +276,9 @@ local function createIntro()
     updatesText.Position = UDim2.new(0, 20, 0, 240)
     updatesText.BackgroundTransparency = 1
     updatesText.Text = "🆕 NOVIDADES v15.2:\n\n" ..
+                       "• DUAS ESFERAS: Pura + Arthur Cyan\n" ..
                        "• Esfera PURA (sem cubo)\n" ..
-                       "• Visual limpo e otimizado\n" ..
+                       "• Esfera ARTHUR V2 (cyan ForceField)\n" ..
                        "• Sistema CADUXX137\n" ..
                        "• Sem GK, apenas reach\n\n" ..
                        "📱 ARRASTE O ÍCONE ⚡ PARA MOVER"
@@ -626,7 +637,7 @@ local function saveOriginalSkybox()
 end
 
 -- ============================================
--- SISTEMA DE BOLAS E REACH (ESFERA PURA)
+-- SISTEMA DE BOLAS E REACH (DUAL SPHERE)
 -- ============================================
 
 local function updateCharacter()
@@ -689,7 +700,7 @@ local function getBodyParts()
 end
 
 -- ============================================
--- ESFERA PURA (SEM CUBO/SELECTIONBOX)
+-- ESFERA PURA ORIGINAL (v15.2)
 -- ============================================
 local function createReachSphere()
     if reachSphere and reachSphere.Parent then return end
@@ -729,11 +740,54 @@ local function updateReachSphere()
         reachSphere.Position = HRP.Position
         reachSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
         reachSphere.Color = CONFIG.customColors.primary
-        
-        -- ❌ Não há SelectionBox para atualizar
     end
 end
 
+-- ============================================
+-- NOVO: ESFERA ARTHUR V2 (CYAN)
+-- ============================================
+local function createArthurSphere()
+    if arthurSphere and arthurSphere.Parent then return end
+    
+    arthurSphere = Instance.new("Part")
+    arthurSphere.Name = "CAFUXZ1_ArthurSphere_v15"
+    arthurSphere.Shape = Enum.PartType.Ball
+    arthurSphere.Anchored = true
+    arthurSphere.CanCollide = false
+    arthurSphere.Material = CONFIG.arthurSphere.material -- ForceField
+    arthurSphere.Transparency = CONFIG.arthurSphere.transparency -- 0.75
+    arthurSphere.Color = CONFIG.arthurSphere.color -- Cyan (0, 255, 255)
+    arthurSphere.Parent = Workspace
+end
+
+local function destroyArthurSphere()
+    if arthurSphere then
+        arthurSphere:Destroy()
+        arthurSphere = nil
+    end
+end
+
+local function updateArthurSphere()
+    if not CONFIG.arthurSphere.enabled then
+        destroyArthurSphere()
+        return
+    end
+    
+    if not arthurSphere or not arthurSphere.Parent then
+        createArthurSphere()
+    end
+    
+    if HRP and HRP.Parent then
+        arthurSphere.Position = HRP.Position
+        arthurSphere.Size = Vector3.new(CONFIG.arthurSphere.reach * 2, CONFIG.arthurSphere.reach * 2, CONFIG.arthurSphere.reach * 2)
+        arthurSphere.Color = CONFIG.arthurSphere.color
+        arthurSphere.Transparency = CONFIG.arthurSphere.transparency
+    end
+end
+
+-- ============================================
+-- TOUCH SYSTEM
+-- ============================================
 local function doTouch(ball, part)
     if not ball or not ball.Parent or not part or not part.Parent then return end
     
@@ -912,7 +966,10 @@ local function updateAllColors()
     
     if reachSphere then
         reachSphere.Color = CONFIG.customColors.primary
-        -- ❌ Não há SelectionBox para atualizar
+    end
+    
+    if arthurSphere then
+        arthurSphere.Color = CONFIG.arthurSphere.color
     end
     
     if iconGui then
@@ -1416,10 +1473,17 @@ local function createWindUI()
         CONFIG.autoSecondTouch = val
     end)
     
-    createToggle(reachContent, "Mostrar Esfera", CONFIG.showReachSphere, function(val)
+    createToggle(reachContent, "Mostrar Esfera Pura", CONFIG.showReachSphere, function(val)
         CONFIG.showReachSphere = val
         if not val then destroyReachSphere() end
-        addLog("Reach Sphere: " .. (val and "VISÍVEL" or "OCULTO"), "info")
+        addLog("Esfera Pura: " .. (val and "VISÍVEL" or "OCULTO"), "info")
+    end)
+    
+    -- NOVO: Toggle da Esfera Arthur
+    createToggle(reachContent, "Mostrar Esfera Arthur (Cyan)", CONFIG.arthurSphere.enabled, function(val)
+        CONFIG.arthurSphere.enabled = val
+        if not val then destroyArthurSphere() end
+        addLog("Esfera Arthur: " .. (val and "VISÍVEL" or "OCULTO"), "info")
     end)
     
     createToggle(reachContent, "Auto Skills", autoSkills, function(val)
@@ -1427,8 +1491,14 @@ local function createWindUI()
         addLog("Auto Skills: " .. (val and "ON" or "OFF"), val and "success" or "warning")
     end)
     
-    createNumberInput(reachContent, "Alcance Reach (esfera)", CONFIG.reach, 5, 100, function(val)
+    createNumberInput(reachContent, "Alcance Reach Pura (esfera)", CONFIG.reach, 5, 100, function(val)
         CONFIG.reach = val
+    end)
+    
+    -- NOVO: Input para alcance da esfera Arthur
+    createNumberInput(reachContent, "Alcance Esfera Arthur (cyan)", CONFIG.arthurSphere.reach, 1, 150, function(val)
+        CONFIG.arthurSphere.reach = val
+        addLog("Arthur Reach: " .. val, "success")
     end)
     
     -- ABA VISUAL
@@ -1536,6 +1606,15 @@ local function createWindUI()
     createColorPicker(configContent, "Cor Aviso", CONFIG.customColors.warning, function(c) 
         CONFIG.customColors.warning = c
         updateAllColors()
+    end)
+    
+    -- NOVO: Color picker para esfera Arthur
+    createColorPicker(configContent, "Cor Esfera Arthur", CONFIG.arthurSphere.color, function(c) 
+        CONFIG.arthurSphere.color = c
+        if arthurSphere then
+            arthurSphere.Color = c
+        end
+        addLog("Cor Arthur alterada!", "success")
     end)
     
     -- ABA STATS
@@ -1810,12 +1889,12 @@ local function createWindUI()
         UserInputService.InputEnded:Connect(onIconDragEnd)
     end
     
-    addLog("Hub v15.2 iniciado! (Pure Sphere)", "success")
-    notify("CAFUXZ1 Hub", "v15.2 - Esfera pura, sem cubos!", 5)
+    addLog("Hub v15.2 iniciado! (Dual Sphere)", "success")
+    notify("CAFUXZ1 Hub", "v15.2 - Duas Esferas: Pura + Arthur!", 5)
 end
 
 -- ============================================
--- LOOP PRINCIPAL
+-- LOOP PRINCIPAL (ATUALIZADO PARA DUAS ESFERAS)
 -- ============================================
 local function mainLoop()
     if loopRunning then return end
@@ -1825,7 +1904,8 @@ local function mainLoop()
         if isClosed then return end
         
         updateCharacter()
-        updateReachSphere()
+        updateReachSphere()      -- Esfera PURA original
+        updateArthurSphere()     -- NOVO: Esfera Arthur V2 (cyan)
         findBalls()
         
         if HRP and HRP.Parent then
@@ -1836,14 +1916,18 @@ local function mainLoop()
                 reachSphere:Destroy()
                 reachSphere = nil
             end
+            if arthurSphere then
+                arthurSphere:Destroy()
+                arthurSphere = nil
+            end
         end
     end)
     
-    addLog("Sistema Reach iniciado - Esfera pura!", "success")
+    addLog("Sistema Reach iniciado - Dual Sphere!", "success")
 end
 
 -- ============================================
--- ATALHOS
+-- ATALHOS (ATUALIZADOS PARA DUAS ESFERAS)
 -- ============================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
@@ -1855,7 +1939,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     elseif input.KeyCode == Enum.KeyCode.F2 then
         CONFIG.showReachSphere = not CONFIG.showReachSphere
         if not CONFIG.showReachSphere then destroyReachSphere() end
-        notify("Reach Sphere", CONFIG.showReachSphere and "VISÍVEL" or "OCULTO", 2)
+        notify("Esfera Pura", CONFIG.showReachSphere and "VISÍVEL" or "OCULTO", 2)
     elseif input.KeyCode == Enum.KeyCode.F3 then
         autoSkills = not autoSkills
         notify("Auto Skills", autoSkills and "ON" or "OFF", 2)
@@ -1864,6 +1948,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         CONFIG.antiLag.enabled = not CONFIG.antiLag.enabled
         if CONFIG.antiLag.enabled then applyAntiLag() else disableAntiLag() end
         notify("Anti Lag", CONFIG.antiLag.enabled and "ON" or "OFF", 2)
+    elseif input.KeyCode == Enum.KeyCode.F5 then
+        -- NOVO: Atalho para esfera Arthur
+        CONFIG.arthurSphere.enabled = not CONFIG.arthurSphere.enabled
+        if not CONFIG.arthurSphere.enabled then destroyArthurSphere() end
+        notify("Esfera Arthur", CONFIG.arthurSphere.enabled and "VISÍVEL" or "OCULTO", 2)
+        addLog("F5: Esfera Arthur " .. (CONFIG.arthurSphere.enabled and "ON" or "OFF"), "info")
     elseif input.KeyCode == Enum.KeyCode.Insert then
         if mainGui and mainGui.Parent then
             if mainGui.Enabled then
@@ -1897,6 +1987,11 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
         reachSphere = nil
     end
     
+    if arthurSphere then
+        arthurSphere:Destroy()
+        arthurSphere = nil
+    end
+    
     task.spawn(function()
         HRP = newChar:WaitForChild("HumanoidRootPart", 5)
         if HRP then
@@ -1918,5 +2013,6 @@ task.delay(0.5, function()
     mainLoop()
 end)
 
-print("CAFUXZ1 Hub v15.2 - Pure Sphere Edition Loaded!")
-print("✅ Apenas esfera pura - Nenhum cubo/SelectionBox!")
+print("CAFUXZ1 Hub v15.2 - Dual Sphere Edition Loaded!")
+print("✅ Duas Esferas: Pura (Primária) + Arthur V2 (Cyan)!")
+print("🎮 Atalhos: F1=AutoTouch | F2=EsferaPura | F5=EsferaArthur | F4=AntiLag")
