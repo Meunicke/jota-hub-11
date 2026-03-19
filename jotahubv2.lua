@@ -1,6 +1,6 @@
 --[[
-    CAFUXZ1 Hub v15.2 - Simple Edition
-    WindUI + Double Sphere + Minimize
+    CAFUXZ1 Hub v15.2 - Reach Fix Edition
+    Lógica de reach do script original
 ]]
 
 -- Esperar ambiente
@@ -102,47 +102,118 @@ local function updateSpheres()
     end
 end
 
--- Auto Touch
+-- ============================================
+-- SISTEMA DE REACH (LÓGICA DO SCRIPT ANTIGO)
+-- ============================================
+
+-- Lista de nomes de bolas
+local BallNames = { 
+    "TPS", "TCS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ",
+    "Ball", "Soccer", "Football", "Basketball", "Baseball", 
+    "BallTemplate", "GameBall", "Hitbox", "TouchPart", "GoalBall",
+    "Physics", "Interaction", "Trigger", "Touch", "Hit", "Box",
+    "Bola", "BALL", "SOCCER", "FOOTBALL", "SoccerBall"
+}
+
+-- Variáveis de controle
 local balls = {}
 local lastTouch = 0
+local touchDebounce = {}
 
-local function findBalls()
-    balls = {}
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            local name = obj.Name
-            if name == "TPS" or name == "TCS" or name == "MPS" or name == "PRS" or 
-               name == "Ball" or name == "Soccer" or name:find("Ball") then
-                table.insert(balls, obj)
+-- Encontrar bolas no workspace
+local function getBalls()
+    local list = {}
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("BasePart") then
+            for _, b in ipairs(BallNames) do
+                if v.Name == b or v.Name:find(b, 1, true) then
+                    table.insert(list, v)
+                    break
+                end
+            end
+        end
+    end
+    return list
+end
+
+-- Função de touch com debounce
+local function doTouch(ball, part)
+    if not ball or not ball.Parent or not part or not part.Parent then 
+        return 
+    end
+    
+    local key = ball.Name .. "_" .. part.Name .. "_" .. tostring(ball)
+    if touchDebounce[key] and tick() - touchDebounce[key] < 0.1 then 
+        return 
+    end
+    touchDebounce[key] = tick()
+    
+    pcall(function()
+        firetouchinterest(ball, part, 0)
+        task.wait(0.01)
+        firetouchinterest(ball, part, 1)
+        
+        if CONFIG.doubleTouch then
+            task.wait(0.05)
+            firetouchinterest(ball, part, 0)
+            firetouchinterest(ball, part, 1)
+        end
+    end)
+end
+
+-- Processar auto touch (LÓGICA CORRETA)
+local function processReach()
+    if not CONFIG.autoTouch then 
+        return 
+    end
+    
+    if not hrp or not hrp.Parent then 
+        return 
+    end
+    
+    local now = tick()
+    if now - lastTouch < 0.05 then 
+        return 
+    end
+    
+    local hrpPos = hrp.Position
+    local characterParts = {}
+    
+    -- Pegar todas as partes do character para tocar
+    for _, part in ipairs(char:GetChildren()) do
+        if part:IsA("BasePart") then
+            table.insert(characterParts, part)
+        end
+    end
+    
+    if #characterParts == 0 then 
+        return 
+    end
+    
+    -- Procurar bolas dentro do alcance
+    balls = getBalls()
+    
+    for _, ball in ipairs(balls) do
+        if ball and ball.Parent then
+            local dist = (ball.Position - hrpPos).Magnitude
+            
+            -- Se a bola estiver dentro do alcance da esfera principal
+            if dist <= CONFIG.reach then
+                lastTouch = now
+                
+                -- Fazer touch em todas as partes do character
+                for _, part in ipairs(characterParts) do
+                    doTouch(ball, part)
+                end
+                
+                break -- Só toca a bola mais próxima
             end
         end
     end
 end
 
-local function doTouch(ball)
-    if not CONFIG.autoTouch then return end
-    local now = tick()
-    if now - lastTouch < 0.05 then return end
-    
-    local dist = (ball.Position - hrp.Position).Magnitude
-    if dist <= CONFIG.reach then
-        lastTouch = now
-        pcall(function()
-            firetouchinterest(ball, hrp, 0)
-            task.wait(0.01)
-            firetouchinterest(ball, hrp, 1)
-            
-            if CONFIG.doubleTouch then
-                task.wait(0.05)
-                firetouchinterest(ball, hrp, 0)
-                firetouchinterest(ball, hrp, 1)
-            end
-        end)
-    end
-end
-
 -- ============================================
--- GUI PRINCIPAL
+-- GUI SIMPLES
 -- ============================================
 local gui = Instance.new("ScreenGui")
 gui.Name = "CAFUXZ1_Hub"
@@ -169,6 +240,17 @@ title.TextSize = 20
 title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = main
+
+-- Info das esferas
+local info = Instance.new("TextLabel")
+info.Size = UDim2.new(1, -20, 0, 25)
+info.Position = UDim2.new(0, 10, 0, 35)
+info.BackgroundTransparency = 1
+info.Text = "🟣 Principal: " .. CONFIG.reach .. " | 🔵 Arthur: " .. CONFIG.arthurReach
+info.TextColor3 = Color3.fromRGB(170, 170, 170)
+info.TextSize = 12
+info.Font = Enum.Font.Gotham
+info.Parent = main
 
 -- Botão Minimizar (-)
 local minimizeBtn = Instance.new("TextButton")
@@ -198,23 +280,13 @@ Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
 
 -- Container de botões
 local container = Instance.new("Frame")
-container.Size = UDim2.new(1, -20, 1, -90)
-container.Position = UDim2.new(0, 10, 0, 45)
+container.Size = UDim2.new(1, -20, 1, -110)
+container.Position = UDim2.new(0, 10, 0, 65)
 container.BackgroundTransparency = 1
 container.Parent = main
 
 local layout = Instance.new("UIListLayout", container)
 layout.Padding = UDim.new(0, 10)
-
--- Info
-local info = Instance.new("TextLabel")
-info.Size = UDim2.new(1, 0, 0, 30)
-info.BackgroundTransparency = 1
-info.Text = "🟣 Principal: 10 | 🔵 Arthur: 10"
-info.TextColor3 = Color3.fromRGB(170, 170, 170)
-info.TextSize = 12
-info.Font = Enum.Font.Gotham
-info.Parent = container
 
 -- Função criar toggle
 local function createToggle(text, default, callback)
@@ -412,7 +484,7 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- ============================================
--- LOOP PRINCIPAL (ATUALIZAÇÃO DAS ESFERAS)
+-- LOOP PRINCIPAL (ATUALIZAÇÃO DAS ESFERAS E REACH)
 -- ============================================
 RunService.RenderStepped:Connect(function()
     -- Atualizar character se mudou
@@ -424,13 +496,8 @@ RunService.RenderStepped:Connect(function()
     -- Atualizar esferas em tempo real (SEGUEM O JOGADOR)
     updateSpheres()
     
-    -- Procurar e tocar bolas
-    findBalls()
-    for _, ball in ipairs(balls) do
-        if ball and ball.Parent then
-            doTouch(ball)
-        end
-    end
+    -- Processar reach (LÓGICA DO SCRIPT ANTIGO)
+    processReach()
 end)
 
 -- Teclas de atalho
@@ -445,11 +512,10 @@ UserInputService.InputBegan:Connect(function(input)
 end)
 
 print("========================================")
-print("CAFUXZ1 Hub v15.2 - Double Sphere")
+print("CAFUXZ1 Hub v15.2 - Reach Fix")
 print("========================================")
 print("🟣 Esfera Principal: " .. CONFIG.reach)
 print("🔵 Esfera Arthur: " .. CONFIG.arthurReach)
 print("========================================")
-print("− : Minimizar | ⚡ : Restaurar")
-print("Insert : Alternar menu")
+print("Reach funcionando com lógica original!")
 print("========================================")
