@@ -1,1821 +1,335 @@
 --[[
-    CAFUXZ1 Hub v14.2 - CADUXX137 Ultimate Edition
-    ================================================
-    
-    CRIADORES OFICIAIS:
-    - Bazuka: Reconstrução total, integração WindUI + CADUXX137
-    - Cafuxz1: Contribuições, sistema GK e melhorias no sistema
-    - CADUXX137: Sistema de Ball Reach original (lógica de detecção de bolas)
-    - returnreturnfunction: Sistema Avatar Changer v1.0.0
-    
-    INTERFACE:
-    - CAFUXZ1 Hub: WindUI Library (emprestada para este projeto)
-    
-    DESCRIÇÃO:
-    Script focado exclusivamente em jogos de futebol/soccer do Roblox.
-    Combina a interface moderna do CAFUXZ1 Hub com o sistema avançado
-    de Ball Reach do CADUXX137 v14.0 Ultimate.
-    
-    FEATURES:
-    - Detecção automática de 200+ tipos de bolas
-    - Reach sphere/cubo visual com partículas
-    - Reach GK (Goleiro) com cubo ampliado
-    - Auto-touch com full body support
-    - Double touch e triple touch
-    - Auto-skills para botões de futebol
-    - Estatísticas em tempo real
-    - Temas dark/light/auto
-    - Atalhos de teclado (F1, F2, F3, F4)
-    - NOVO: Sistema Anti Lag completo
-    - NOVO: Avatar Changer by returnreturnfunction integrado
-    
-    VERSÃO: v14.2 Ultimate
-    STATUS: Produção
+    CAFUXZ1 Hub v15.2 - Simple Edition
+    WindUI + Double Sphere
 ]]
 
-if not game:IsLoaded() then game.Loaded:Wait() end
+-- Esperar ambiente
+task.wait(0.5)
 
--- ============================================
--- SERVIÇOS
--- ============================================
+-- Serviços
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
-local TweenService = game:GetService("TweenService")
-local StarterGui = game:GetService("StarterGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Lighting = game:GetService("Lighting")
-local TestService = game:GetService("TestService")
-local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
 
-local LocalPlayer = Players.LocalPlayer
-local Character = nil
-local Humanoid = nil
-local RootPart = nil
-local Camera = Workspace.CurrentCamera
+local player = Players.LocalPlayer
+local char = player.Character or player.CharacterAdded:Wait()
+local hrp = char:WaitForChild("HumanoidRootPart")
 
--- ============================================
--- CONFIGURAÇÕES CAFUXZ1 v14.2 ULTIMATE
--- ============================================
+-- Limpar GUIs antigas
+for _, obj in ipairs(CoreGui:GetChildren()) do
+    if obj.Name == "CAFUXZ1_Hub" then
+        obj:Destroy()
+    end
+end
+
+for _, obj in ipairs(Workspace:GetChildren()) do
+    if obj.Name == "CAFUXZ1_Sphere1" or obj.Name == "CAFUXZ1_Sphere2" then
+        obj:Destroy()
+    end
+end
+
+-- Configurações
 local CONFIG = {
-    -- Dimensões
-    width = 580,
-    height = 420,
-    sidebarWidth = 85,
-    
-    -- Core Ball Reach
     reach = 15,
-    showReachSphere = true,
+    arthurReach = 10,
+    showSpheres = true,
     autoTouch = true,
-    fullBodyTouch = true,
-    autoSecondTouch = true,
-    scanCooldown = 1.5,
-    scale = 1.0,
-    
-    -- Reach GK (NOVO)
-    reachGK = 25,
-    reachGKEnabled = false,
-    reachGKColor = Color3.fromRGB(255, 255, 0), -- Amarelo padrão
-    reachGKTransparency = 0.8,
-    reachGKShow = true,
-    
-    -- Anti Lag Settings (NOVO)
-    antiLag = {
-        enabled = false,
-        textures = true,
-        visualEffects = true,
-        parts = true,
-        particles = true,
-        sky = true,
-        fullBright = false
-    },
-    
-    -- Avatar Changer Settings (NOVO)
-    avatarChanger = {
-        favoritesFile = "CAFUXZ1_Favorites.json",
-        storedNames = {},
-        favorites = {},
-        currentTab = "Changer",
-        targetUserId = "",
-        shirtId = "",
-        pantsId = ""
-    },
-    
-    -- Sistema de temas
-    theme = "dark",
-    accentColor = Color3.fromRGB(99, 102, 241),
-    particleEffects = true,
-    soundEffects = true,
-    showStats = true,
-    autoUpdate = true,
-    
-    -- IDs das imagens atualizadas (Bazuka)
-    iconImage = "rbxassetid://88380080222477",      -- Ícone do botão
-    
-    -- Lista expandida de bolas (CADUXX137)
-    ballNames = { 
-        "TPS", "TCS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ",
-        "Ball", "Soccer", "Football", "Basketball", "Baseball", 
-        "BallTemplate", "GameBall", "Hitbox", "TouchPart", "GoalBall",
-        "Physics", "Interaction", "Trigger", "Touch", "Hit", "Box",
-        " bola", "Bola", "BALL", "SOCCER", "FOOTBALL", "SoccerBall"
-    },
-    
-    -- Cores tema Dark
-    primary = Color3.fromRGB(99, 102, 241),
-    secondary = Color3.fromRGB(139, 92, 246),
-    accent = Color3.fromRGB(14, 165, 233),
-    success = Color3.fromRGB(34, 197, 94),
-    danger = Color3.fromRGB(239, 68, 68),
-    warning = Color3.fromRGB(245, 158, 11),
-    info = Color3.fromRGB(59, 130, 246),
-    
-    bgDark = Color3.fromRGB(12, 12, 20),
-    bgCard = Color3.fromRGB(28, 28, 42),
-    bgElevated = Color3.fromRGB(42, 42, 62),
-    bgGlass = Color3.fromRGB(22, 22, 36),
-    
-    textPrimary = Color3.fromRGB(252, 252, 255),
-    textSecondary = Color3.fromRGB(170, 180, 210),
-    textMuted = Color3.fromRGB(130, 140, 170),
-    
-    -- Cores tema Light
-    lightBg = Color3.fromRGB(245, 245, 250),
-    lightCard = Color3.fromRGB(255, 255, 255),
-    lightText = Color3.fromRGB(30, 30, 40),
-    lightMuted = Color3.fromRGB(100, 110, 130)
+    doubleTouch = true,
+    color1 = Color3.fromRGB(99, 102, 241), -- Principal
+    color2 = Color3.fromRGB(0, 255, 255),   -- Arthur (Cyan)
 }
 
--- ============================================
--- ESTATÍSTICAS E LOGS (CAFUXZ1)
--- ============================================
-local STATS = {
-    totalTouches = 0,
-    ballsTouched = 0,
-    sessionStart = tick(),
-    fps = 0,
-    ping = 0,
-    lastUpdate = tick(),
-    touchesPerMinute = 0,
-    peakReach = 0,
-    skillsActivated = 0,
-    gkSaves = 0,
-    antiLagItems = 0,
-    morphsDone = 0
-}
+-- Esferas
+local sphere1 = nil
+local sphere2 = nil
 
-local LOGS = {}
-local MAX_LOGS = 50
-
-local function addLog(message, type)
-    type = type or "info"
-    table.insert(LOGS, 1, {
-        message = message,
-        type = type,
-        time = os.date("%H:%M:%S"),
-        timestamp = tick()
-    })
+-- Criar esferas
+local function createSpheres()
+    if sphere1 then sphere1:Destroy() end
+    if sphere2 then sphere2:Destroy() end
     
-    if #LOGS > MAX_LOGS then
-        table.remove(LOGS)
-    end
-end
-
--- ============================================
--- VARIÁVEIS DE ESTADO
--- ============================================
-local balls = {}
-local ballConnections = {}
-local reachSphere = nil
-local reachGKCube = nil
-local touchDebounce = {}
-local lastBallUpdate = 0
-local lastTouch = 0
-local isMinimized = false
-local iconGui = nil
-local mainGui = nil
-local currentTab = "reach"
-local autoSkills = true
-local lastSkillActivation = 0
-local skillCooldown = 0.5
-local activatedSkills = {}
-local antiLagActive = false
-local originalStates = {}
-local antiLagConnection = nil
-
-local skillButtonNames = {
-    "Shoot", "Pass", "Long", "Tackle", "Dribble", "GK", "Throw",
-    "Control", "Left", "Right", "High", "Low", "Rainbow",
-    "Chip", "Heel", "Volley", "Back Right", "Back Left",
-    "Carry", "Fake Shot", "Drag Back", "Header", "Bicycle",
-    "Shot", "Slide", "Goalkeeper", "Catch", "Punch",
-    "Short Pass", "Through Ball", "Cross", "Curve",
-    "Power Shot", "Precision", "First Touch", "Sprint", "Jump",
-    "Chute", "Passe", "Drible", "Controle", "Defender", "Save"
-}
-
--- ============================================
--- FUNÇÕES UTILITÁRIAS
--- ============================================
-local function notify(title, text, duration)
-    duration = duration or 3
-    pcall(function()
-        StarterGui:SetCore("SendNotification", {
-            Title = title or "⚡ CAFUXZ1 Hub",
-            Text = text or "",
-            Duration = duration
-        })
-    end)
-end
-
-local function tween(obj, props, time, style, dir, callback)
-    time = time or 0.35
-    style = style or Enum.EasingStyle.Quint
-    dir = dir or Enum.EasingDirection.Out
+    -- Esfera Principal
+    sphere1 = Instance.new("Part")
+    sphere1.Name = "CAFUXZ1_Sphere1"
+    sphere1.Shape = Enum.PartType.Ball
+    sphere1.Anchored = true
+    sphere1.CanCollide = false
+    sphere1.Material = Enum.Material.ForceField
+    sphere1.Transparency = 0.88
+    sphere1.Color = CONFIG.color1
+    sphere1.Parent = Workspace
     
-    local info = TweenInfo.new(time, style, dir)
-    local t = TweenService:Create(obj, info, props)
-    if callback then t.Completed:Connect(callback) end
-    t:Play()
-    return t
+    -- Esfera Arthur (Double Touch)
+    sphere2 = Instance.new("Part")
+    sphere2.Name = "CAFUXZ1_Sphere2"
+    sphere2.Shape = Enum.PartType.Ball
+    sphere2.Anchored = true
+    sphere2.CanCollide = false
+    sphere2.Material = Enum.Material.ForceField
+    sphere2.Transparency = CONFIG.doubleTouch and 0.75 or 1
+    sphere2.Color = CONFIG.color2
+    sphere2.Parent = Workspace
 end
 
--- ============================================
--- SISTEMA ANTI LAG (NOVO v14.1)
--- ============================================
-local function saveOriginalState(obj, property, value)
-    if not originalStates[obj] then
-        originalStates[obj] = {}
-    end
-    if originalStates[obj][property] == nil then
-        originalStates[obj][property] = value
-    end
-end
-
-local function applyAntiLag()
-    if antiLagActive then return end
-    antiLagActive = true
-    local Stuff = {}
-    
-    for _, v in next, game:GetDescendants() do
-        -- Parts Material
-        if CONFIG.antiLag.parts then
-            if v:IsA("Part") or v:IsA("Union") or v:IsA("BasePart") then
-                saveOriginalState(v, "Material", v.Material)
-                v.Material = Enum.Material.SmoothPlastic
-                table.insert(Stuff, v)
-            end
-        end
-        
-        -- Particles
-        if CONFIG.antiLag.particles then
-            if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Explosion") or v:IsA("Sparkles") or v:IsA("Fire") then
-                saveOriginalState(v, "Enabled", v.Enabled)
-                v.Enabled = false
-                table.insert(Stuff, v)
-            end
-        end
-        
-        -- Visual Effects
-        if CONFIG.antiLag.visualEffects then
-            if v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("SunRaysEffect") then
-                saveOriginalState(v, "Enabled", v.Enabled)
-                v.Enabled = false
-                table.insert(Stuff, v)
-            end
-        end
-        
-        -- Textures
-        if CONFIG.antiLag.textures then
-            if v:IsA("Decal") or v:IsA("Texture") then
-                saveOriginalState(v, "Texture", v.Texture)
-                v.Texture = ""
-                table.insert(Stuff, v)
-            end
-        end
-        
-        -- Sky
-        if CONFIG.antiLag.sky then
-            if v:IsA("Sky") then
-                saveOriginalState(v, "Parent", v.Parent)
-                v.Parent = nil
-                table.insert(Stuff, v)
-            end
-        end
-    end
-    
-    -- Full Bright
-    if CONFIG.antiLag.fullBright then
-        saveOriginalState(Lighting, "FogColor", Lighting.FogColor)
-        saveOriginalState(Lighting, "FogEnd", Lighting.FogEnd)
-        saveOriginalState(Lighting, "FogStart", Lighting.FogStart)
-        saveOriginalState(Lighting, "Ambient", Lighting.Ambient)
-        saveOriginalState(Lighting, "Brightness", Lighting.Brightness)
-        saveOriginalState(Lighting, "ColorShift_Bottom", Lighting.ColorShift_Bottom)
-        saveOriginalState(Lighting, "ColorShift_Top", Lighting.ColorShift_Top)
-        saveOriginalState(Lighting, "OutdoorAmbient", Lighting.OutdoorAmbient)
-        saveOriginalState(Lighting, "Outlines", Lighting.Outlines)
-        
-        Lighting.FogColor = Color3.fromRGB(255, 255, 255)
-        Lighting.FogEnd = math.huge
-        Lighting.FogStart = math.huge
-        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
-        Lighting.Brightness = 5
-        Lighting.ColorShift_Bottom = Color3.fromRGB(255, 255, 255)
-        Lighting.ColorShift_Top = Color3.fromRGB(255, 255, 255)
-        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-        Lighting.Outlines = true
-    end
-    
-    STATS.antiLagItems = #Stuff
-    TestService:Message("CAFUXZ1 Anti Lag: Desativados " .. #Stuff .. " efeitos/assets")
-    addLog("Anti Lag ATIVADO - " .. #Stuff .. " itens otimizados", "success")
-    
-    -- Monitorar novos objetos
-    antiLagConnection = game.DescendantAdded:Connect(function(v)
-        if not antiLagActive then return end
-        
-        task.wait(0.1)
-        
-        if CONFIG.antiLag.parts and (v:IsA("Part") or v:IsA("Union") or v:IsA("BasePart")) then
-            saveOriginalState(v, "Material", v.Material)
-            v.Material = Enum.Material.SmoothPlastic
-        end
-        
-        if CONFIG.antiLag.particles and (v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Explosion") or v:IsA("Sparkles") or v:IsA("Fire")) then
-            saveOriginalState(v, "Enabled", v.Enabled)
-            v.Enabled = false
-        end
-        
-        if CONFIG.antiLag.textures and (v:IsA("Decal") or v:IsA("Texture")) then
-            saveOriginalState(v, "Texture", v.Texture)
-            v.Texture = ""
-        end
-        
-        if CONFIG.antiLag.sky and v:IsA("Sky") then
-            saveOriginalState(v, "Parent", v.Parent)
-            v.Parent = nil
-        end
-    end)
-end
-
-local function disableAntiLag()
-    if not antiLagActive then return end
-    antiLagActive = false
-    
-    if antiLagConnection then
-        antiLagConnection:Disconnect()
-        antiLagConnection = nil
-    end
-    
-    -- Restaurar estados originais
-    for obj, properties in pairs(originalStates) do
-        if obj and obj.Parent then
-            for prop, value in pairs(properties) do
-                pcall(function()
-                    if prop == "Parent" then
-                        obj.Parent = value
-                    else
-                        obj[prop] = value
-                    end
-                end)
-            end
-        end
-    end
-    
-    originalStates = {}
-    STATS.antiLagItems = 0
-    addLog("Anti Lag DESATIVADO - Efeitos restaurados", "warning")
-end
-
-local function toggleAntiLag()
-    if antiLagActive then
-        disableAntiLag()
-    else
-        applyAntiLag()
-    end
-    return antiLagActive
-end
-
--- ============================================
--- SISTEMA AVATAR CHANGER (by returnreturnfunction)
--- ============================================
-local function loadFavorites()
-    if not isfile(CONFIG.avatarChanger.favoritesFile) then 
-        return {}
-    end
-
-    local success, data = pcall(function()
-        return HttpService:JSONDecode(readfile(CONFIG.avatarChanger.favoritesFile))
-    end)
-
-    if success and type(data) == "table" then
-        return data
-    end
-
-    return {}
-end
-
-local function saveFavorites(data)
-    pcall(function()
-        writefile(CONFIG.avatarChanger.favoritesFile, HttpService:JSONEncode(data))
-    end)
-end
-
-local function getUsername(userId)
-    if CONFIG.avatarChanger.storedNames[userId] then
-        return CONFIG.avatarChanger.storedNames[userId]
-    end
-
-    local success, name = pcall(function()
-        return Players:GetNameFromUserIdAsync(userId)
-    end)
-
-    if success and name and name ~= "" then
-        CONFIG.avatarChanger.storedNames[userId] = name
-        return name
-    else
-        return nil
-    end
-end
-
-local function applyAvatar(userId)
-    local character = LocalPlayer.Character
-    if not character then 
-        notify("Avatar Changer", "Character not found!", 3)
-        return false 
-    end
-    
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then 
-        notify("Avatar Changer", "Humanoid not found!", 3)
-        return false 
-    end
-
-    local success, result = pcall(function()
-        local description = Players:GetHumanoidDescriptionFromUserIdAsync(userId)
-        humanoid:ApplyDescriptionClientServer(description)
-
-        task.wait(0.1)
-
-        local animate = character:FindFirstChild("Animate")
-        if animate then
-            local animate_clone = animate:Clone()
-            animate:Destroy()
-            animate_clone.Parent = character
-        end
-
-        return true
-    end)
-
-    if success then
-        local username = getUsername(userId) or "Unknown"
-        notify("Avatar Changer", "Applied avatar of: " .. username, 3)
-        STATS.morphsDone = STATS.morphsDone + 1
-        addLog("Avatar changed to: " .. username .. " (ID: " .. userId .. ")", "success")
-        return true
-    else
-        notify("Avatar Changer", "Failed to apply avatar! Invalid ID?", 3)
-        return false
-    end
-end
-
-local function resetAvatar()
-    return applyAvatar(LocalPlayer.UserId)
-end
-
-local function addFavorite(userId)
-    local favorites = CONFIG.avatarChanger.favorites
-    
-    for i = 1, #favorites do
-        if favorites[i] == userId then
-            notify("Avatar Changer", "Already in favorites!", 2)
-            return false
-        end
-    end
-
-    table.insert(favorites, userId)
-    saveFavorites(favorites)
-    
-    local username = getUsername(userId) or "User"
-    notify("Avatar Changer", "Added " .. username .. " to favorites!", 2)
-    addLog("Added favorite: " .. username .. " (ID: " .. userId .. ")", "success")
-    return true
-end
-
-local function removeFavorite(userId)
-    local favorites = CONFIG.avatarChanger.favorites
-    
-    for i = 1, #favorites do
-        if favorites[i] == userId then
-            table.remove(favorites, i)
-            saveFavorites(favorites)
-            addLog("Removed favorite ID: " .. userId, "warning")
-            return true
-        end
-    end
-
-    return false
-end
-
--- ============================================
--- SISTEMA DE REACH GK (NOVO - CAFUXZ1)
--- ============================================
-local function updateReachGK()
-    if not CONFIG.reachGKShow then
-        if reachGKCube then
-            reachGKCube:Destroy()
-            reachGKCube = nil
-        end
+-- Atualizar esferas
+local function updateSpheres()
+    if not CONFIG.showSpheres then
+        if sphere1 then sphere1.Transparency = 1 end
+        if sphere2 then sphere2.Transparency = 1 end
         return
     end
     
-    if not reachGKCube or not reachGKCube.Parent then
-        reachGKCube = Instance.new("Part")
-        reachGKCube.Name = "CAFUXZ1_ReachGK_v14"
-        reachGKCube.Shape = Enum.PartType.Block
-        reachGKCube.Anchored = true
-        reachGKCube.CanCollide = false
-        reachGKCube.Transparency = CONFIG.reachGKTransparency
-        reachGKCube.Material = Enum.Material.ForceField
-        reachGKCube.Color = CONFIG.reachGKColor
-        reachGKCube.Parent = Workspace
-        
-        -- SelectionBox para destacar o cubo
-        local selectionBox = Instance.new("SelectionBox")
-        selectionBox.Name = "GKSelectionBox"
-        selectionBox.Adornee = reachGKCube
-        selectionBox.Color3 = CONFIG.reachGKColor
-        selectionBox.LineThickness = 0.08
-        selectionBox.Parent = reachGKCube
+    if not sphere1 or not sphere2 then
+        createSpheres()
     end
     
-    if RootPart and RootPart.Parent then
-        reachGKCube.Size = Vector3.new(CONFIG.reachGK, CONFIG.reachGK, CONFIG.reachGK)
-        reachGKCube.CFrame = RootPart.CFrame
+    if hrp and hrp.Parent then
+        sphere1.Position = hrp.Position
+        sphere1.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
+        sphere1.Color = CONFIG.color1
+        sphere1.Transparency = 0.88
         
-        -- Atualizar cor se mudou
-        reachGKCube.Color = CONFIG.reachGKColor
-        reachGKCube.Transparency = CONFIG.reachGKTransparency
-        
-        local selectionBox = reachGKCube:FindFirstChild("GKSelectionBox")
-        if selectionBox then
-            selectionBox.Color3 = CONFIG.reachGKColor
-        end
+        sphere2.Position = hrp.Position
+        sphere2.Size = Vector3.new(CONFIG.arthurReach * 2, CONFIG.arthurReach * 2, CONFIG.arthurReach * 2)
+        sphere2.Color = CONFIG.color2
+        sphere2.Transparency = CONFIG.doubleTouch and 0.75 or 1
     end
 end
 
-local function processReachGK()
-    if not CONFIG.reachGKEnabled or not RootPart then return end
-    
-    local overlap = OverlapParams.new()
-    overlap.FilterDescendantsInstances = {Character, reachGKCube}
-    overlap.FilterType = Enum.RaycastFilterType.Exclude
-    
-    local objectsInCube = Workspace:GetPartBoundsInBox(
-        reachGKCube.CFrame, 
-        reachGKCube.Size, 
-        overlap
-    )
-    
-    local torso = Character:FindFirstChild("Torso") or Character:FindFirstChild("UpperTorso")
-    if not torso then return end
-    
-    for _, obj in pairs(objectsInCube) do
-        if obj:IsA("BasePart") and not obj.Anchored then
-            -- Verificar se é uma bola
-            local isBall = false
-            for _, name in ipairs(CONFIG.ballNames) do
-                if obj.Name == name or obj.Name:find(name) then
-                    isBall = true
-                    break
-                end
-            end
-            
-            if isBall then
-                firetouchinterest(obj, torso, 0)
-                firetouchinterest(obj, torso, 1)
-                STATS.gkSaves = STATS.gkSaves + 1
-            end
-        end
-    end
-end
-
--- ============================================
--- ÍCONE FLUTUANTE PREMIUM COM NOVA IMAGEM
--- ============================================
-local function createIconButton()
-    if iconGui then iconGui:Destroy() end
-    
-    iconGui = Instance.new("ScreenGui")
-    iconGui.Name = "CAFUXZ1_Icon_v14"
-    iconGui.ResetOnSpawn = false
-    iconGui.DisplayOrder = 999999
-    iconGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    
-    local iconSize = 75 * CONFIG.scale
-    
-    -- Frame principal com fundo circular
-    local mainBtn = Instance.new("ImageButton")
-    mainBtn.Name = "IconButton"
-    mainBtn.Size = UDim2.new(0, iconSize, 0, iconSize)
-    mainBtn.Position = UDim2.new(0.5, -iconSize/2, 0.88, 0)
-    mainBtn.BackgroundTransparency = 1
-    mainBtn.Image = CONFIG.iconImage
-    mainBtn.ImageColor3 = Color3.new(1, 1, 1)
-    mainBtn.ScaleType = Enum.ScaleType.Crop
-    mainBtn.Parent = iconGui
-    
-    -- Corner radius para deixar circular
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
-    corner.Parent = mainBtn
-    
-    -- Borda glow
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = CONFIG.accentColor
-    stroke.Thickness = 2
-    stroke.Transparency = 0.3
-    stroke.Parent = mainBtn
-    
-    -- Efeito de glow animado externo
-    local glow = Instance.new("ImageLabel")
-    glow.Name = "Glow"
-    glow.Size = UDim2.new(1.4, 0, 1.4, 0)
-    glow.Position = UDim2.new(-0.2, 0, -0.2, 0)
-    glow.BackgroundTransparency = 1
-    glow.Image = CONFIG.iconImage
-    glow.ImageColor3 = CONFIG.accentColor
-    glow.ImageTransparency = 0.85
-    glow.ZIndex = -1
-    glow.Parent = mainBtn
-    Instance.new("UICorner", glow).CornerRadius = UDim.new(1, 0)
-    
-    -- Animação de pulso do glow
-    task.spawn(function()
-        while glow and glow.Parent do
-            tween(glow, {Size = UDim2.new(1.6, 0, 1.6, 0), ImageTransparency = 0.9}, 1)
-            task.wait(1)
-            tween(glow, {Size = UDim2.new(1.4, 0, 1.4, 0), ImageTransparency = 0.85}, 1)
-            task.wait(1)
-        end
-    end)
-    
-    -- Hover effects
-    mainBtn.MouseEnter:Connect(function()
-        tween(mainBtn, {Size = UDim2.new(0, iconSize * 1.15, 0, iconSize * 1.15)}, 0.3, Enum.EasingStyle.Back)
-        tween(stroke, {Thickness = 4, Transparency = 0}, 0.3)
-    end)
-    
-    mainBtn.MouseLeave:Connect(function()
-        tween(mainBtn, {Size = UDim2.new(0, iconSize, 0, iconSize)}, 0.3, Enum.EasingStyle.Back)
-        tween(stroke, {Thickness = 2, Transparency = 0.3}, 0.3)
-    end)
-    
-    -- Clique para abrir
-    mainBtn.MouseButton1Click:Connect(function()
-        tween(mainBtn, {Size = UDim2.new(0, 0, 0, 0), Rotation = 360}, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-        task.wait(0.4)
-        iconGui:Destroy()
-        iconGui = nil
-        isMinimized = false
-        notify("CAFUXZ1 Hub", "Use o botão minimizado ou reinicie o script", 3)
-    end)
-    
-    -- Draggable
-    local dragging = false
-    local dragStart, startPos
-    
-    mainBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = mainBtn.Position
-        end
-    end)
-    
-    mainBtn.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            mainBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-    
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-    
-    -- Entrada elástica
-    mainBtn.Size = UDim2.new(0, 0, 0, 0)
-    tween(mainBtn, {Size = UDim2.new(0, iconSize, 0, iconSize)}, 0.6, Enum.EasingStyle.Back)
-    
-    notify("CAFUXZ1 Hub v14", "Clique no ícone para abrir", 3)
-end
-
--- ============================================
--- INTERFACE WINDUI (CAFUXZ1 Hub)
--- ============================================
-local Libary = loadstring(game:HttpGet("https://raw.githubusercontent.com/BRENOPOOF/slapola/refs/heads/main/Main.txt"))()
-Workspace.FallenPartsDestroyHeight = -math.huge
-
-local Window = Libary:MakeWindow({
-    Title = "CAFUXZ1 Hub",
-    SubTitle = "v14.2 Ultimate | by Bazuka & Cafuxz1",
-    LoadText = "Carregando CADUXX137 Ultimate...",
-    Flags = "CAFUXZ1Hub_v14_Ultimate"
-})
-
--- Botão minimizar com novo ícone
-Window:AddMinimizeButton({
-    Button = {
-        Image = CONFIG.iconImage,
-        BackgroundTransparency = 0,
-        BackgroundColor3 = Color3.fromRGB(30, 30, 40),
-        Size = UDim2.new(0, 50, 0, 50),
-    },
-    Corner = {
-        CornerRadius = UDim.new(0, 100),
-    },
-})
-
--- ============================================
--- ABA INFO (CRÉDITOS OFICIAIS)
--- ============================================
-local InfoTab = Window:MakeTab({ Title = "Info", Icon = "rbxassetid://15309138473" })
-
-InfoTab:AddSection({ "Créditos Oficiais" })
-InfoTab:AddParagraph({ "Criadores:", "Bazuka & Cafuxz1" })
-InfoTab:AddParagraph({ "Sistema Ball Reach:", "CADUXX137 v14.0 Ultimate" })
-InfoTab:AddParagraph({ "Sistema Reach GK:", "Cafuxz1 v1.0" })
-InfoTab:AddParagraph({ "Sistema Anti Lag:", "CAFUXZ1 v14.1" })
-InfoTab:AddParagraph({ "Sistema Avatar Changer:", "by returnreturnfunction v1.0.0" })
-InfoTab:AddParagraph({ "Interface:", "CAFUXZ1 Hub (WindUI)" })
-
-InfoTab:AddSection({ "Sobre" })
-InfoTab:AddParagraph({ "Versão:", "v14.2 Ultimate Edition" })
-InfoTab:AddParagraph({ "Descrição:", "Sistema avançado de detecção e interação automática com bolas em jogos de futebol/soccer + Avatar Changer" })
-InfoTab:AddParagraph({ "Status:", "Sistema Ativo | GK: " .. (CONFIG.reachGKEnabled and "ON" or "OFF") .. " | Anti Lag: " .. (antiLagActive and "ON" or "OFF") })
-
-InfoTab:AddSection({ "Atalhos de Teclado" })
-InfoTab:AddParagraph({ "F1:", "Minimizar/Maximizar Hub" })
-InfoTab:AddParagraph({ "F2:", "Toggle Auto Touch" })
-InfoTab:AddParagraph({ "F3:", "Toggle Esfera Visual" })
-InfoTab:AddParagraph({ "F4:", "Toggle Reach GK" })
-InfoTab:AddParagraph({ "F5:", "Toggle Anti Lag" })
-
--- ============================================
--- ABA CHAR (AVATAR CHANGER - INTEGRADO NO HUB)
--- ============================================
-local CharTab = Window:MakeTab({ Title = "Char", Icon = "rbxassetid://15309138473" })
-
--- Sub-tabs usando Dropdown como seletor de abas
-CharTab:AddSection({ "👤 Avatar Changer by returnreturnfunction" })
-
-local currentCharTab = "Changer"
-
-CharTab:AddDropdown({
-    Name = "Seção",
-    Default = "Changer",
-    Options = {"Changer", "Customizer", "Favorites"},
-    Callback = function(Value)
-        currentCharTab = Value
-    end
-})
-
--- CHANGER TAB
-CharTab:AddSection({ "🔄 Changer - Morph por User ID" })
-
-local userIdInput = CharTab:AddInput({
-    Name = "User ID",
-    PlaceholderText = "Digite o ID do usuário...",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        CONFIG.avatarChanger.targetUserId = Text
-    end
-})
-
-CharTab:AddButton({
-    Name = "✅ Aplicar Avatar",
-    Callback = function()
-        local userId = tonumber(CONFIG.avatarChanger.targetUserId)
-        if not userId then
-            notify("Avatar Changer", "Digite um User ID válido!", 3)
-            return
-        end
-        applyAvatar(userId)
-    end
-})
-
-CharTab:AddButton({
-    Name = "🎲 Random Avatar",
-    Callback = function()
-        local randomId = math.random(10000000, 500000000)
-        CONFIG.avatarChanger.targetUserId = tostring(randomId)
-        -- Atualizar o input visualmente seria ideal, mas não temos referência direta
-        applyAvatar(randomId)
-    end
-})
-
-CharTab:AddButton({
-    Name = "⭐ Adicionar aos Favoritos",
-    Callback = function()
-        local userId = tonumber(CONFIG.avatarChanger.targetUserId)
-        if not userId then
-            notify("Avatar Changer", "Digite um User ID primeiro!", 3)
-            return
-        end
-        addFavorite(userId)
-    end
-})
-
-CharTab:AddButton({
-    Name = "♻️ Resetar para Original",
-    Callback = function()
-        resetAvatar()
-    end
-})
-
--- CUSTOMIZER TAB
-CharTab:AddSection({ "👕 Customizer - Shirt & Pants" })
-
-local shirtInput = CharTab:AddInput({
-    Name = "Shirt ID",
-    PlaceholderText = "Digite o ID da camisa...",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        CONFIG.avatarChanger.shirtId = Text
-    end
-})
-
-local pantsInput = CharTab:AddInput({
-    Name = "Pants ID",
-    PlaceholderText = "Digite o ID da calça...",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        CONFIG.avatarChanger.pantsId = Text
-    end
-})
-
-CharTab:AddButton({
-    Name = "✅ Aplicar Roupas",
-    Callback = function()
-        local shirtId = tonumber(CONFIG.avatarChanger.shirtId)
-        local pantsId = tonumber(CONFIG.avatarChanger.pantsId)
-
-        local character = LocalPlayer.Character
-        if not character then 
-            notify("Customizer", "Character not found!", 3)
-            return 
-        end
-
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if not humanoid then 
-            notify("Customizer", "Humanoid not found!", 3)
-            return 
-        end
-
-        local desc = humanoid:GetAppliedDescription()
-        local changed = false
-
-        if shirtId and shirtId > 0 then
-            for _, item in next, character:GetChildren() do
-                if item:IsA("Shirt") then
-                    item:Destroy()
-                end
-            end
-            desc.Shirt = shirtId
-            changed = true
-        end
-
-        if pantsId and pantsId > 0 then
-            for _, item in next, character:GetChildren() do
-                if item:IsA("Pants") then
-                    item:Destroy()
-                end
-            end
-            desc.Pants = pantsId
-            changed = true
-        end
-
-        if changed then
-            humanoid:ApplyDescriptionClientServer(desc)
-            notify("Customizer", "Roupas aplicadas com sucesso!", 3)
-            addLog("Customizer: Shirt=" .. (shirtId or "N/A") .. " Pants=" .. (pantsId or "N/A"), "success")
-        else
-            notify("Customizer", "Digite pelo menos um ID válido!", 3)
-        end
-    end
-})
-
-CharTab:AddButton({
-    Name = "♻️ Resetar Roupas",
-    Callback = function()
-        resetAvatar()
-    end
-})
-
--- FAVORITES TAB
-CharTab:AddSection({ "⭐ Favorites - Avatares Salvos" })
-
--- Lista de favoritos dinâmica
-local favoritesList = CharTab:AddParagraph({ "Carregando favoritos...", "" })
-
-local refreshFavoritesBtn = CharTab:AddButton({
-    Name = "🔄 Atualizar Lista",
-    Callback = function()
-        local favorites = CONFIG.avatarChanger.favorites
-        local text = ""
-        
-        if #favorites == 0 then
-            text = "Nenhum favorito salvo"
-        else
-            for i, userId in ipairs(favorites) do
-                local username = getUsername(userId) or "Unknown"
-                text = text .. i .. ". " .. username .. " (ID: " .. userId .. ")\n"
-            end
-        end
-        
-        favoritesList:Set("Favoritos (" .. #favorites .. "):", text)
-    end
-})
-
-CharTab:AddInput({
-    Name = "Remover Favorito (ID)",
-    PlaceholderText = "Digite o ID para remover...",
-    RemoveTextAfterFocusLost = true,
-    Callback = function(Text)
-        local userId = tonumber(Text)
-        if userId then
-            if removeFavorite(userId) then
-                notify("Favorites", "Removido com sucesso!", 2)
-                -- Atualizar lista automaticamente
-                local favorites = CONFIG.avatarChanger.favorites
-                local text = ""
-                if #favorites == 0 then
-                    text = "Nenhum favorito salvo"
-                else
-                    for i, id in ipairs(favorites) do
-                        local username = getUsername(id) or "Unknown"
-                        text = text .. i .. ". " .. username .. " (ID: " .. id .. ")\n"
-                    end
-                end
-                favoritesList:Set("Favoritos (" .. #favorites .. "):", text)
-            else
-                notify("Favorites", "ID não encontrado nos favoritos!", 2)
-            end
-        end
-    end
-})
-
-CharTab:AddSection({ "📊 Estatísticas" })
-
-local lastMorphLabel = CharTab:AddParagraph({ "Último Morph:", "Nenhum" })
-local morphsDoneLabel = CharTab:AddParagraph({ "Total de Morphs:", "0" })
-local favoritesCountLabel = CharTab:AddParagraph({ "Favoritos Salvos:", "0" })
-
--- ============================================
--- ABA BALL REACH (CADUXX137 CORE)
--- ============================================
-local BallTab = Window:MakeTab({ Title = "Ball Reach", Icon = "rbxassetid://104616032736993" })
-
-BallTab:AddSection({ "⚡ Configurações de Alcance" })
-
--- Slider de Reach
-BallTab:AddSlider({
-    Name = "Alcance (Reach)",
-    Min = 1,
-    Max = 50,
-    Default = 15,
-    Color = CONFIG.primary,
-    Increment = 1,
-    ValueName = "studs",
-    Callback = function(Value)
-        CONFIG.reach = Value
-        addLog("Alcance ajustado para " .. Value .. " studs", "info")
-        notify("Ball Reach", "Alcance: " .. Value .. " studs", 1)
-    end
-})
-
--- Quick buttons
-BallTab:AddButton({
-    Name = "Alcance Mínimo (1)",
-    Callback = function()
-        CONFIG.reach = 1
-        notify("Reach", "Mínimo: 1 stud", 1)
-    end
-})
-
-BallTab:AddButton({
-    Name = "Alcance Médio (15)",
-    Callback = function()
-        CONFIG.reach = 15
-        notify("Reach", "Médio: 15 studs", 1)
-    end
-})
-
-BallTab:AddButton({
-    Name = "Alcance Máximo (50)",
-    Callback = function()
-        CONFIG.reach = 50
-        notify("Reach", "Máximo: 50 studs", 1)
-    end
-})
-
-BallTab:AddSection({ "🎮 Sistema de Toque" })
-
-BallTab:AddToggle({
-    Name = "Auto Touch Automático",
-    Default = true,
-    Callback = function(value)
-        CONFIG.autoTouch = value
-        addLog("Auto Touch: " .. (value and "ON" or "OFF"), value and "success" or "warning")
-    end
-})
-
-BallTab:AddToggle({
-    Name = "Full Body Touch",
-    Default = true,
-    Callback = function(value)
-        CONFIG.fullBodyTouch = value
-        addLog("Full Body: " .. (value and "ON" or "OFF"), value and "success" or "warning")
-    end
-})
-
-BallTab:AddToggle({
-    Name = "Double Touch (2x rápido)",
-    Default = true,
-    Callback = function(value)
-        CONFIG.autoSecondTouch = value
-        addLog("Double Touch: " .. (value and "ON" or "OFF"), value and "success" or "warning")
-    end
-})
-
-BallTab:AddSection({ "👁️ Visualização" })
-
-BallTab:AddToggle({
-    Name = "Mostrar Esfera de Alcance",
-    Default = true,
-    Callback = function(value)
-        CONFIG.showReachSphere = value
-        addLog("Esfera: " .. (value and "ON" or "OFF"), "info")
-    end
-})
-
-BallTab:AddToggle({
-    Name = "Partículas de Fundo",
-    Default = true,
-    Callback = function(value)
-        CONFIG.particleEffects = value
-        addLog("Partículas: " .. (value and "ON" or "OFF"), "info")
-    end
-})
-
-BallTab:AddSection({ "🤖 Auto Skills" })
-
-BallTab:AddToggle({
-    Name = "Auto Skills (Botões de Futebol)",
-    Default = true,
-    Callback = function(value)
-        autoSkills = value
-        addLog("Auto Skills: " .. (value and "ON" or "OFF"), value and "success" or "warning")
-    end
-})
-
-BallTab:AddParagraph({ "Skills Detectadas:", "Shoot, Pass, Dribble, Control, Tackle, etc." })
-
-BallTab:AddSection({ "📊 Status em Tempo Real" })
-
-local statusLabel = BallTab:AddParagraph({ "Bolas Detectadas:", "0" })
-local reachLabel = BallTab:AddParagraph({ "Alcance Atual:", "15 studs" })
-local touchesLabel = BallTab:AddParagraph({ "Toques Totais:", "0" })
-
--- ============================================
--- ABA REACH GK (NOVO - CAFUXZ1)
--- ============================================
-local GKTab = Window:MakeTab({ Title = "Reach GK", Icon = "rbxassetid://11322093465" })
-
-GKTab:AddSection({ "🥅 Sistema de Goleiro (GK)" })
-
-GKTab:AddToggle({
-    Name = "Ativar Reach GK",
-    Default = false,
-    Callback = function(value)
-        CONFIG.reachGKEnabled = value
-        addLog("Reach GK: " .. (value and "ON" or "OFF"), value and "success" or "warning")
-        notify("Reach GK", value and "ATIVADO - Modo Goleiro" or "DESATIVADO", 2)
-    end
-})
-
-GKTab:AddSlider({
-    Name = "Tamanho do Cubo GK",
-    Min = 5,
-    Max = 60,
-    Default = 25,
-    Color = CONFIG.warning,
-    Increment = 1,
-    ValueName = "studs",
-    Callback = function(Value)
-        CONFIG.reachGK = Value
-        addLog("Reach GK tamanho: " .. Value .. " studs", "info")
-    end
-})
-
-GKTab:AddSection({ "🎨 Personalização do Cubo" })
-
-GKTab:AddToggle({
-    Name = "Mostrar Cubo GK",
-    Default = true,
-    Callback = function(value)
-        CONFIG.reachGKShow = value
-        addLog("Visual GK: " .. (value and "ON" or "OFF"), "info")
-    end
-})
-
-GKTab:AddSlider({
-    Name = "Transparência do Cubo",
-    Min = 0,
-    Max = 1,
-    Default = 0.8,
-    Increment = 0.1,
-    ValueName = "",
-    Callback = function(Value)
-        CONFIG.reachGKTransparency = Value
-    end
-})
-
-GKTab:AddSection({ "🌈 Cores do Cubo GK" })
-
-GKTab:AddButton({
-    Name = "Cor: Amarelo (Padrão)",
-    Callback = function()
-        CONFIG.reachGKColor = Color3.fromRGB(255, 255, 0)
-        notify("Cor GK", "Amarelo selecionado", 1)
-    end
-})
-
-GKTab:AddButton({
-    Name = "Cor: Vermelho",
-    Callback = function()
-        CONFIG.reachGKColor = Color3.fromRGB(255, 0, 0)
-        notify("Cor GK", "Vermelho selecionado", 1)
-    end
-})
-
-GKTab:AddButton({
-    Name = "Cor: Azul",
-    Callback = function()
-        CONFIG.reachGKColor = Color3.fromRGB(0, 100, 255)
-        notify("Cor GK", "Azul selecionado", 1)
-    end
-})
-
-GKTab:AddButton({
-    Name = "Cor: Verde",
-    Callback = function()
-        CONFIG.reachGKColor = Color3.fromRGB(0, 255, 0)
-        notify("Cor GK", "Verde selecionado", 1)
-    end
-})
-
-GKTab:AddButton({
-    Name = "Cor: Roxo",
-    Callback = function()
-        CONFIG.reachGKColor = Color3.fromRGB(139, 0, 255)
-        notify("Cor GK", "Roxo selecionado", 1)
-    end
-})
-
-GKTab:AddButton({
-    Name = "Cor: Laranja",
-    Callback = function()
-        CONFIG.reachGKColor = Color3.fromRGB(255, 165, 0)
-        notify("Cor GK", "Laranja selecionado", 1)
-    end
-})
-
-GKTab:AddSection({ "📊 Estatísticas GK" })
-
-local gkStatusLabel = GKTab:AddParagraph({ "Status GK:", "Desativado" })
-local gkSizeLabel = GKTab:AddParagraph({ "Tamanho do Cubo:", "25 studs" })
-local gkSavesLabel = GKTab:AddParagraph({ "Defesas (Saves):", "0" })
-
--- ============================================
--- ABA ANTI LAG (NOVO v14.1)
--- ============================================
-local AntiLagTab = Window:MakeTab({ Title = "Anti Lag", Icon = "rbxassetid://11322093465" })
-
-AntiLagTab:AddSection({ "🚀 Otimização de Performance" })
-
-AntiLagTab:AddToggle({
-    Name = "🔥 Ativar Anti Lag",
-    Default = false,
-    Callback = function(value)
-        CONFIG.antiLag.enabled = value
-        if value then
-            applyAntiLag()
-            notify("Anti Lag", "OTIMIZAÇÃO ATIVADA - FPS Boost!", 3)
-        else
-            disableAntiLag()
-            notify("Anti Lag", "Efeitos restaurados", 2)
-        end
-    end
-})
-
-AntiLagTab:AddSection({ "⚙️ Configurações de Otimização" })
-
-AntiLagTab:AddToggle({
-    Name = "Texturas (Decals/Textures)",
-    Default = true,
-    Callback = function(value)
-        CONFIG.antiLag.textures = value
-        addLog("Anti Lag Textures: " .. (value and "ON" or "OFF"), "info")
-    end
-})
-
-AntiLagTab:AddToggle({
-    Name = "Efeitos Visuais (Bloom/Blur/SunRays)",
-    Default = true,
-    Callback = function(value)
-        CONFIG.antiLag.visualEffects = value
-        addLog("Anti Lag Visual Effects: " .. (value and "ON" or "OFF"), "info")
-    end
-})
-
-AntiLagTab:AddToggle({
-    Name = "Materiais das Partes (Smooth Plastic)",
-    Default = true,
-    Callback = function(value)
-        CONFIG.antiLag.parts = value
-        addLog("Anti Lag Parts: " .. (value and "ON" or "OFF"), "info")
-    end
-})
-
-AntiLagTab:AddToggle({
-    Name = "Partículas (Fogo/Fumaça/Explosões)",
-    Default = true,
-    Callback = function(value)
-        CONFIG.antiLag.particles = value
-        addLog("Anti Lag Particles: " .. (value and "ON" or "OFF"), "info")
-    end
-})
-
-AntiLagTab:AddToggle({
-    Name = "Céu (Remover Skybox)",
-    Default = true,
-    Callback = function(value)
-        CONFIG.antiLag.sky = value
-        addLog("Anti Lag Sky: " .. (value and "ON" or "OFF"), "info")
-    end
-})
-
-AntiLagTab:AddToggle({
-    Name = "Full Bright (Iluminação Máxima)",
-    Default = false,
-    Callback = function(value)
-        CONFIG.antiLag.fullBright = value
-        addLog("Anti Lag FullBright: " .. (value and "ON" or "OFF"), "info")
-    end
-})
-
-AntiLagTab:AddSection({ "📊 Status da Otimização" })
-
-local antiLagStatusLabel = AntiLagTab:AddParagraph({ "Status:", "Desativado" })
-local antiLagItemsLabel = AntiLagTab:AddParagraph({ "Itens Otimizados:", "0" })
-
-AntiLagTab:AddSection({ "⚡ Ações Rápidas" })
-
-AntiLagTab:AddButton({
-    Name = "Ativar Tudo (MAX FPS)",
-    Callback = function()
-        CONFIG.antiLag.textures = true
-        CONFIG.antiLag.visualEffects = true
-        CONFIG.antiLag.parts = true
-        CONFIG.antiLag.particles = true
-        CONFIG.antiLag.sky = true
-        CONFIG.antiLag.fullBright = true
-        CONFIG.antiLag.enabled = true
-        
-        applyAntiLag()
-        notify("Anti Lag", "MODO MÁXIMO DESEMPENHO ATIVADO!", 3)
-        addLog("Anti Lag MAX ativado", "success")
-    end
-})
-
-AntiLagTab:AddButton({
-    Name = "Desativar Tudo (Restaurar)",
-    Callback = function()
-        CONFIG.antiLag.enabled = false
-        disableAntiLag()
-        notify("Anti Lag", "Todos os efeitos restaurados", 2)
-    end
-})
-
--- ============================================
--- ABA ESTATÍSTICAS (CAFUXZ1)
--- ============================================
-local StatsTab = Window:MakeTab({ Title = "Estatísticas", Icon = "rbxassetid://11322093465" })
-
-StatsTab:AddSection({ "📈 Performance da Sessão" })
-
-local sessionTimeLabel = StatsTab:AddParagraph({ "Tempo de Uso:", "00:00" })
-local fpsLabel = StatsTab:AddParagraph({ "FPS Médio:", "60" })
-local tpmLabel = StatsTab:AddParagraph({ "Toques por Minuto:", "0" })
-
-StatsTab:AddSection({ "🏆 Conquistas" })
-
-local totalTouchesLabel = StatsTab:AddParagraph({ "Toques Totais:", "0" })
-local ballsTouchedLabel = StatsTab:AddParagraph({ "Bolas Tocadas:", "0" })
-local skillsActivatedLabel = StatsTab:AddParagraph({ "Skills Ativadas:", "0" })
-local peakReachLabel = StatsTab:AddParagraph({ "Pico de Alcance:", "0" })
-local gkTotalSavesLabel = StatsTab:AddParagraph({ "Defesas GK:", "0" })
-local antiLagTotalLabel = StatsTab:AddParagraph({ "Itens Anti Lag:", "0" })
-local morphsTotalLabel = StatsTab:AddParagraph({ "Morphs Realizados:", "0" })
-
--- ============================================
--- ABA CONFIGURAÇÕES (CAFUXZ1)
--- ============================================
-local ConfigTab = Window:MakeTab({ Title = "Configurações", Icon = "rbxassetid://11322093465" })
-
-ConfigTab:AddSection({ "🎨 Aparência" })
-
-ConfigTab:AddDropdown({
-    Name = "Tema do Hub",
-    Default = "dark",
-    Options = {"dark", "light", "auto"},
-    Callback = function(Value)
-        notify("Tema", "Modo " .. Value:upper() .. " ativado!", 2)
-    end
-})
-
-ConfigTab:AddSlider({
-    Name = "Escala da Interface",
-    Min = 0.5,
-    Max = 1.5,
-    Default = 1.0,
-    Increment = 0.1,
-    ValueName = "x",
-    Callback = function(Value)
-        CONFIG.scale = Value
-        notify("Config", "Escala: " .. Value .. "x (reinicie para aplicar)", 3)
-    end
-})
-
-ConfigTab:AddSection({ "🔧 Sistema" })
-
-ConfigTab:AddSlider({
-    Name = "Cooldown de Scan",
-    Min = 0.5,
-    Max = 5.0,
-    Default = 1.5,
-    Increment = 0.1,
-    ValueName = "s",
-    Callback = function(Value)
-        CONFIG.scanCooldown = Value
-    end
-})
-
-ConfigTab:AddToggle({
-    Name = "Auto Update (Scan Automático)",
-    Default = true,
-    Callback = function(value)
-        CONFIG.autoUpdate = value
-    end
-})
-
-ConfigTab:AddSection({ "🚨 Debug" })
-
-ConfigTab:AddButton({
-    Name = "Forçar Scan de Bolas",
-    Callback = function()
-        local count = findBalls()
-        notify("Debug", "Bolas encontradas: " .. count, 2)
-        addLog("Scan manual: " .. count .. " bolas", count > 0 and "success" or "warning")
-    end
-})
-
-ConfigTab:AddButton({
-    Name = "Limpar Cache de Touch",
-    Callback = function()
-        table.clear(touchDebounce)
-        notify("Debug", "Cache limpo!", 1)
-    end
-})
-
-ConfigTab:AddButton({
-    Name = "Resetar Estatísticas",
-    Callback = function()
-        STATS.totalTouches = 0
-        STATS.ballsTouched = 0
-        STATS.skillsActivated = 0
-        STATS.peakReach = 0
-        STATS.gkSaves = 0
-        STATS.antiLagItems = 0
-        STATS.morphsDone = 0
-        STATS.sessionStart = tick()
-        notify("Stats", "Estatísticas resetadas!", 2)
-        addLog("Estatísticas resetadas", "warning")
-    end
-})
-
-ConfigTab:AddSection({ "⚠️ Reset Total" })
-
-ConfigTab:AddButton({
-    Name = "RESETAR TUDO",
-    Callback = function()
-        CONFIG.reach = 15
-        CONFIG.showReachSphere = true
-        CONFIG.autoTouch = true
-        CONFIG.fullBodyTouch = true
-        CONFIG.autoSecondTouch = true
-        CONFIG.scale = 1.0
-        CONFIG.theme = "dark"
-        CONFIG.particleEffects = true
-        CONFIG.reachGK = 25
-        CONFIG.reachGKEnabled = false
-        CONFIG.reachGKColor = Color3.fromRGB(255, 255, 0)
-        
-        -- Reset Anti Lag
-        CONFIG.antiLag.enabled = false
-        disableAntiLag()
-        
-        STATS.totalTouches = 0
-        STATS.ballsTouched = 0
-        STATS.skillsActivated = 0
-        STATS.peakReach = 0
-        STATS.gkSaves = 0
-        STATS.antiLagItems = 0
-        STATS.morphsDone = 0
-        
-        notify("Reset", "Todas as configurações padrão restauradas!", 3)
-        addLog("Reset total executado", "warning")
-    end
-})
-
--- ============================================
--- LÓGICA CADUXX137 v14.0 (PRESERVADA 100%)
--- ============================================
+-- Auto Touch
+local balls = {}
+local lastTouch = 0
 
 local function findBalls()
-    local now = tick()
-    if now - lastBallUpdate < CONFIG.scanCooldown then return #balls end
-    lastBallUpdate = now
-    
-    table.clear(balls)
-    for _, conn in ipairs(ballConnections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    table.clear(ballConnections)
-    
+    balls = {}
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Parent then
-            for _, name in ipairs(CONFIG.ballNames) do
-                if obj.Name == name or obj.Name:find(name) then
-                    table.insert(balls, obj)
-                    local conn = obj.AncestryChanged:Connect(function()
-                        if not obj.Parent then findBalls() end
-                    end)
-                    table.insert(ballConnections, conn)
-                    break
-                end
+        if obj:IsA("BasePart") then
+            local name = obj.Name
+            if name == "TPS" or name == "TCS" or name == "MPS" or name == "PRS" or 
+               name == "Ball" or name == "Soccer" or name:find("Ball") then
+                table.insert(balls, obj)
             end
-        end
-    end
-    
-    if #balls > STATS.peakReach then
-        STATS.peakReach = #balls
-    end
-    
-    return #balls
-end
-
-local function updateCharacter()
-    local newChar = LocalPlayer.Character
-    if newChar ~= Character then
-        Character = newChar
-        if Character then
-            Humanoid = Character:WaitForChild("Humanoid", 2)
-            RootPart = Character:WaitForChild("HumanoidRootPart", 2)
-            if RootPart then
-                addLog("Personagem conectado", "success")
-            end
-        else
-            Humanoid = nil
-            RootPart = nil
-            addLog("Personagem desconectado", "warning")
         end
     end
 end
 
-local function getBodyParts()
-    if not Character then return {} end
-    local parts = {}
-    for _, part in ipairs(Character:GetChildren()) do
-        if part:IsA("BasePart") then
-            if CONFIG.fullBodyTouch then
-                table.insert(parts, part)
-            elseif part.Name == "HumanoidRootPart" then
-                table.insert(parts, part)
-            end
-        end
-    end
-    return parts
-end
-
-local function updateSphere()
-    if not CONFIG.showReachSphere then
-        if reachSphere then
-            reachSphere:Destroy()
-            reachSphere = nil
-        end
-        return
-    end
+local function doTouch(ball)
+    if not CONFIG.autoTouch then return end
+    local now = tick()
+    if now - lastTouch < 0.05 then return end
     
-    if not reachSphere or not reachSphere.Parent then
-        reachSphere = Instance.new("Part")
-        reachSphere.Name = "CAFUXZ1_ReachSphere_v14"
-        reachSphere.Shape = Enum.PartType.Ball
-        reachSphere.Anchored = true
-        reachSphere.CanCollide = false
-        reachSphere.Transparency = 0.92
-        reachSphere.Material = Enum.Material.ForceField
-        reachSphere.Color = CONFIG.accentColor
-        reachSphere.Parent = Workspace
-    end
-    
-    if RootPart and RootPart.Parent then
-        reachSphere.Position = RootPart.Position
-        reachSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
-    end
-end
-
-local function doTouch(ball, part)
-    if not ball or not ball.Parent or not part or not part.Parent then return end
-    
-    local key = ball.Name .. "_" .. part.Name .. "_" .. tostring(ball)
-    if touchDebounce[key] and tick() - touchDebounce[key] < 0.08 then return end
-    touchDebounce[key] = tick()
-    
-    pcall(function()
-        firetouchinterest(ball, part, 0)
-        task.wait(0.01)
-        firetouchinterest(ball, part, 1)
-        
-        if CONFIG.autoSecondTouch then
-            task.wait(0.04)
-            firetouchinterest(ball, part, 0)
-            firetouchinterest(ball, part, 1)
-        end
-        
-        STATS.totalTouches = STATS.totalTouches + 1
-        STATS.ballsTouched = STATS.ballsTouched + 1
-        
-    end)
-end
-
-local function findSkillButtons()
-    local buttons = {}
-    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-    
-    for _, gui in ipairs(playerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and not gui.Name:find("CAFUXZ1") and not gui.Name:find("CADU") then
-            for _, obj in ipairs(gui:GetDescendants()) do
-                if obj:IsA("TextButton") or obj:IsA("ImageButton") then
-                    for _, skillName in ipairs(skillButtonNames) do
-                        if obj.Name == skillName or obj.Text == skillName then
-                            table.insert(buttons, obj)
-                            break
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return buttons
-end
-
-local function activateSkillButton(button)
-    if not button or not button.Parent then return end
-    
-    local key = tostring(button)
-    if activatedSkills[key] and tick() - activatedSkills[key] < skillCooldown then return end
-    activatedSkills[key] = tick()
-    
-    pcall(function()
-        if button:IsA("GuiButton") then
-            for _, conn in ipairs(getconnections(button.MouseButton1Click)) do
-                conn:Fire()
-            end
-            for _, conn in ipairs(getconnections(button.Activated)) do
-                conn:Fire()
-            end
+    local dist = (ball.Position - hrp.Position).Magnitude
+    if dist <= CONFIG.reach then
+        lastTouch = now
+        pcall(function()
+            firetouchinterest(ball, hrp, 0)
+            task.wait(0.01)
+            firetouchinterest(ball, hrp, 1)
             
-            STATS.skillsActivated = STATS.skillsActivated + 1
+            if CONFIG.doubleTouch then
+                task.wait(0.05)
+                firetouchinterest(ball, hrp, 0)
+                firetouchinterest(ball, hrp, 1)
+            end
+        end)
+    end
+end
+
+-- WindUI Simples
+local gui = Instance.new("ScreenGui")
+gui.Name = "CAFUXZ1_Hub"
+gui.ResetOnSpawn = false
+gui.Parent = CoreGui
+
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 300, 0, 400)
+main.Position = UDim2.new(0.5, -150, 0.5, -200)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+main.BorderSizePixel = 0
+main.Parent = gui
+
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+
+-- Título
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 40)
+title.BackgroundTransparency = 1
+title.Text = "⚡ CAFUXZ1 Hub v15.2"
+title.TextColor3 = CONFIG.color1
+title.TextSize = 20
+title.Font = Enum.Font.GothamBold
+title.Parent = main
+
+-- Container de botões
+local container = Instance.new("Frame")
+container.Size = UDim2.new(1, -20, 1, -50)
+container.Position = UDim2.new(0, 10, 0, 45)
+container.BackgroundTransparency = 1
+container.Parent = main
+
+local layout = Instance.new("UIListLayout", container)
+layout.Padding = UDim.new(0, 10)
+
+-- Função criar toggle
+local function createToggle(text, default, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.BackgroundColor3 = default and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(60, 60, 80)
+    btn.Text = text .. ": " .. (default and "ON" or "OFF")
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = container
+    
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    
+    local enabled = default
+    
+    btn.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        btn.BackgroundColor3 = enabled and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(60, 60, 80)
+        btn.Text = text .. ": " .. (enabled and "ON" or "OFF")
+        callback(enabled)
+    end)
+    
+    return btn
+end
+
+-- Função criar slider (simplificado)
+local function createSlider(text, min, max, default, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 60)
+    frame.BackgroundTransparency = 1
+    frame.Parent = container
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 20)
+    label.BackgroundTransparency = 1
+    label.Text = text .. ": " .. default
+    label.TextColor3 = Color3.fromRGB(200, 200, 200)
+    label.TextSize = 12
+    label.Font = Enum.Font.Gotham
+    label.Parent = frame
+    
+    local input = Instance.new("TextBox")
+    input.Size = UDim2.new(1, 0, 0, 35)
+    input.Position = UDim2.new(0, 0, 0, 25)
+    input.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    input.Text = tostring(default)
+    input.TextColor3 = Color3.new(1, 1, 1)
+    input.TextSize = 16
+    input.Font = Enum.Font.GothamBold
+    input.Parent = frame
+    
+    Instance.new("UICorner", input).CornerRadius = UDim.new(0, 6)
+    
+    input.FocusLost:Connect(function()
+        local num = tonumber(input.Text)
+        if num then
+            num = math.clamp(math.floor(num), min, max)
+            input.Text = tostring(num)
+            label.Text = text .. ": " .. num
+            callback(num)
         end
     end)
 end
 
--- ============================================
--- LOOP PRINCIPAL (CAFUXZ1 v14.0)
--- ============================================
+-- Criar controles
+createToggle("Auto Touch", CONFIG.autoTouch, function(v)
+    CONFIG.autoTouch = v
+end)
 
+createToggle("Mostrar Esferas", CONFIG.showSpheres, function(v)
+    CONFIG.showSpheres = v
+    updateSpheres()
+end)
+
+createToggle("Double Touch (Arthur)", CONFIG.doubleTouch, function(v)
+    CONFIG.doubleTouch = v
+    updateSpheres()
+end)
+
+createSlider("Alcance Principal", 5, 100, CONFIG.reach, function(v)
+    CONFIG.reach = v
+end)
+
+createSlider("Alcance Arthur", 1, 150, CONFIG.arthurReach, function(v)
+    CONFIG.arthurReach = v
+end)
+
+-- Botão fechar
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.TextSize = 18
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Parent = main
+
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+
+closeBtn.MouseButton1Click:Connect(function()
+    gui.Enabled = false
+end)
+
+-- Drag
+local dragging = false
+local dragStart, startPos
+
+main.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = main.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+                    input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+                                  startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- Loop principal
 RunService.Heartbeat:Connect(function()
-    STATS.fps = math.floor(1 / RunService.Heartbeat:Wait())
-    
-    updateCharacter()
-    updateSphere()
-    updateReachGK()
-    
-    if CONFIG.reachGKEnabled then
-        processReachGK()
+    -- Atualizar character se mudou
+    if player.Character and player.Character ~= char then
+        char = player.Character
+        hrp = char:WaitForChild("HumanoidRootPart")
     end
     
-    if CONFIG.autoUpdate then
-        findBalls()
-    end
+    -- Atualizar esferas
+    updateSpheres()
     
-    if not RootPart then return end
-    
-    -- Sistema Normal (apenas se GK não estiver ativo)
-    if not CONFIG.reachGKEnabled then
-        local now = tick()
-        if now - lastTouch < 0.05 then return end
-        
-        local hrpPos = RootPart.Position
-        local characterParts = getBodyParts()
-        if #characterParts == 0 then return end
-        
-        local closestBall = nil
-        local closestDistance = CONFIG.reach
-        
-        for _, ball in ipairs(balls) do
-            if ball and ball.Parent then
-                local distance = (ball.Position - hrpPos).Magnitude
-                if distance <= CONFIG.reach and distance < closestDistance then
-                    closestDistance = distance
-                    closestBall = ball
-                end
-            end
-        end
-        
-        if CONFIG.autoTouch and closestBall then
-            lastTouch = now
-            for _, part in ipairs(characterParts) do
-                doTouch(closestBall, part)
-            end
-        end
-        
-        if autoSkills and closestBall and (now - lastSkillActivation > skillCooldown) then
-            lastSkillActivation = now
-            local skillButtons = findSkillButtons()
-            for _, button in ipairs(skillButtons) do
-                if button.Name == "Shoot" or button.Name == "Pass" or button.Name == "Dribble" or 
-                   button.Name == "Control" or button.Name == "Chute" or button.Name == "Passe" then
-                    activateSkillButton(button)
-                end
-            end
+    -- Procurar e tocar bolas
+    findBalls()
+    for _, ball in ipairs(balls) do
+        if ball and ball.Parent then
+            doTouch(ball)
         end
     end
 end)
 
--- ============================================
--- ATALHOS DE TECLADO (CAFUXZ1)
--- ============================================
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    -- F1: Minimizar/Maximizar
-    if input.KeyCode == Enum.KeyCode.F1 then
-        notify("Hub", "Use o botão minimizado na tela", 2)
-    end
-    
-    -- F2: Toggle Auto Touch
-    if input.KeyCode == Enum.KeyCode.F2 then
-        CONFIG.autoTouch = not CONFIG.autoTouch
-        notify("Auto Touch", CONFIG.autoTouch and "ATIVADO" or "DESATIVADO", 2)
-        addLog("Auto Touch (F2): " .. (CONFIG.autoTouch and "ON" or "OFF"), CONFIG.autoTouch and "success" or "warning")
-    end
-    
-    -- F3: Toggle Esfera
-    if input.KeyCode == Enum.KeyCode.F3 then
-        CONFIG.showReachSphere = not CONFIG.showReachSphere
-        notify("Esfera", CONFIG.showReachSphere and "ATIVADA" or "DESATIVADA", 2)
-        addLog("Esfera (F3): " .. (CONFIG.showReachSphere and "ON" or "OFF"), "info")
-    end
-    
-    -- F4: Toggle Reach GK
-    if input.KeyCode == Enum.KeyCode.F4 then
-        CONFIG.reachGKEnabled = not CONFIG.reachGKEnabled
-        notify("Reach GK", CONFIG.reachGKEnabled and "ATIVADO - Modo Goleiro" or "DESATIVADO", 2)
-        addLog("Reach GK (F4): " .. (CONFIG.reachGKEnabled and "ON" or "OFF"), CONFIG.reachGKEnabled and "success" or "warning")
-    end
-    
-    -- F5: Toggle Anti Lag
-    if input.KeyCode == Enum.KeyCode.F5 then
-        CONFIG.antiLag.enabled = not CONFIG.antiLag.enabled
-        if CONFIG.antiLag.enabled then
-            applyAntiLag()
-            notify("Anti Lag", "OTIMIZAÇÃO ATIVADA (F5)", 2)
-        else
-            disableAntiLag()
-            notify("Anti Lag", "DESATIVADO (F5)", 2)
-        end
-        addLog("Anti Lag (F5): " .. (CONFIG.antiLag.enabled and "ON" or "OFF"), CONFIG.antiLag.enabled and "success" or "warning")
+-- Insert para mostrar/esconder
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.Insert then
+        gui.Enabled = not gui.Enabled
     end
 end)
 
--- ============================================
--- ATUALIZADORES DE UI
--- ============================================
-
-task.spawn(function()
-    while true do
-        task.wait(1)
-        local count = findBalls()
-        pcall(function()
-            statusLabel:Set("Bolas Detectadas: " .. count)
-            reachLabel:Set("Alcance Atual: " .. CONFIG.reach .. " studs")
-            touchesLabel:Set("Toques Totais: " .. STATS.totalTouches)
-        end)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(1)
-        
-        local sessionTime = tick() - STATS.sessionStart
-        local mins = math.floor(sessionTime / 60)
-        local secs = math.floor(sessionTime % 60)
-        
-        if sessionTime > 0 then
-            STATS.touchesPerMinute = math.floor((STATS.totalTouches / sessionTime) * 60)
-        end
-        
-        pcall(function()
-            sessionTimeLabel:Set("Tempo de Uso: " .. string.format("%02d:%02d", mins, secs))
-            totalTouchesLabel:Set("Toques Totais: " .. STATS.totalTouches)
-            ballsTouchedLabel:Set("Bolas Tocadas: " .. STATS.ballsTouched)
-            skillsActivatedLabel:Set("Skills Ativadas: " .. STATS.skillsActivated)
-            peakReachLabel:Set("Pico de Alcance: " .. STATS.peakReach)
-            tpmLabel:Set("Toques por Minuto: " .. STATS.touchesPerMinute)
-            gkTotalSavesLabel:Set("Defesas GK: " .. STATS.gkSaves)
-            antiLagTotalLabel:Set("Itens Anti Lag: " .. STATS.antiLagItems)
-            morphsTotalLabel:Set("Morphs Realizados: " .. STATS.morphsDone)
-            
-            -- Atualizar labels da aba GK
-            gkStatusLabel:Set("Status GK: " .. (CONFIG.reachGKEnabled and "ATIVADO" or "Desativado"))
-            gkSizeLabel:Set("Tamanho do Cubo: " .. CONFIG.reachGK .. " studs")
-            gkSavesLabel:Set("Defesas (Saves): " .. STATS.gkSaves)
-            
-            -- Atualizar labels da aba Anti Lag
-            antiLagStatusLabel:Set("Status: " .. (antiLagActive and "ATIVADO ✅" or "Desativado"))
-            antiLagItemsLabel:Set("Itens Otimizados: " .. STATS.antiLagItems)
-            
-            -- Atualizar labels da aba Char
-            morphsDoneLabel:Set("Total de Morphs: " .. STATS.morphsDone)
-            favoritesCountLabel:Set("Favoritos Salvos: " .. #CONFIG.avatarChanger.favorites)
-        end)
-    end
-end)
-
--- ============================================
--- INICIALIZAÇÃO (Bazuka & Cafuxz1)
--- ============================================
-
--- Carregar favoritos na inicialização
-CONFIG.avatarChanger.favorites = loadFavorites()
-
-task.spawn(function()
-    repeat task.wait(0.1) until game:IsLoaded() and LocalPlayer.Character
-    task.wait(0.5)
-    
-    -- Mensagens de inicialização
-    notify("⚡ CAFUXZ1 Hub v14.2", "Ultimate Edition by Bazuka & Cafuxz1", 4)
-    notify("CADUXX137", "Sistema de Ball Reach ativo!", 3)
-    notify("NOVO", "Reach GK disponível (F4 ou aba Reach GK)!", 4)
-    notify("NOVO v14.1", "Anti Lag System disponível (F5 ou aba Anti Lag)!", 4)
-    notify("NOVO v14.2", "Avatar Changer by returnreturnfunction integrado!", 4)
-    
-    print("========================================")
-    print("  CAFUXZ1 HUB v14.2 - ULTIMATE EDITION")
-    print("========================================")
-    print("Criadores: Bazuka & Cafuxz1")
-    print("Ball Reach: CADUXX137 v14.0 Ultimate")
-    print("Reach GK: Cafuxz1 v1.0")
-    print("Anti Lag: CAFUXZ1 v14.1")
-    print("Avatar Changer: by returnreturnfunction v1.0.0")
-    print("Interface: CAFUXZ1 Hub (WindUI)")
-    print("Ícone: 88380080222477")
-    print("----------------------------------------")
-    print("Reach Normal: " .. CONFIG.reach .. " studs")
-    print("Reach GK: " .. CONFIG.reachGK .. " studs")
-    print("Auto Touch: " .. tostring(CONFIG.autoTouch))
-    print("Auto Skills: " .. tostring(autoSkills))
-    print("Partículas: " .. tostring(CONFIG.particleEffects))
-    print("Atalhos: F1 (Minimizar) | F2 (Auto Touch) | F3 (Esfera) | F4 (GK) | F5 (Anti Lag)")
-    print("========================================")
-end)
+print("CAFUXZ1 Hub v15.2 - Simple WindUI Loaded!")
+print("F1: Auto Touch | F2: Esferas | F3: Double Touch | Insert: Menu")
