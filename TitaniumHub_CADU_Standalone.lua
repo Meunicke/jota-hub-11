@@ -1,13 +1,8 @@
-
 --[[
     CAFUXZ1 Hub v15.2 - Double Sphere Edition
 ]]
 
-if not game:IsLoaded() then game.Loaded:Wait() end
-
--- ============================================
--- SERVIÇOS
--- ============================================
+-- Sem verificação de IsLoaded - executar imediatamente
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -16,9 +11,27 @@ local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
 local CoreGui = game:GetService("CoreGui")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
+
+-- Limpar GUIs antigas se existirem
+pcall(function()
+    if CoreGui:FindFirstChild("CAFUXZ1_Hub_v15") then
+        CoreGui:FindFirstChild("CAFUXZ1_Hub_v15"):Destroy()
+    end
+    if CoreGui:FindFirstChild("CAFUXZ1_Icon_v15") then
+        CoreGui:FindFirstChild("CAFUXZ1_Icon_v15"):Destroy()
+    end
+    if CoreGui:FindFirstChild("CAFUXZ1_Intro") then
+        CoreGui:FindFirstChild("CAFUXZ1_Intro"):Destroy()
+    end
+end)
+
+-- Aguardar personagem carregar
+if not LocalPlayer.Character then
+    LocalPlayer.CharacterAdded:Wait()
+end
+
 
 -- ============================================
 -- VERIFICAÇÃO ANTI-DUPLICAÇÃO
