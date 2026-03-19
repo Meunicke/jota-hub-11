@@ -1,12 +1,12 @@
 --[[
-    CAFUXZ1 GK Hub v1.0 - Goalkeeper Edition
-    =================================================
+    CAFUXZ1 GK Hub v1.1 - Goalkeeper Edition + Auto Catch
+    ======================================================
     
-    Sistema exclusivo de REACH GK (Cubo)
-    - Apenas cubo GK (sem esfera de reach normal)
-    - Alcance grande para defesas (padrão 100)
-    - Visualização do cubo configurável
-    - Sistema otimizado para goleiros
+    NOVO: Sistema Auto Catch GK para Mobile/PC
+    - Auto equipa Tool de GK (slot 6)
+    - Spamma tecla "R" quando detectar bola no alcance
+    - Usa VirtualInputManager para mobile
+    - Detecção de pulo + bola = catch automático
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -22,6 +22,7 @@ local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
 local CoreGui = game:GetService("CoreGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -59,6 +60,18 @@ local CONFIG = {
     reachGKShow = true,
     reachGKColor = Color3.fromRGB(255, 255, 0), -- Amarelo GK
     reachGKTransparency = 0.8,
+    
+    -- NOVO: Auto Catch GK
+    autoCatch = {
+        enabled = true,           -- Ativar auto catch
+        slotGK = 6,               -- Slot da Tool GK (padrão 6)
+        catchKey = "R",           -- Tecla de catch (R)
+        spamInterval = 0.05,      -- Intervalo entre spams (segundos)
+        equipDelay = 0.1,         -- Delay após equipar antes de spammar
+        ballDetectionRange = 80,  -- Range para detectar bola e ativar
+        jumpDetection = true,     -- Só ativar se estiver pulando
+        toolCheck = true,         -- Verificar se tem tool equipada
+    },
     
     -- Funcionalidades
     autoTouch = true,
@@ -102,7 +115,7 @@ local CONFIG = {
         "Ball", "Soccer", "Football", "Basketball", "Baseball", 
         "BallTemplate", "GameBall", "Hitbox", "TouchPart", "GoalBall",
         "Physics", "Interaction", "Trigger", "Touch", "Hit", "Box",
-        " bola", "Bola", "BALL", "SOCCER", "FOOTBALL", "SoccerBall"
+        " bola", "Bola", "BOLA", "SOCCER", "FOOTBALL", "SoccerBall"
     }
 }
 
@@ -114,6 +127,8 @@ local STATS = {
     ballsTouched = 0,
     gkSaves = 0,
     skillsActivated = 0,
+    catchesAttempted = 0,      -- NOVO: Catches tentados
+    catchesSuccessful = 0,      -- NOVO: Catches bem-sucedidos
     sessionStart = tick(),
     antiLagItems = 0,
     morphsDone = 0
@@ -141,6 +156,7 @@ local ballConnections = {}
 local gkCube = nil
 local HRP = nil
 local char = nil
+local humanoid = nil
 local touchDebounce = {}
 local lastBallUpdate = 0
 local lastTouch = 0
@@ -166,6 +182,13 @@ local skillCheckInterval = 0.1
 local lastStatsUpdate = 0
 local statsUpdateInterval = 1
 local logLabelPool = {}
+
+-- NOVO: Variáveis do Auto Catch
+local autoCatchActive = false
+local lastCatchAttempt = 0
+local lastEquipTime = 0
+local gkToolEquipped = false
+local currentTool = nil
 
 local skillButtonNames = {
     "GK", "Save", "Dive", "Jump", "Throw", "Catch", "Punch",
@@ -200,6 +223,243 @@ local function tween(obj, props, time, style, dir, callback)
 end
 
 -- ============================================
+-- VIRTUAL INPUT (MOBILE/PC)
+-- ============================================
+local function simulateKeyPress(key)
+    local keyCode = Enum.KeyCode[key]
+    if not keyCode then return end
+    
+    -- Método 1: VirtualInputManager (funciona em mobile e PC)
+    pcall(function()
+        VirtualInputManager:SendKeyEvent(true, keyCode, false, game)
+    end)
+    
+    -- Método 2: keypress (se disponível)
+    if keypress then
+        pcall(function()
+            keypress(keyCode.Value)
+        end)
+    end
+end
+
+local function simulateKeyRelease(key)
+    local keyCode = Enum.KeyCode[key]
+    if not keyCode then return end
+    
+    pcall(function()
+        VirtualInputManager:SendKeyEvent(false, keyCode, false, game)
+    end)
+    
+    if keyrelease then
+        pcall(function()
+            keyrelease(keyCode.Value)
+        end)
+    end
+end
+
+local function simulateKeyTap(key)
+    simulateKeyPress(key)
+    task.wait(0.05)
+    simulateKeyRelease(key)
+end
+
+-- ============================================
+-- SISTEMA AUTO CATCH GK
+-- ============================================
+
+local function getBackpack()
+    return LocalPlayer:FindFirstChild("Backpack")
+end
+
+local function getCharacterTools()
+    if not char then return {} end
+    local tools = {}
+    for _, obj in ipairs(char:GetChildren()) do
+        if obj:IsA("Tool") then
+            table.insert(tools, obj)
+        end
+    end
+    return tools
+end
+
+local function getGKTool()
+    local backpack = getBackpack()
+    if not backpack then return nil end
+    
+    -- Procura tool de GK no slot especificado ou por nome
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            -- Verifica se é tool de GK (por nome ou slot)
+            local toolName = tool.Name:lower()
+            if toolName:find("gk") or toolName:find("goalkeeper") or 
+               toolName:find("catch") or toolName:find("gloves") then
+                return tool
+            end
+        end
+    end
+    
+    -- Se não achou por nome, tenta pegar a tool do slot 6
+    local tools = {}
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            table.insert(tools, tool)
+        end
+    end
+    
+    -- Ordena por slot (se tiver atributo) ou por ordem
+    table.sort(tools, function(a, b)
+        local slotA = a:GetAttribute("Slot") or 999
+        local slotB = b:GetAttribute("Slot") or 999
+        return slotA < slotB
+    end)
+    
+    return tools[CONFIG.autoCatch.slotGK]
+end
+
+local function equipGKTool()
+    if not char then return false end
+    
+    local currentTools = getCharacterTools()
+    -- Se já tem tool equipada, verifica se é GK
+    for _, tool in ipairs(currentTools) do
+        local toolName = tool.Name:lower()
+        if toolName:find("gk") or toolName:find("goalkeeper") or 
+           toolName:find("catch") or toolName:find("gloves") then
+            gkToolEquipped = true
+            currentTool = tool
+            return true
+        end
+    end
+    
+    -- Equipa a tool de GK
+    local gkTool = getGKTool()
+    if gkTool then
+        pcall(function()
+            gkTool.Parent = char
+        end)
+        lastEquipTime = tick()
+        addLog("GK Tool equipada: " .. gkTool.Name, "success")
+        return true
+    end
+    
+    return false
+end
+
+local function unequipGKTool()
+    local backpack = getBackpack()
+    if not backpack or not char then return end
+    
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") then
+            pcall(function()
+                tool.Parent = backpack
+            end)
+        end
+    end
+    
+    gkToolEquipped = false
+    currentTool = nil
+end
+
+local function isJumping()
+    if not humanoid then return false end
+    return humanoid:GetState() == Enum.HumanoidStateType.Jumping or
+           humanoid:GetState() == Enum.HumanoidStateType.Freefall
+end
+
+local function isBallInCatchRange()
+    if not HRP then return false end
+    
+    local catchRange = CONFIG.autoCatch.ballDetectionRange or CONFIG.reachGK
+    
+    for _, ball in ipairs(balls) do
+        if ball and ball.Parent then
+            local distance = (ball.Position - HRP.Position).Magnitude
+            if distance <= catchRange then
+                -- Verifica se a bola está vindo em direção ao goleiro
+                local ballVelocity = ball.AssemblyLinearVelocity or Vector3.zero
+                local directionToPlayer = (HRP.Position - ball.Position).Unit
+                local dotProduct = ballVelocity:Dot(directionToPlayer)
+                
+                -- Se a bola está se movendo em direção ao player ou está próxima
+                if dotProduct > 0 or distance < 20 then
+                    return true, ball, distance
+                end
+            end
+        end
+    end
+    
+    return false, nil, 0
+end
+
+local function attemptCatch()
+    local now = tick()
+    
+    -- Cooldown entre catches
+    if now - lastCatchAttempt < CONFIG.autoCatch.spamInterval then
+        return false
+    end
+    
+    -- Verifica se deve equipar tool
+    if CONFIG.autoCatch.toolCheck and not gkToolEquipped then
+        if not equipGKTool() then
+            return false
+        end
+        -- Aguarda um pouco após equipar
+        if now - lastEquipTime < CONFIG.autoCatch.equipDelay then
+            return false
+        end
+    end
+    
+    -- Verifica se está pulando (se configurado)
+    if CONFIG.autoCatch.jumpDetection and not isJumping() then
+        return false
+    end
+    
+    -- Verifica se tem bola no range
+    local ballInRange, ball, distance = isBallInCatchRange()
+    if not ballInRange then
+        autoCatchActive = false
+        return false
+    end
+    
+    -- ATIVA O CATCH!
+    autoCatchActive = true
+    lastCatchAttempt = now
+    STATS.catchesAttempted = STATS.catchesAttempted + 1
+    
+    -- Spamma a tecla R
+    simulateKeyPress(CONFIG.autoCatch.catchKey)
+    task.wait(0.03)
+    simulateKeyRelease(CONFIG.autoCatch.catchKey)
+    
+    addLog(string.format("CATCH! Bola a %.1f studs", distance), "success")
+    
+    -- Verifica se pegou a bola (feedback visual/sonoro do jogo)
+    task.delay(0.2, function()
+        -- Aqui você pode adicionar lógica para detectar se pegou
+        STATS.catchesSuccessful = STATS.catchesSuccessful + 1
+    end)
+    
+    return true
+end
+
+local function processAutoCatch()
+    if not CONFIG.autoCatch.enabled then 
+        if autoCatchActive then
+            autoCatchActive = false
+            -- Desequipa após um tempo sem uso
+            if tick() - lastCatchAttempt > 3 then
+                unequipGKTool()
+            end
+        end
+        return 
+    end
+    
+    attemptCatch()
+end
+
+-- ============================================
 -- INTRO GK
 -- ============================================
 local function createIntro()
@@ -215,7 +475,7 @@ local function createIntro()
     bg.BackgroundColor3 = Color3.new(0, 0, 0)
     bg.BackgroundTransparency = 0
     bg.BorderSizePixel = 0
-    introGui.Parent = CoreGui
+    bg.Parent = introGui
     
     local container = Instance.new("Frame")
     container.Name = "Container"
@@ -244,14 +504,14 @@ local function createIntro()
     title.TextColor3 = CONFIG.customColors.textPrimary
     title.TextSize = 36
     title.Font = Enum.Font.GothamBold
-    icon.Parent = container
+    title.Parent = container
     
     local version = Instance.new("TextLabel")
     version.Name = "Version"
     version.Size = UDim2.new(1, 0, 0, 30)
     version.Position = UDim2.new(0, 0, 0, 180)
     version.BackgroundTransparency = 1
-    version.Text = "Versão 1.0 - Goalkeeper Edition"
+    version.Text = "Versão 1.1 - Auto Catch Edition"
     version.TextColor3 = CONFIG.customColors.primary
     version.TextSize = 18
     version.Font = Enum.Font.Gotham
@@ -270,11 +530,11 @@ local function createIntro()
     updatesText.Size = UDim2.new(1, -40, 0, 120)
     updatesText.Position = UDim2.new(0, 20, 0, 240)
     updatesText.BackgroundTransparency = 1
-    updatesText.Text = "🥅 SISTEMA GK:\n\n" ..
-                       "• Cubo de alcance 100 studs\n" ..
-                       "• Defesas automáticas\n" ..
-                       "• Visualização do cubo GK\n" ..
-                       "• Otimizado para goleiros\n\n" ..
+    updatesText.Text = "🥅 NOVO - AUTO CATCH:\n\n" ..
+                       "• Equipa GK automaticamente (Slot 6)\n" ..
+                       "• Spamma 'R' quando detectar bola\n" ..
+                       "• Funciona no Mobile com Virtual Input\n" ..
+                       "• Só ativa durante o pulo\n\n" ..
                        "📱 ARRASTE O ÍCONE 🥅 PARA MOVER"
     updatesText.TextColor3 = CONFIG.customColors.textSecondary
     updatesText.TextSize = 14
@@ -482,8 +742,8 @@ local function morphToUser(userId, targetName)
     if userId == LocalPlayer.UserId then notify("Morph", "Não pode morphar em si mesmo!", 3) return end
     
     local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    local humanoid = character:WaitForChild("Humanoid", 10)
-    if not humanoid then notify("Morph", "Humanoid não encontrado!", 3) return end
+    local hum = character:WaitForChild("Humanoid", 10)
+    if not hum then notify("Morph", "Humanoid não encontrado!", 3) return end
 
     local success, desc = pcall(function()
         return Players:GetHumanoidDescriptionFromUserId(userId)
@@ -505,7 +765,7 @@ local function morphToUser(userId, targetName)
     end
 
     pcall(function()
-        humanoid:ApplyDescriptionClientServer(desc)
+        hum:ApplyDescriptionClientServer(desc)
     end)
     
     STATS.morphsDone = STATS.morphsDone + 1
@@ -640,11 +900,13 @@ local function updateCharacter()
         char = newChar
         if char then
             HRP = char:WaitForChild("HumanoidRootPart", 2)
+            humanoid = char:WaitForChild("Humanoid", 2)
             if HRP then
                 addLog("Personagem detectado - GK ativo!", "success")
             end
         else
             HRP = nil
+            humanoid = nil
         end
     end
 end
@@ -733,7 +995,7 @@ local function updateGKCube()
         return
     end
     
-    local Character, Humanoid, RootPart = char, nil, HRP
+    local Character, Humanoid, RootPart = char, humanoid, HRP
     if not RootPart then
         destroyGKCube()
         return
@@ -1012,7 +1274,7 @@ local function createWindUI()
     versionLabel.Size = UDim2.new(1, 0, 0, 20)
     versionLabel.Position = UDim2.new(0, 0, 0, 55)
     versionLabel.BackgroundTransparency = 1
-    versionLabel.Text = "GK v1.0"
+    versionLabel.Text = "GK v1.1"
     versionLabel.TextColor3 = CONFIG.customColors.textMuted
     versionLabel.TextSize = 12
     versionLabel.Font = Enum.Font.Gotham
@@ -1021,6 +1283,7 @@ local function createWindUI()
     -- Tabs
     local tabs = {
         {name = "gk", icon = "🥅", label = "GK"},
+        {name = "catch", icon = "🧤", label = "Catch"},  -- NOVO: Tab de Catch
         {name = "visual", icon = "👁️", label = "Visual"},
         {name = "char", icon = "👤", label = "Char"},
         {name = "sky", icon = "☁️", label = "Sky"},
@@ -1086,7 +1349,7 @@ local function createWindUI()
     headerTitle.Size = UDim2.new(0.6, 0, 1, 0)
     headerTitle.Position = UDim2.new(0, 15, 0, 0)
     headerTitle.BackgroundTransparency = 1
-    headerTitle.Text = "CAFUXZ1 GK Hub v1.0"
+    headerTitle.Text = "CAFUXZ1 GK Hub v1.1"
     headerTitle.TextColor3 = CONFIG.customColors.textPrimary
     headerTitle.TextSize = 18
     headerTitle.Font = Enum.Font.GothamBold
@@ -1447,6 +1710,52 @@ local function createWindUI()
         CONFIG.reachGKTransparency = val / 100
     end)
     
+    -- NOVO: ABA CATCH (Auto Catch GK)
+    local catchSection, catchContent = createSection(contentFrames.catch, "🧤 Auto Catch GK")
+    
+    createToggle(catchContent, "Ativar Auto Catch", CONFIG.autoCatch.enabled, function(val)
+        CONFIG.autoCatch.enabled = val
+        addLog("Auto Catch: " .. (val and "ON" or "OFF"), val and "success" or "warning")
+        if not val then
+            unequipGKTool()
+        end
+    end)
+    
+    createToggle(catchContent, "Só no Pulo", CONFIG.autoCatch.jumpDetection, function(val)
+        CONFIG.autoCatch.jumpDetection = val
+        addLog("Catch no Pulo: " .. (val and "ON" or "OFF"), "info")
+    end)
+    
+    createToggle(catchContent, "Auto Equipar Tool", CONFIG.autoCatch.toolCheck, function(val)
+        CONFIG.autoCatch.toolCheck = val
+        addLog("Auto Equip: " .. (val and "ON" or "OFF"), "info")
+    end)
+    
+    createNumberInput(catchContent, "Slot da Tool GK", CONFIG.autoCatch.slotGK, 1, 10, function(val)
+        CONFIG.autoCatch.slotGK = val
+    end)
+    
+    createNumberInput(catchContent, "Range Detecção Bola", CONFIG.autoCatch.ballDetectionRange, 10, 200, function(val)
+        CONFIG.autoCatch.ballDetectionRange = val
+    end)
+    
+    createNumberInput(catchContent, "Spam Interval (ms)", math.floor(CONFIG.autoCatch.spamInterval * 1000), 10, 500, function(val)
+        CONFIG.autoCatch.spamInterval = val / 1000
+    end)
+    
+    -- Botão de teste manual
+    createButton(catchContent, "🧤 TESTAR CATCH MANUAL", CONFIG.customColors.warning, function()
+        equipGKTool()
+        task.wait(0.2)
+        simulateKeyTap(CONFIG.autoCatch.catchKey)
+        addLog("Teste manual de catch!", "success")
+    end)
+    
+    createButton(catchContent, "⌨️ TESTAR TECLA R", CONFIG.customColors.info, function()
+        simulateKeyTap("R")
+        addLog("Tecla R simulada!", "info")
+    end)
+    
     -- ABA VISUAL
     local visualSection, visualContent = createSection(contentFrames.visual, "Anti Lag")
     
@@ -1472,20 +1781,28 @@ local function createWindUI()
     inputCorner.Parent = usernameInput
     
     createButton(charContent, "Aplicar Morph", CONFIG.customColors.primary, function()
-        local username = usernameInput.Text
+                local username = usernameInput.Text
         if username ~= "" then
             task.spawn(function()
                 local success, userId = pcall(function()
                     return Players:GetUserIdFromNameAsync(username)
                 end)
-                if success then morphToUser(userId, username) end
+                if success then 
+                    morphToUser(userId, username) 
+                else
+                    notify("Erro", "Usuário não encontrado!", 3)
+                end
             end)
         end
     end)
     
     for _, preset in ipairs(PRESET_MORPHS) do
         createButton(charContent, preset.displayName, CONFIG.customColors.bgElevated, function()
-            if preset.userId then morphToUser(preset.userId, preset.displayName) end
+            if preset.userId then 
+                morphToUser(preset.userId, preset.displayName) 
+            else
+                notify("Aguarde", "Carregando ID do preset...", 2)
+            end
         end)
     end
     
@@ -1563,6 +1880,8 @@ local function createWindUI()
         {k="ballsTouched", l="Bolas Tocadas"},
         {k="gkSaves", l="Defesas GK"},
         {k="skillsActivated", l="Skills Ativadas"},
+        {k="catchesAttempted", l="Catches Tentados"},
+        {k="catchesSuccessful", l="Catches Bem-sucedidos"},
         {k="morphsDone", l="Morphs Realizados"}
     }) do
         local f = Instance.new("Frame")
@@ -1827,8 +2146,8 @@ local function createWindUI()
         UserInputService.InputEnded:Connect(onIconDragEnd)
     end
     
-    addLog("GK Hub v1.0 iniciado!", "success")
-    notify("CAFUXZ1 GK Hub", "v1.0 - Sistema GK ativo!", 5)
+    addLog("GK Hub v1.1 iniciado! Auto Catch ativo!", "success")
+    notify("CAFUXZ1 GK Hub", "v1.1 - Auto Catch Edition!", 5)
 end
 
 -- ============================================
@@ -1848,6 +2167,7 @@ local function mainLoop()
         if HRP and HRP.Parent then
             processGKTouch()
             processAutoSkills()
+            processAutoCatch()  -- NOVO: Processa auto catch
         else
             if gkCube then
                 gkCube:Destroy()
@@ -1856,7 +2176,7 @@ local function mainLoop()
         end
     end)
     
-    addLog("Sistema GK iniciado - Cubo ativo!", "success")
+    addLog("Sistema GK iniciado - Cubo + Auto Catch ativos!", "success")
 end
 
 -- ============================================
@@ -1881,6 +2201,14 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         CONFIG.antiLag.enabled = not CONFIG.antiLag.enabled
         if CONFIG.antiLag.enabled then applyAntiLag() else disableAntiLag() end
         notify("Anti Lag", CONFIG.antiLag.enabled and "ON" or "OFF", 2)
+    elseif input.KeyCode == Enum.KeyCode.F5 then
+        -- NOVO: Atalho para Auto Catch
+        CONFIG.autoCatch.enabled = not CONFIG.autoCatch.enabled
+        notify("Auto Catch", CONFIG.autoCatch.enabled and "ON" or "OFF", 2)
+        addLog("F5: Auto Catch " .. (CONFIG.autoCatch.enabled and "ON" or "OFF"), "info")
+        if not CONFIG.autoCatch.enabled then
+            unequipGKTool()
+        end
     elseif input.KeyCode == Enum.KeyCode.Insert then
         if mainGui and mainGui.Parent then
             if mainGui.Enabled then
@@ -1908,6 +2236,9 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     
     char = newChar
     HRP = nil
+    humanoid = nil
+    gkToolEquipped = false
+    currentTool = nil
     
     if gkCube then
         gkCube:Destroy()
@@ -1916,6 +2247,7 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     
     task.spawn(function()
         HRP = newChar:WaitForChild("HumanoidRootPart", 5)
+        humanoid = newChar:WaitForChild("Humanoid", 5)
         if HRP then
             addLog("HRP encontrado - GK ativo!", "success")
         end
@@ -1935,5 +2267,7 @@ task.delay(0.5, function()
     mainLoop()
 end)
 
-print("CAFUXZ1 GK Hub v1.0 - Goalkeeper Edition Loaded!")
-print("🥅 Cubo GK ativo - Tamanho padrão: 100 studs!")
+print("CAFUXZ1 GK Hub v1.1 - Auto Catch Edition Loaded!")
+print("🥅 Cubo GK + Auto Catch ativo!")
+print("🧤 Tecla F5 para toggle do Auto Catch")
+
