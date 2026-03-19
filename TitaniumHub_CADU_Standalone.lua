@@ -1,4 +1,39 @@
 
+
+--[[
+    CAFUXZ1 Hub v15.2 - Double Sphere Edition
+]]
+
+-- Proteção contra múltiplas execuções e verificação de ambiente
+if not _G then _G = {} end
+
+-- Aguardar o jogo carregar completamente
+if not game or typeof(game) ~= "Instance" then
+    warn("CAFUXZ1 Hub: Aguardando ambiente do jogo...")
+    repeat task.wait(0.1) until game and typeof(game) == "Instance"
+end
+
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+-- Verificar serviços essenciais
+local success, result = pcall(function()
+    return game:GetService("Players")
+end)
+
+if not success or not result then
+    warn("CAFUXZ1 Hub: Serviços não disponíveis, aguardando...")
+    repeat 
+        task.wait(0.1)
+        success, result = pcall(function()
+            return game:GetService("Players")
+        end)
+    until success and result
+end
+
+
+
 --[[
     CAFUXZ1 Hub v15.2 - Double Sphere Edition
     =================================================
