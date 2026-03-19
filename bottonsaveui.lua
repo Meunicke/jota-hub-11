@@ -1,12 +1,12 @@
 --[[
-    CAFUXZ1 GK Hub v1.1 - Goalkeeper Edition + Auto Catch
-    ======================================================
+    CAFUXZ1 GK Hub v1.2 - Bug Fix Edition
+    =========================================
     
-    NOVO: Sistema Auto Catch GK para Mobile/PC
-    - Auto equipa Tool de GK (slot 6)
-    - Spamma tecla "R" quando detectar bola no alcance
-    - Usa VirtualInputManager para mobile
-    - Detecção de pulo + bola = catch automático
+    CORREÇÕES:
+    - Tecla trocada: R → F (catch baixo)
+    - Removido bug do keyboard que travava movimento
+    - Adicionado verificação de estado do humanoid
+    - Delay maior antes de ativar catch
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -35,13 +35,10 @@ end
 if CoreGui:FindFirstChild("CAFUXZ1_GK_Icon") then
     CoreGui:FindFirstChild("CAFUXZ1_GK_Icon"):Destroy()
 end
-if CoreGui:FindFirstChild("CAFUXZ1_GK_Intro") then
-    CoreGui:FindFirstChild("CAFUXZ1_GK_Intro"):Destroy()
-end
 
 -- Limpar objetos antigos
 for _, obj in ipairs(Workspace:GetChildren()) do
-    if obj.Name == "CAFUXZ1_GK_Cube" or obj.Name == "CAFUXZ1_ReachSphere" then
+    if obj.Name == "CAFUXZ1_GK_Cube" then
         obj:Destroy()
     end
 end
@@ -54,30 +51,38 @@ local CONFIG = {
     height = 450,
     sidebarWidth = 90,
     
-    -- GK Settings (padrão 100 como no original)
+    -- GK Settings
     reachGK = 100,
     reachGKEnabled = true,
     reachGKShow = true,
-    reachGKColor = Color3.fromRGB(255, 255, 0), -- Amarelo GK
+    reachGKColor = Color3.fromRGB(255, 255, 0),
     reachGKTransparency = 0.8,
     
-    -- NOVO: Auto Catch GK
+    -- Auto Catch GK (CORRIGIDO!)
     autoCatch = {
-        enabled = true,           -- Ativar auto catch
-        slotGK = 6,               -- Slot da Tool GK (padrão 6)
-        catchKey = "R",           -- Tecla de catch (R)
-        spamInterval = 0.05,      -- Intervalo entre spams (segundos)
-        equipDelay = 0.1,         -- Delay após equipar antes de spammar
-        ballDetectionRange = 80,  -- Range para detectar bola e ativar
-        jumpDetection = true,     -- Só ativar se estiver pulando
+        enabled = true,
+        slotGK = 6,               -- Slot da Tool GK
+        catchKey = "F",           -- TROCADO: R → F (catch baixo)
+        catchKeyUpper = "f",      -- Para verificação de tecla pressionada
+        spamInterval = 0.1,     -- Intervalo maior entre catches
+        equipDelay = 0.3,         -- Delay maior após equipar
+        ballDetectionRange = 80,  -- Range para detectar bola
+        jumpDetection = false,    -- DESATIVADO - causa bug do keyboard
         toolCheck = true,         -- Verificar se tem tool equipada
+        
+        -- NOVO: Verificações para evitar bug do keyboard
+        moveCheckInterval = 0.5,  -- Verifica se está se movendo
+        consecutiveActivations = 0, -- Contador de ativações consecutivas
+        maxConsecutiveActivations = 3, -- Máximo de catches consecutivos
     },
+    
+    -- Auto Skills
+    autoSkills = true,
+    autoSkillsInterval = 0.5,  -- Delay maior para auto skills
     
     -- Funcionalidades
     autoTouch = true,
     fullBodyTouch = true,
-    autoSecondTouch = true,
-    autoSkills = true,
     scanCooldown = 1.5,
     
     -- Anti Lag
@@ -93,9 +98,9 @@ local CONFIG = {
     
     -- Cores Tema
     customColors = {
-        primary = Color3.fromRGB(255, 215, 0),      -- Dourado GK
-        secondary = Color3.fromRGB(255, 165, 0),    -- Laranja
-        accent = Color3.fromRGB(255, 255, 0),       -- Amarelo
+        primary = Color3.fromRGB(255, 215, 0),
+        secondary = Color3.fromRGB(255, 165, 0),
+        accent = Color3.fromRGB(255, 255, 0),
         success = Color3.fromRGB(34, 197, 94),
         danger = Color3.fromRGB(239, 68, 68),
         warning = Color3.fromRGB(245, 158, 11),
@@ -109,7 +114,6 @@ local CONFIG = {
         textMuted = Color3.fromRGB(130, 140, 170),
     },
     
-    -- Lista de bolas
     ballNames = { 
         "TPS", "TCS", "ESA", "MRS", "PRS", "MPS", "SSS", "AIFA", "RBZ",
         "Ball", "Soccer", "Football", "Basketball", "Baseball", 
@@ -127,8 +131,8 @@ local STATS = {
     ballsTouched = 0,
     gkSaves = 0,
     skillsActivated = 0,
-    catchesAttempted = 0,      -- NOVO: Catches tentados
-    catchesSuccessful = 0,      -- NOVO: Catches bem-sucedidos
+    catchesAttempted = 0,
+    catchesSuccessful = 0,
     sessionStart = tick(),
     antiLagItems = 0,
     morphsDone = 0
@@ -145,8 +149,7 @@ local function addLog(message, type)
         time = os.date("%H:%M:%S"),
         timestamp = tick()
     })
-    if #LOGS > MAX_LOGS then table.remove(LOGS) end
-end
+    if #LOGS > MAX_LOGS then table.remove(LOGS) end end
 
 -- ============================================
 -- VARIÁVEIS GLOBAIS
@@ -157,18 +160,14 @@ local gkCube = nil
 local HRP = nil
 local char = nil
 local humanoid = nil
-local touchDebounce = {}
 local lastBallUpdate = 0
-local lastTouch = 0
 local isMinimized = false
 local isClosed = false
 local mainGui = nil
 local mainFrame = nil
 local iconGui = nil
-local introGui = nil
 local currentTab = "gk"
-local lastSkillActivation = 0
-local skillCooldown = 0.5
+lastSkillActivation = 0
 local activatedSkills = {}
 local antiLagActive = false
 local originalStates = {}
@@ -176,26 +175,19 @@ local antiLagConnection = nil
 local currentSkybox = nil
 local originalSkybox = nil
 local loopRunning = false
-local heartbeatConnection = nil
-local lastSkillCheck = 0
-local skillCheckInterval = 0.1
-local lastStatsUpdate = 0
-local statsUpdateInterval = 1
-local logLabelPool = {}
+lastSkillCheck = 0
+lastStatsUpdate = 0
+logLabelPool = {}
 
--- NOVO: Variáveis do Auto Catch
-local autoCatchActive = false
-local lastCatchAttempt = 0
-local lastEquipTime = 0
-local gkToolEquipped = false
-local currentTool = nil
-
-local skillButtonNames = {
-    "GK", "Save", "Dive", "Jump", "Throw", "Catch", "Punch",
-    "Control", "Left", "Right", "High", "Low",
-    "Goalkeeper", "Defender", "Defense",
-    "Slide", "Tackle", "Block", "Stop"
-}
+-- Auto Catch Variáveis
+autoCatchActive = false
+lastCatchAttempt = 0
+lastEquipTime = 0
+gkToolEquipped = false
+currentTool = nil
+lastPosition = Vector3.zero  -- NOVO: Para verificar movimento
+isMoving = false            -- NOVO: Flag de movimento
+lastMoveCheck = 0        -- NOVO: Tempo da última verificação de movimento
 
 -- ============================================
 -- FUNÇÕES UTILITÁRIAS
@@ -211,30 +203,17 @@ local function notify(title, text, duration)
     end)
 end
 
-local function tween(obj, props, time, style, dir, callback)
-    time = time or 0.35
-    style = style or Enum.EasingStyle.Quint
-    dir = dir or Enum.EasingDirection.Out
-    local info = TweenInfo.new(time, style, dir)
-    local t = TweenService:Create(obj, info, props)
-    if callback then t.Completed:Connect(callback) end
-    t:Play()
-    return t
-end
-
 -- ============================================
--- VIRTUAL INPUT (MOBILE/PC)
+-- VIRTUAL INPUT (MOBILE/PC) - CORRIGIDO!
 -- ============================================
 local function simulateKeyPress(key)
     local keyCode = Enum.KeyCode[key]
     if not keyCode then return end
     
-    -- Método 1: VirtualInputManager (funciona em mobile e PC)
     pcall(function()
         VirtualInputManager:SendKeyEvent(true, keyCode, false, game)
     end)
     
-    -- Método 2: keypress (se disponível)
     if keypress then
         pcall(function()
             keypress(keyCode.Value)
@@ -259,12 +238,12 @@ end
 
 local function simulateKeyTap(key)
     simulateKeyPress(key)
-    task.wait(0.05)
+    task.wait(0.03)  -- Delay reduzido
     simulateKeyRelease(key)
 end
 
 -- ============================================
--- SISTEMA AUTO CATCH GK
+-- SISTEMA AUTO CATCH - CORRIGIDO!
 -- ============================================
 
 local function getBackpack()
@@ -286,25 +265,10 @@ local function getGKTool()
     local backpack = getBackpack()
     if not backpack then return nil end
     
-    -- Procura tool de GK no slot especificado ou por nome
+    -- Procura tool de GK por nome
     for _, tool in ipairs(backpack:GetChildren()) do
         if tool:IsA("Tool") then
-            -- Verifica se é tool de GK (por nome ou slot)
             local toolName = tool.Name:lower()
-            if toolName:find("gk") or toolName:find("goalkeeper") or 
-               toolName:find("catch") or toolName:find("gloves") then
-                return tool
-            end
-        end
-    end
-    
-    -- Se não achou por nome, tenta pegar a tool do slot 6
-    local tools = {}
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if tool:IsA("Tool") then
-            table.insert(tools, tool)
-        end
-    end
     
     -- Ordena por slot (se tiver atributo) ou por ordem
     table.sort(tools, function(a, b)
