@@ -1,6 +1,6 @@
 --[[
     CAFUXZ1 Hub v15.2 - Simple Edition
-    WindUI + Double Sphere
+    WindUI + Double Sphere + Minimize
 ]]
 
 -- Esperar ambiente
@@ -9,6 +9,7 @@ task.wait(0.5)
 -- Serviços
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
@@ -18,7 +19,7 @@ local hrp = char:WaitForChild("HumanoidRootPart")
 
 -- Limpar GUIs antigas
 for _, obj in ipairs(CoreGui:GetChildren()) do
-    if obj.Name == "CAFUXZ1_Hub" then
+    if obj.Name == "CAFUXZ1_Hub" or obj.Name == "CAFUXZ1_Icon" then
         obj:Destroy()
     end
 end
@@ -29,14 +30,14 @@ for _, obj in ipairs(Workspace:GetChildren()) do
     end
 end
 
--- Configurações
+-- Configurações (AMBAS em 10 por padrão)
 local CONFIG = {
-    reach = 15,
-    arthurReach = 10,
+    reach = 10,        -- Principal
+    arthurReach = 10,  -- Arthur (igual)
     showSpheres = true,
     autoTouch = true,
     doubleTouch = true,
-    color1 = Color3.fromRGB(99, 102, 241), -- Principal
+    color1 = Color3.fromRGB(99, 102, 241), -- Principal (Roxo)
     color2 = Color3.fromRGB(0, 255, 255),   -- Arthur (Cyan)
 }
 
@@ -72,24 +73,28 @@ local function createSpheres()
     sphere2.Parent = Workspace
 end
 
--- Atualizar esferas
+-- Atualizar esferas (SEGUIR JOGADOR)
 local function updateSpheres()
-    if not CONFIG.showSpheres then
-        if sphere1 then sphere1.Transparency = 1 end
-        if sphere2 then sphere2.Transparency = 1 end
-        return
-    end
-    
     if not sphere1 or not sphere2 then
         createSpheres()
     end
     
+    -- Verificar se deve mostrar
+    if not CONFIG.showSpheres then
+        sphere1.Transparency = 1
+        sphere2.Transparency = 1
+        return
+    end
+    
+    -- Atualizar posição e tamanho em tempo real
     if hrp and hrp.Parent then
+        -- Esfera Principal
         sphere1.Position = hrp.Position
         sphere1.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
         sphere1.Color = CONFIG.color1
         sphere1.Transparency = 0.88
         
+        -- Esfera Arthur (só aparece se Double Touch ON)
         sphere2.Position = hrp.Position
         sphere2.Size = Vector3.new(CONFIG.arthurReach * 2, CONFIG.arthurReach * 2, CONFIG.arthurReach * 2)
         sphere2.Color = CONFIG.color2
@@ -136,15 +141,17 @@ local function doTouch(ball)
     end
 end
 
--- WindUI Simples
+-- ============================================
+-- GUI PRINCIPAL
+-- ============================================
 local gui = Instance.new("ScreenGui")
 gui.Name = "CAFUXZ1_Hub"
 gui.ResetOnSpawn = false
 gui.Parent = CoreGui
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 300, 0, 400)
-main.Position = UDim2.new(0.5, -150, 0.5, -200)
+main.Size = UDim2.new(0, 320, 0, 420)
+main.Position = UDim2.new(0.5, -160, 0.5, -210)
 main.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 main.BorderSizePixel = 0
 main.Parent = gui
@@ -153,17 +160,45 @@ Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
 
 -- Título
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 40)
+title.Size = UDim2.new(1, -70, 0, 40)
+title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "⚡ CAFUXZ1 Hub v15.2"
+title.Text = "⚡ CAFUXZ1 Hub"
 title.TextColor3 = CONFIG.color1
 title.TextSize = 20
 title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = main
+
+-- Botão Minimizar (-)
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+minimizeBtn.Position = UDim2.new(1, -65, 0, 5)
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(245, 158, 11)
+minimizeBtn.Text = "−"
+minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
+minimizeBtn.TextSize = 24
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.Parent = main
+
+Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0, 6)
+
+-- Botão Fechar (X)
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+closeBtn.Text = "×"
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.TextSize = 20
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Parent = main
+
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
 
 -- Container de botões
 local container = Instance.new("Frame")
-container.Size = UDim2.new(1, -20, 1, -50)
+container.Size = UDim2.new(1, -20, 1, -90)
 container.Position = UDim2.new(0, 10, 0, 45)
 container.BackgroundTransparency = 1
 container.Parent = main
@@ -171,10 +206,20 @@ container.Parent = main
 local layout = Instance.new("UIListLayout", container)
 layout.Padding = UDim.new(0, 10)
 
+-- Info
+local info = Instance.new("TextLabel")
+info.Size = UDim2.new(1, 0, 0, 30)
+info.BackgroundTransparency = 1
+info.Text = "🟣 Principal: 10 | 🔵 Arthur: 10"
+info.TextColor3 = Color3.fromRGB(170, 170, 170)
+info.TextSize = 12
+info.Font = Enum.Font.Gotham
+info.Parent = container
+
 -- Função criar toggle
 local function createToggle(text, default, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.Size = UDim2.new(1, 0, 0, 45)
     btn.BackgroundColor3 = default and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(60, 60, 80)
     btn.Text = text .. ": " .. (default and "ON" or "OFF")
     btn.TextColor3 = Color3.new(1, 1, 1)
@@ -196,10 +241,10 @@ local function createToggle(text, default, callback)
     return btn
 end
 
--- Função criar slider (simplificado)
+-- Função criar slider
 local function createSlider(text, min, max, default, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 60)
+    frame.Size = UDim2.new(1, 0, 0, 70)
     frame.BackgroundTransparency = 1
     frame.Parent = container
     
@@ -213,16 +258,16 @@ local function createSlider(text, min, max, default, callback)
     label.Parent = frame
     
     local input = Instance.new("TextBox")
-    input.Size = UDim2.new(1, 0, 0, 35)
+    input.Size = UDim2.new(1, 0, 0, 40)
     input.Position = UDim2.new(0, 0, 0, 25)
     input.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
     input.Text = tostring(default)
     input.TextColor3 = Color3.new(1, 1, 1)
-    input.TextSize = 16
+    input.TextSize = 18
     input.Font = Enum.Font.GothamBold
     input.Parent = frame
     
-    Instance.new("UICorner", input).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", input).CornerRadius = UDim.new(0, 8)
     
     input.FocusLost:Connect(function()
         local num = tonumber(input.Text)
@@ -231,6 +276,10 @@ local function createSlider(text, min, max, default, callback)
             input.Text = tostring(num)
             label.Text = text .. ": " .. num
             callback(num)
+            -- Atualizar info
+            info.Text = "🟣 Principal: " .. CONFIG.reach .. " | 🔵 Arthur: " .. CONFIG.arthurReach
+        else
+            input.Text = tostring(default)
         end
     end)
 end
@@ -250,32 +299,90 @@ createToggle("Double Touch (Arthur)", CONFIG.doubleTouch, function(v)
     updateSpheres()
 end)
 
-createSlider("Alcance Principal", 5, 100, CONFIG.reach, function(v)
+createSlider("🟣 Alcance Principal", 1, 50, CONFIG.reach, function(v)
     CONFIG.reach = v
 end)
 
-createSlider("Alcance Arthur", 1, 150, CONFIG.arthurReach, function(v)
+createSlider("🔵 Alcance Arthur", 1, 50, CONFIG.arthurReach, function(v)
     CONFIG.arthurReach = v
 end)
 
--- Botão fechar
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.new(0, 30, 0, 30)
-closeBtn.Position = UDim2.new(1, -35, 0, 5)
-closeBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-closeBtn.Text = "X"
-closeBtn.TextColor3 = Color3.new(1, 1, 1)
-closeBtn.TextSize = 18
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.Parent = main
+-- ============================================
+-- ÍCONE FLUTUANTE (MINIMIZADO)
+-- ============================================
+local iconGui = Instance.new("ScreenGui")
+iconGui.Name = "CAFUXZ1_Icon"
+iconGui.ResetOnSpawn = false
+iconGui.Enabled = false
+iconGui.Parent = CoreGui
 
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+local iconBtn = Instance.new("TextButton")
+iconBtn.Size = UDim2.new(0, 60, 0, 60)
+iconBtn.Position = UDim2.new(0, 20, 0.5, -30)
+iconBtn.BackgroundColor3 = CONFIG.color1
+iconBtn.Text = "⚡"
+iconBtn.TextColor3 = Color3.new(1, 1, 1)
+iconBtn.TextSize = 30
+iconBtn.Font = Enum.Font.GothamBold
+iconBtn.Parent = iconGui
 
-closeBtn.MouseButton1Click:Connect(function()
+Instance.new("UICorner", iconBtn).CornerRadius = UDim.new(1, 0)
+
+-- Label arraste
+local dragLabel = Instance.new("TextLabel")
+dragLabel.Size = UDim2.new(1, 0, 0, 15)
+dragLabel.Position = UDim2.new(0, 0, 1, -5)
+dragLabel.BackgroundTransparency = 1
+dragLabel.Text = "Arraste"
+dragLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+dragLabel.TextSize = 10
+dragLabel.Font = Enum.Font.Gotham
+dragLabel.Parent = iconBtn
+
+-- Funções de minimizar/restaurar
+local function minimize()
     gui.Enabled = false
+    iconGui.Enabled = true
+end
+
+local function restore()
+    gui.Enabled = true
+    iconGui.Enabled = false
+end
+
+minimizeBtn.MouseButton1Click:Connect(minimize)
+iconBtn.MouseButton1Click:Connect(restore)
+
+-- Drag do ícone
+local iconDragging = false
+local iconDragStart, iconStartPos
+
+iconBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        iconDragging = true
+        iconDragStart = input.Position
+        iconStartPos = iconBtn.Position
+    end
 end)
 
--- Drag
+UserInputService.InputChanged:Connect(function(input)
+    if iconDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+                        input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - iconDragStart
+        iconBtn.Position = UDim2.new(iconStartPos.X.Scale, iconStartPos.X.Offset + delta.X,
+                                     iconStartPos.Y.Scale, iconStartPos.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        iconDragging = false
+    end
+end)
+
+-- Drag da janela principal
 local dragging = false
 local dragStart, startPos
 
@@ -304,15 +411,17 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
--- Loop principal
-RunService.Heartbeat:Connect(function()
+-- ============================================
+-- LOOP PRINCIPAL (ATUALIZAÇÃO DAS ESFERAS)
+-- ============================================
+RunService.RenderStepped:Connect(function()
     -- Atualizar character se mudou
     if player.Character and player.Character ~= char then
         char = player.Character
         hrp = char:WaitForChild("HumanoidRootPart")
     end
     
-    -- Atualizar esferas
+    -- Atualizar esferas em tempo real (SEGUEM O JOGADOR)
     updateSpheres()
     
     -- Procurar e tocar bolas
@@ -324,12 +433,23 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Insert para mostrar/esconder
+-- Teclas de atalho
 UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.Insert then
-        gui.Enabled = not gui.Enabled
+        if gui.Enabled then
+            minimize()
+        else
+            restore()
+        end
     end
 end)
 
-print("CAFUXZ1 Hub v15.2 - Simple WindUI Loaded!")
-print("F1: Auto Touch | F2: Esferas | F3: Double Touch | Insert: Menu")
+print("========================================")
+print("CAFUXZ1 Hub v15.2 - Double Sphere")
+print("========================================")
+print("🟣 Esfera Principal: " .. CONFIG.reach)
+print("🔵 Esfera Arthur: " .. CONFIG.arthurReach)
+print("========================================")
+print("− : Minimizar | ⚡ : Restaurar")
+print("Insert : Alternar menu")
+print("========================================")
