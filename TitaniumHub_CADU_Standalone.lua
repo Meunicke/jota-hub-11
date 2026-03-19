@@ -1,32 +1,20 @@
---[[
-    CAFUXZ1 Hub v15.2 - Double Sphere Edition
-    =================================================
-]]
 
--- ============================================
--- INICIALIZAÇÃO SEGURA
--- ============================================
-local success, err = pcall(function()
-    -- Aguardar personagem existir
-    local Players = game:GetService("Players")
-    local player = Players.LocalPlayer
-    
-    while not player or not player.Character do
-        task.wait(0.1)
-        player = Players.LocalPlayer
-    end
-    
-    return player
+
+local suc, err = pcall(function()
+    return game:GetService("Players")
 end)
 
-if not success then
-    warn("CAFUXZ1 Hub: Erro na inicialização - " .. tostring(err))
-    return
+if not suc then
+    -- Se falhou, aguardar e tentar novamente
+    repeat
+        task.wait(0.1)
+        suc, err = pcall(function()
+            return game:GetService("Players")
+        end)
+    until suc
 end
 
--- ============================================
--- SERVIÇOS
--- ============================================
+-- Agora sim, obter todos os serviços
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -39,6 +27,13 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HRP = Character:WaitForChild("HumanoidRootPart", 5)
+-- Aguardar personagem
+while not LocalPlayer.Character do
+    task.wait(0.1)
+end
+
+
+
 
 -- ============================================
 -- LIMPEZA ANTI-DUPLICAÇÃO
