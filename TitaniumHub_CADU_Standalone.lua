@@ -1,59 +1,17 @@
 
-
 --[[
     CAFUXZ1 Hub v15.2 - Double Sphere Edition
 ]]
 
--- Proteção contra múltiplas execuções e verificação de ambiente
-if not _G then _G = {} end
+-- Delay inicial para garantir que o ambiente está pronto
+task.wait(0.5)
 
--- Aguardar o jogo carregar completamente
-if not game or typeof(game) ~= "Instance" then
-    warn("CAFUXZ1 Hub: Aguardando ambiente do jogo...")
-    repeat task.wait(0.1) until game and typeof(game) == "Instance"
+-- Verificação simples de carregamento
+while not game:IsLoaded() do
+    task.wait()
 end
 
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
-
--- Verificar serviços essenciais
-local success, result = pcall(function()
-    return game:GetService("Players")
-end)
-
-if not success or not result then
-    warn("CAFUXZ1 Hub: Serviços não disponíveis, aguardando...")
-    repeat 
-        task.wait(0.1)
-        success, result = pcall(function()
-            return game:GetService("Players")
-        end)
-    until success and result
-end
-
-
-
---[[
-    CAFUXZ1 Hub v15.2 - Double Sphere Edition
-    =================================================
-    
-    NOVIDADES v15.2:
-    - DUAS ESFERAS SINCRONIZADAS: Pura + Arthur (Double Touch)
-    - Double Touch = Esfera Arthur V2 ativa
-    - Esferas sempre juntas (ligam/desligam juntas)
-    - Lógica CADUXX137 integrada
-    - Sistema GK removido completamente
-]]
-
--- Verificação segura de carregamento
-if not game or not game:IsLoaded() then
-    repeat task.wait() until game and game:IsLoaded()
-end
-
--- ============================================
--- SERVIÇOS
--- ============================================
+-- Serviços com verificação segura
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -65,9 +23,9 @@ local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 
--- ============================================
--- VERIFICAÇÃO ANTI-DUPLICAÇÃO
--- ============================================
+-- Verificação anti-duplicação com delay
+task.wait(0.1)
+
 if CoreGui:FindFirstChild("CAFUXZ1_Hub_v15") then
     CoreGui:FindFirstChild("CAFUXZ1_Hub_v15"):Destroy()
 end
@@ -78,12 +36,12 @@ if CoreGui:FindFirstChild("CAFUXZ1_Intro") then
     CoreGui:FindFirstChild("CAFUXZ1_Intro"):Destroy()
 end
 
--- Limpar spheres antigos
-for _, obj in ipairs(Workspace:GetChildren()) do
-    if obj.Name == "CAFUXZ1_ReachSphere_v15" or obj.Name == "CAFUXZ1_ArthurSphere_v15" then
-        obj:Destroy()
-    end
+
+-- Verificação segura de carregamento
+if not game or not game:IsLoaded() then
+    repeat task.wait() until game and game:IsLoaded()
 end
+
 
 -- ============================================
 -- CONFIGURAÇÕES
