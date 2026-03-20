@@ -1,6 +1,6 @@
 --[[
-    CAFUXZ1 Hub v18.0 - TOTE ROUBADO + REACH
-    Simples, direto e funcional
+    CAFUXZ1 Hub v18.0 - TOTE ROUBADO + REACH (MEJORADO)
+    Curvas laterais fortes, altura reduzida, movimento fluido
 ]]
 
 if not game or not game:IsLoaded() then 
@@ -34,7 +34,7 @@ pcall(function()
 end)
 
 -- ============================================
--- CONFIGURAÇÕES
+-- CONFIGURAÇÕES OTIMIZADAS
 -- ============================================
 local CONFIG = {
     -- Reach
@@ -42,11 +42,13 @@ local CONFIG = {
     autoTouch = true,
     doubleTouch = true,
     
-    -- Tote
+    -- Tote - CONFIGURAÇÕES MELHORADAS
     savedPosition = nil,        -- Posição salva
-    curvePower = 80,            -- Força da curva (0-100)
-    kickPower = 70,             -- Força do chute
-    lift = 40,                  -- Elevação
+    curvePower = 120,           -- AUMENTADO: Curva lateral (0-200)
+    kickPower = 85,             -- Força do chute
+    lift = 15,                  -- DIMINUÍDO: Altura máxima (era 40)
+    flightTime = 0.8,           -- Tempo de voo em segundos
+    smoothness = 0.016,         -- ~60fps para movimento fluido
     
     -- Cores
     color1 = Color3.fromRGB(99, 102, 241),
@@ -123,7 +125,7 @@ savedLabel.Font = Enum.Font.Gotham
 savedLabel.Parent = container
 
 -- ============================================
--- CONTROLES DE CURVA
+-- CONTROLES DE CURVA (ATUALIZADO 0-200)
 -- ============================================
 
 local curveLabel = Instance.new("TextLabel")
@@ -146,13 +148,13 @@ curveBg.Parent = container
 Instance.new("UICorner", curveBg).CornerRadius = UDim.new(0, 8)
 
 local curveFill = Instance.new("Frame")
-curveFill.Size = UDim2.new(CONFIG.curvePower/100, 0, 1, 0)
+curveFill.Size = UDim2.new(math.clamp(CONFIG.curvePower/200, 0, 1), 0, 1, 0)
 curveFill.BackgroundColor3 = Color3.fromRGB(251, 191, 36)
 curveFill.BorderSizePixel = 0
 curveFill.Parent = curveBg
 Instance.new("UICorner", curveFill).CornerRadius = UDim.new(0, 8)
 
--- Botões +/- curva
+-- Botões +/- curva (passo 10)
 local curveMinus = Instance.new("TextButton")
 curveMinus.Size = UDim2.new(0, 40, 0, 30)
 curveMinus.Position = UDim2.new(0, 0, 0, 145)
@@ -183,7 +185,7 @@ kickFrame.Position = UDim2.new(0, 0, 0, 185)
 kickFrame.BackgroundTransparency = 1
 kickFrame.Parent = container
 
--- Chute Esquerda (F) - Vai pra posição salva com curva
+-- Chute Esquerda (F)
 local kickF = Instance.new("TextButton")
 kickF.Size = UDim2.new(0.48, 0, 1, 0)
 kickF.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
@@ -194,7 +196,7 @@ kickF.Font = Enum.Font.GothamBold
 kickF.Parent = kickFrame
 Instance.new("UICorner", kickF).CornerRadius = UDim.new(0, 10)
 
--- Chute Direita (R) - Vai pra posição salva com curva
+-- Chute Direita (R)
 local kickR = Instance.new("TextButton")
 kickR.Size = UDim2.new(0.48, 0, 1, 0)
 kickR.Position = UDim2.new(0.52, 0, 0, 0)
@@ -289,7 +291,9 @@ local function savePosition()
     print("💾 Posição salva:", CONFIG.savedPosition)
 end
 
--- Executar tote roubado
+-- ============================================
+-- FUNÇÃO DE CHUTE MELHORADA - FLUIDA E CURVADA
+-- ============================================
 local function executeTote(direction)
     if not CONFIG.savedPosition then
         savedLabel.Text = "❌ SALVE UMA POSIÇÃO PRIMEIRO!"
@@ -303,14 +307,14 @@ local function executeTote(direction)
     
     pcall(function()
         for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("BasePart") then
-                if obj.Name:find("Ball") or obj.Name:find("Bola") or obj.Name:find("Soccer") or obj.Name:find("TPS") then
-                    if obj.Position then
-                        local dist = (obj.Position - hrp.Position).Magnitude
-                        if dist < nearestDist and dist < 20 then
-                            nearestDist = dist
-                            ball = obj
-                        end
+            if obj:IsA("BasePart") and not obj.Anchored then
+                local nameLower = obj.Name:lower()
+                if nameLower:find("ball") or nameLower:find("bola") or nameLower:find("soccer") or 
+                   nameLower:find("tps") or nameLower:find("tcs") then
+                    local dist = (obj.Position - hrp.Position).Magnitude
+                    if dist < nearestDist and dist < 25 then
+                        nearestDist = dist
+                        ball = obj
                     end
                 end
             end
@@ -322,76 +326,91 @@ local function executeTote(direction)
         return
     end
     
-    -- Calcular direção para posição salva
+    -- Travar a bola pra ninguém interferir
+    local originalCanCollide = ball.CanCollide
+    ball.CanCollide = false
+    
     local startPos = ball.Position
-    local targetPos = CONFIG.savedPosition
-    local directionVector = (targetPos - startPos).Unit
+    local targetPos = CONFIG.savedPosition + Vector3.new(0, 2, 0)
     
-    -- Aplicar curva gigante
+    -- Vetores de direção
+    local toTarget = (targetPos - startPos)
+    local distance = toTarget.Magnitude
+    local forwardDir = toTarget.Unit
+    
+    -- Direção lateral da curva (perpendicular ao caminho)
     local sideDir = (direction == "R") and 1 or -1
-    local curveVector = hrp.CFrame.RightVector * sideDir * CONFIG.curvePower * 0.1
+    local rightVector = forwardDir:Cross(Vector3.new(0, 1, 0)).Unit * sideDir
     
-    print(string.format("⚽ Chute %s | Curva: %d%% | Target: %.1f, %.1f", 
-        direction, CONFIG.curvePower, targetPos.X, targetPos.Z))
+    print(string.format("⚽ Chute %s | Dist: %.1f | Curva: %d%% | Altura: %d", 
+        direction, distance, CONFIG.curvePower, CONFIG.lift))
     
-    -- Executar chute roubado
+    -- SISTEMA DE ANIMAÇÃO FLUIDA
     pcall(function()
         -- Touch inicial
         firetouchinterest(ball, hrp, 0)
-        task.wait(0.03)
+        task.wait(0.01)
         firetouchinterest(ball, hrp, 1)
         
-        -- Mover bola com curva gigante para o alvo
         local startTime = tick()
-        local duration = 1.5 -- Tempo maior para curva visível
+        local duration = math.clamp(distance / 30, 0.4, CONFIG.flightTime)
         
+        -- Loop de animação fluida (60fps)
         while tick() - startTime < duration do
             if not ball or not ball.Parent then break end
             
             local elapsed = tick() - startTime
-            local progress = elapsed / duration
+            local t = elapsed / duration
             
-            -- Interpolação linear para o alvo
-            local straightPos = startPos:Lerp(targetPos, progress)
+            -- EASING SUAVE: smoothstep
+            local smoothT = t * t * (3 - 2 * t)
             
-            -- Adicionar curva (arco)
-            local curveOffset = curveVector * math.sin(progress * math.pi) * (CONFIG.curvePower * 0.05)
+            -- POSIÇÃO BASE
+            local basePos = startPos:Lerp(targetPos, smoothT)
             
-            -- Elevação (parábola)
-            local heightOffset = Vector3.new(0, math.sin(progress * math.pi) * CONFIG.lift, 0)
+            -- CURVA LATERAL AMPLIFICADA
+            local curveIntensity = math.sin(t * math.pi)
+            local lateralOffset = rightVector * (CONFIG.curvePower * 0.15 * curveIntensity)
             
-            -- Posição final
-            local finalPos = straightPos + curveOffset + heightOffset
+            -- ELEVAÇÃO BAIXA
+            local heightCurve = math.sin(t * math.pi) * CONFIG.lift * (1 - t * 0.3)
+            local heightOffset = Vector3.new(0, heightCurve, 0)
             
-            -- Teleporte suave (roubado mas suave)
+            -- POSIÇÃO FINAL
+            local finalPos = basePos + lateralOffset + heightOffset
+            
+            -- APLICAR COM VELOCIDADE (interpolação suave)
+            ball.Velocity = (finalPos - ball.Position) * 50
             ball.CFrame = CFrame.new(finalPos)
             
-            task.wait(0.03)
+            task.wait(CONFIG.smoothness)
         end
         
-        -- Garantir que chegou no destino
-        ball.CFrame = CFrame.new(targetPos + Vector3.new(0, 2, 0))
-        
-        -- Touch final
-        firetouchinterest(ball, hrp, 0)
-        firetouchinterest(ball, hrp, 1)
+        -- Chegada suave
+        if ball and ball.Parent then
+            ball.CFrame = CFrame.new(targetPos)
+            ball.Velocity = Vector3.new(0, -5, 0)
+            ball.CanCollide = originalCanCollide
+            
+            -- Touch final
+            firetouchinterest(ball, hrp, 0)
+            firetouchinterest(ball, hrp, 1)
+        end
     end)
     
-    -- Efeito visual
+    -- Efeito visual de rastro
     pcall(function()
-        local trail = Instance.new("Part")
-        trail.Shape = Enum.PartType.Ball
-        trail.Size = Vector3.new(2, 2, 2)
-        trail.Position = targetPos
-        trail.Anchored = true
-        trail.CanCollide = false
-        trail.Material = Enum.Material.Neon
-        trail.Color = (direction == "R") and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(100, 100, 255)
-        trail.Transparency = 0.2
-        trail.Parent = Workspace
+        local trail = Instance.new("Trail")
+        trail.Color = ColorSequence.new(
+            (direction == "R") and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(100, 100, 255),
+            Color3.fromRGB(255, 255, 255)
+        )
+        trail.Lifetime = 0.3
+        trail.WidthScale = NumberSequence.new(1, 0)
+        trail.Parent = ball
         
         task.delay(0.5, function()
-            trail:Destroy()
+            if trail then trail:Destroy() end
         end)
     end)
 end
@@ -443,37 +462,37 @@ end
 -- Save
 saveBtn.MouseButton1Click:Connect(savePosition)
 
--- Curva
+-- Curva (atualizado 0-200, passo 10)
 curveMinus.MouseButton1Click:Connect(function()
-    CONFIG.curvePower = math.clamp(CONFIG.curvePower - 5, 0, 100)
+    CONFIG.curvePower = math.clamp(CONFIG.curvePower - 10, 0, 200)
     curveLabel.Text = "PODER DA CURVA: " .. CONFIG.curvePower .. "%"
-    curveFill.Size = UDim2.new(CONFIG.curvePower/100, 0, 1, 0)
+    curveFill.Size = UDim2.new(math.clamp(CONFIG.curvePower/200, 0, 1), 0, 1, 0)
 end)
 
 curvePlus.MouseButton1Click:Connect(function()
-    CONFIG.curvePower = math.clamp(CONFIG.curvePower + 5, 0, 100)
+    CONFIG.curvePower = math.clamp(CONFIG.curvePower + 10, 0, 200)
     curveLabel.Text = "PODER DA CURVA: " .. CONFIG.curvePower .. "%"
-    curveFill.Size = UDim2.new(CONFIG.curvePower/100, 0, 1, 0)
+    curveFill.Size = UDim2.new(math.clamp(CONFIG.curvePower/200, 0, 1), 0, 1, 0)
 end)
 
--- Slider curva touch
+-- Slider curva touch (atualizado 0-200)
 local curveDragging = false
 curveBg.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
         curveDragging = true
-        local pos = input.Position.X - curveBg.AbsolutePosition.X
-        CONFIG.curvePower = math.clamp(math.floor((pos / curveBg.AbsoluteSize.X) * 100), 0, 100)
+        local pos = math.clamp(input.Position.X - curveBg.AbsolutePosition.X, 0, curveBg.AbsoluteSize.X)
+        CONFIG.curvePower = math.floor((pos / curveBg.AbsoluteSize.X) * 200)
         curveLabel.Text = "PODER DA CURVA: " .. CONFIG.curvePower .. "%"
-        curveFill.Size = UDim2.new(CONFIG.curvePower/100, 0, 1, 0)
+        curveFill.Size = UDim2.new(math.clamp(CONFIG.curvePower/200, 0, 1), 0, 1, 0)
     end
 end)
 
 curveBg.InputChanged:Connect(function(input)
     if curveDragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
-        local pos = input.Position.X - curveBg.AbsolutePosition.X
-        CONFIG.curvePower = math.clamp(math.floor((pos / curveBg.AbsoluteSize.X) * 100), 0, 100)
+        local pos = math.clamp(input.Position.X - curveBg.AbsolutePosition.X, 0, curveBg.AbsoluteSize.X)
+        CONFIG.curvePower = math.floor((pos / curveBg.AbsoluteSize.X) * 200)
         curveLabel.Text = "PODER DA CURVA: " .. CONFIG.curvePower .. "%"
-        curveFill.Size = UDim2.new(CONFIG.curvePower/100, 0, 1, 0)
+        curveFill.Size = UDim2.new(math.clamp(CONFIG.curvePower/200, 0, 1), 0, 1, 0)
     end
 end)
 
@@ -579,10 +598,16 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 print("========================================")
-print("⚡ CAFUXZ1 TOTE ROUBADO + REACH")
+print("⚡ CAFUXZ1 TOTE ROUBADO + REACH v18.0")
 print("========================================")
 print("🎮 CONTROLES:")
 print("   [E] - Salvar posição atual")
 print("   [F] - Chute curva esquerda")
 print("   [R] - Chute curva direita")
+print("========================================")
+print("✅ MELHORIAS:")
+print("   • Curva lateral até 200% (mais forte)")
+print("   • Altura reduzida (15 vs 40 antigo)")
+print("   • Movimento fluido 60fps")
+print("   • Interpolação suave com velocity")
 print("========================================")
