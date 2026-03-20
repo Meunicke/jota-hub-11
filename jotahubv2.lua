@@ -1,6 +1,6 @@
 --[[
-    CAFUXZ1 Hub v16.0 - TOTE SYSTEM v3.0 PRO
-    Preview Visual | Angle Bar | Power Bar | Save Positions
+    CAFUXZ1 Hub v17.0 - MOBILE TOTE SYSTEM v4.0 PRO
+    Interface Touch Completa | Joystick de Mira | Save System
 ]]
 
 task.wait(0.5)
@@ -27,46 +27,47 @@ pcall(function()
 end)
 
 -- ============================================
--- CONFIGURAÇÕES DO SISTEMA DE TOTE v3.0
+-- CONFIGURAÇÕES MOBILE TOTE v4.0
 -- ============================================
 local TOTE = {
-    -- Controles
-    angle = 0,              -- Ângulo atual (-45 a +45)
-    power = 50,             -- Força atual (0-100)
-    maxPower = 100,
-    minPower = 10,
-    chargeSpeed = 80,       -- Velocidade de carregamento (%/segundo)
+    -- Mira
+    aimDirection = Vector2.new(0, 0), -- X = lado, Y = altura
+    aimAngleX = 0, -- -1 a 1 (esquerda/direita)
+    aimAngleY = 0, -- -1 a 1 (baixo/cima)
+    maxAimDistance = 50,
+    
+    -- Força
+    power = 50,
     isCharging = false,
-    chargeStartTime = 0,
+    chargeValue = 0,
+    maxPower = 100,
+    minPower = 15,
     
     -- Curva
-    curveIntensity = 30,    -- Quanto curva (0-100)
-    lift = 25,              -- Elevação
+    curve = 50, -- 0 a 100
+    lift = 30,
+    
+    -- Save System
+    savedConfigs = {},
+    selectedSlot = 1,
     
     -- Preview
     previewEnabled = true,
     previewParts = {},
-    previewUpdateRate = 0.05,
-    lastPreviewUpdate = 0,
-    
-    -- Save System
-    savedPositions = {},    -- [1], [2], [3]
-    maxSavedPositions = 3,
-    currentSlot = 1,
     
     -- Estado
+    direction = "R",
     isAiming = false,
-    direction = "R",        -- "R" ou "F"
     
-    -- Visual
+    -- Cores
     colors = {
         primary = Color3.fromRGB(99, 102, 241),
-        secondary = Color3.fromRGB(0, 255, 255),
-        angle = Color3.fromRGB(251, 191, 36),
+        left = Color3.fromRGB(59, 130, 246),
+        right = Color3.fromRGB(239, 68, 68),
         power = Color3.fromRGB(239, 68, 68),
-        charge = Color3.fromRGB(139, 92, 246),
+        curve = Color3.fromRGB(251, 191, 36),
         preview = Color3.fromRGB(0, 255, 136),
-        saved = {
+        slots = {
             Color3.fromRGB(34, 197, 94),
             Color3.fromRGB(234, 179, 8),
             Color3.fromRGB(239, 68, 68)
@@ -75,383 +76,414 @@ local TOTE = {
 }
 
 -- ============================================
--- GUI DO SISTEMA DE TOTE
+-- GUI MOBILE PRINCIPAL
 -- ============================================
-local toteGui = Instance.new("ScreenGui")
-toteGui.Name = "CAFUXZ1_ToteSystem"
-toteGui.ResetOnSpawn = false
-toteGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-toteGui.Parent = CoreGui
+local mobileGui = Instance.new("ScreenGui")
+mobileGui.Name = "CAFUXZ1_MobileTote"
+mobileGui.ResetOnSpawn = false
+mobileGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+mobileGui.Parent = CoreGui
 
--- Frame Principal (canto inferior esquerdo)
+-- Frame principal (ocupa tela toda)
 local mainFrame = Instance.new("Frame")
-mainFrame.Name = "ToteMain"
-mainFrame.Size = UDim2.new(0, 400, 0, 300)
-mainFrame.Position = UDim2.new(0, 20, 1, -320)
-mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-mainFrame.BorderSizePixel = 0
-mainFrame.Active = true
-mainFrame.Parent = toteGui
-
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
-
--- Título
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 35)
-title.Position = UDim2.new(0, 0, 0, 5)
-title.BackgroundTransparency = 1
-title.Text = "⚽ TOTE SYSTEM v3.0"
-title.TextColor3 = TOTE.colors.primary
-title.TextSize = 20
-title.Font = Enum.Font.GothamBold
-title.Parent = mainFrame
-
--- Container de controles
-local controlsContainer = Instance.new("Frame")
-controlsContainer.Size = UDim2.new(1, -20, 1, -50)
-controlsContainer.Position = UDim2.new(0, 10, 0, 45)
-controlsContainer.BackgroundTransparency = 1
-controlsContainer.Parent = mainFrame
+mainFrame.Name = "Main"
+mainFrame.Size = UDim2.new(1, 0, 1, 0)
+mainFrame.BackgroundTransparency = 1
+mainFrame.Parent = mobileGui
 
 -- ============================================
--- ANGLE BAR (Arco)
+-- ÁREA DE PREVIEW (Topo)
 -- ============================================
-local angleFrame = Instance.new("Frame")
-angleFrame.Name = "AngleBar"
-angleFrame.Size = UDim2.new(0, 200, 0, 80)
-angleFrame.Position = UDim2.new(0, 0, 0, 0)
-angleFrame.BackgroundTransparency = 1
-angleFrame.Parent = controlsContainer
+local previewFrame = Instance.new("Frame")
+previewFrame.Name = "PreviewArea"
+previewFrame.Size = UDim2.new(0.9, 0, 0.35, 0)
+previewFrame.Position = UDim2.new(0.05, 0, 0.05, 0)
+previewFrame.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+previewFrame.BorderSizePixel = 0
+previewFrame.Parent = mainFrame
 
-local angleLabel = Instance.new("TextLabel")
-angleLabel.Size = UDim2.new(1, 0, 0, 20)
-angleLabel.Text = "ÂNGULO: 0°"
-angleLabel.TextColor3 = TOTE.colors.angle
-angleLabel.TextSize = 14
-angleLabel.Font = Enum.Font.GothamBold
-angleLabel.BackgroundTransparency = 1
-angleLabel.Parent = angleFrame
+Instance.new("UICorner", previewFrame).CornerRadius = UDim.new(0, 16)
 
--- Barra de ângulo visual (semicírculo)
-local angleBg = Instance.new("Frame")
-angleBg.Size = UDim2.new(0, 180, 0, 10)
-angleBg.Position = UDim2.new(0.5, -90, 0, 35)
-angleBg.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-angleBg.BorderSizePixel = 0
-angleBg.Parent = angleFrame
-Instance.new("UICorner", angleBg).CornerRadius = UDim.new(0, 5)
+local previewStroke = Instance.new("UIStroke")
+previewStroke.Color = TOTE.colors.preview
+previewStroke.Thickness = 2
+previewStroke.Parent = previewFrame
 
-local angleFill = Instance.new("Frame")
-angleFill.Name = "Fill"
-angleFill.Size = UDim2.new(0.5, 0, 1, 0)
-angleFill.Position = UDim2.new(0.5, 0, 0, 0)
-angleFill.BackgroundColor3 = TOTE.colors.angle
-angleFill.BorderSizePixel = 0
-angleFill.Parent = angleBg
-Instance.new("UICorner", angleFill).CornerRadius = UDim.new(0, 5)
+local previewLabel = Instance.new("TextLabel")
+previewLabel.Size = UDim2.new(1, 0, 0, 30)
+previewLabel.Position = UDim2.new(0, 0, 0, 5)
+previewLabel.BackgroundTransparency = 1
+previewLabel.Text = "👁️ PREVIEW DO CHUTE"
+previewLabel.TextColor3 = TOTE.colors.preview
+previewLabel.TextSize = 16
+previewLabel.Font = Enum.Font.GothamBold
+previewLabel.Parent = previewFrame
 
--- Indicador central
-local angleCenter = Instance.new("Frame")
-angleCenter.Size = UDim2.new(0, 4, 0, 16)
-angleCenter.Position = UDim2.new(0.5, -2, 0.5, -8)
-angleCenter.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-angleCenter.BorderSizePixel = 0
-angleCenter.ZIndex = 2
-angleCenter.Parent = angleBg
-
--- Botões de ajuste de ângulo
-local angleLeft = Instance.new("TextButton")
-angleLeft.Size = UDim2.new(0, 30, 0, 30)
-angleLeft.Position = UDim2.new(0, 0, 0, 25)
-angleLeft.Text = "◀"
-angleLeft.TextColor3 = Color3.new(1, 1, 1)
-angleLeft.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-angleLeft.Parent = angleFrame
-Instance.new("UICorner", angleLeft).CornerRadius = UDim.new(0, 6)
-
-local angleRight = Instance.new("TextButton")
-angleRight.Size = UDim2.new(0, 30, 0, 30)
-angleRight.Position = UDim2.new(1, -30, 0, 25)
-angleRight.Text = "▶"
-angleRight.TextColor3 = Color3.new(1, 1, 1)
-angleRight.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-angleRight.Parent = angleFrame
-Instance.new("UICorner", angleRight).CornerRadius = UDim.new(0, 6)
+-- Info do chute atual
+local shotInfo = Instance.new("TextLabel")
+shotInfo.Name = "ShotInfo"
+shotInfo.Size = UDim2.new(1, 0, 0, 25)
+shotInfo.Position = UDim2.new(0, 0, 1, -30)
+shotInfo.BackgroundTransparency = 1
+shotInfo.Text = "Força: 50% | Curva: 50% | Ângulo: 0°"
+shotInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+shotInfo.TextSize = 12
+shotInfo.Font = Enum.Font.Gotham
+shotInfo.Parent = previewFrame
 
 -- ============================================
--- POWER BAR (Vertical)
+-- JOYSTICK DE MIRA (Esquerda)
+-- ============================================
+local joystickFrame = Instance.new("Frame")
+joystickFrame.Name = "Joystick"
+joystickFrame.Size = UDim2.new(0, 140, 0, 140)
+joystickFrame.Position = UDim2.new(0, 20, 0.45, 0)
+joystickFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+joystickFrame.BorderSizePixel = 0
+joystickFrame.Parent = mainFrame
+
+Instance.new("UICorner", joystickFrame).CornerRadius = UDim.new(1, 0)
+
+local joystickStroke = Instance.new("UIStroke")
+joystickStroke.Color = TOTE.colors.primary
+joystickStroke.Thickness = 3
+joystickStroke.Parent = joystickFrame
+
+-- Área de toque do joystick (invisível, maior)
+local joystickTouch = Instance.new("TextButton")
+joystickTouch.Name = "TouchArea"
+joystickTouch.Size = UDim2.new(1, 40, 1, 40)
+joystickTouch.Position = UDim2.new(0, -20, 0, -20)
+joystickTouch.BackgroundTransparency = 1
+joystickTouch.Text = ""
+joystickTouch.Parent = joystickFrame
+
+-- Knob do joystick
+local joystickKnob = Instance.new("Frame")
+joystickKnob.Name = "Knob"
+joystickKnob.Size = UDim2.new(0, 50, 0, 50)
+joystickKnob.Position = UDim2.new(0.5, -25, 0.5, -25)
+joystickKnob.BackgroundColor3 = TOTE.colors.primary
+joystickKnob.BorderSizePixel = 0
+joystickKnob.Parent = joystickFrame
+
+Instance.new("UICorner", joystickKnob).CornerRadius = UDim.new(1, 0)
+
+local knobStroke = Instance.new("UIStroke")
+knobStroke.Color = Color3.new(1, 1, 1)
+knobStroke.Thickness = 2
+knobStroke.Parent = joystickKnob
+
+-- Label
+local joystickLabel = Instance.new("TextLabel")
+joystickLabel.Size = UDim2.new(1, 0, 0, 20)
+joystickLabel.Position = UDim2.new(0, 0, 1, 10)
+joystickLabel.BackgroundTransparency = 1
+joystickLabel.Text = "MIRA"
+joystickLabel.TextColor3 = TOTE.colors.primary
+joystickLabel.TextSize = 14
+joystickLabel.Font = Enum.Font.GothamBold
+joystickLabel.Parent = joystickFrame
+
+-- ============================================
+-- BOTÃO DE FORÇA CIRCULAR (Direita)
 -- ============================================
 local powerFrame = Instance.new("Frame")
-powerFrame.Name = "PowerBar"
-powerFrame.Size = UDim2.new(0, 60, 0, 150)
-powerFrame.Position = UDim2.new(0, 210, 0, 0)
+powerFrame.Name = "PowerButton"
+powerFrame.Size = UDim2.new(0, 130, 0, 130)
+powerFrame.Position = UDim2.new(1, -150, 0.45, 0)
 powerFrame.BackgroundTransparency = 1
-powerFrame.Parent = controlsContainer
+powerFrame.Parent = mainFrame
 
-local powerLabel = Instance.new("TextLabel")
-powerLabel.Size = UDim2.new(1, 0, 0, 20)
-powerLabel.Text = "FORÇA"
-powerLabel.TextColor3 = TOTE.colors.power
-powerLabel.TextSize = 12
-powerLabel.Font = Enum.Font.GothamBold
-powerLabel.BackgroundTransparency = 1
-powerLabel.Parent = powerFrame
-
--- Barra vertical
+-- Círculo de fundo
 local powerBg = Instance.new("Frame")
-powerBg.Size = UDim2.new(0, 20, 0, 100)
-powerBg.Position = UDim2.new(0.5, -10, 0, 25)
-powerBg.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+powerBg.Size = UDim2.new(1, 0, 1, 0)
+powerBg.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
 powerBg.BorderSizePixel = 0
 powerBg.Parent = powerFrame
-Instance.new("UICorner", powerBg).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", powerBg).CornerRadius = UDim.new(1, 0)
 
+local powerStroke = Instance.new("UIStroke")
+powerStroke.Color = TOTE.colors.power
+powerStroke.Thickness = 3
+powerStroke.Parent = powerBg
+
+-- Fill circular (usando Frame com CornerRadius)
 local powerFill = Instance.new("Frame")
 powerFill.Name = "Fill"
-powerFill.Size = UDim2.new(1, 0, 0.5, 0)
-powerFill.Position = UDim2.new(0, 0, 0.5, 0)
+powerFill.Size = UDim2.new(0.85, 0, 0.85, 0)
+powerFill.Position = UDim2.new(0.075, 0, 0.075, 0)
 powerFill.BackgroundColor3 = TOTE.colors.power
 powerFill.BorderSizePixel = 0
-powerFill.Parent = powerBg
-Instance.new("UICorner", powerFill).CornerRadius = UDim.new(0, 10)
+powerFill.Parent = powerFrame
+Instance.new("UICorner", powerFill).CornerRadius = UDim.new(1, 0)
 
-local powerValue = Instance.new("TextLabel")
-powerValue.Size = UDim2.new(1, 0, 0, 20)
-powerValue.Position = UDim2.new(0, 0, 0, 130)
-powerValue.Text = "50%"
-powerValue.TextColor3 = TOTE.colors.power
-powerValue.TextSize = 14
-powerValue.Font = Enum.Font.GothamBold
-powerValue.BackgroundTransparency = 1
-powerValue.Parent = powerFrame
+-- Botão de toque
+local powerButton = Instance.new("TextButton")
+powerButton.Name = "Touch"
+powerButton.Size = UDim2.new(1, 0, 1, 0)
+powerButton.BackgroundTransparency = 1
+powerButton.Text = "50%"
+powerButton.TextColor3 = Color3.new(1, 1, 1)
+powerButton.TextSize = 24
+powerButton.Font = Enum.Font.GothamBold
+powerButton.Parent = powerFrame
 
--- Botões de ajuste
-local powerUp = Instance.new("TextButton")
-powerUp.Size = UDim2.new(0, 25, 0, 25)
-powerUp.Position = UDim2.new(1, -25, 0, 30)
-powerUp.Text = "+"
-powerUp.TextColor3 = Color3.new(1, 1, 1)
-powerUp.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-powerUp.Parent = powerFrame
-Instance.new("UICorner", powerUp).CornerRadius = UDim.new(0, 6)
-
-local powerDown = Instance.new("TextButton")
-powerDown.Size = UDim2.new(0, 25, 0, 25)
-powerDown.Position = UDim2.new(1, -25, 0, 95)
-powerDown.Text = "-"
-powerDown.TextColor3 = Color3.new(1, 1, 1)
-powerDown.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-powerDown.Parent = powerFrame
-Instance.new("UICorner", powerDown).CornerRadius = UDim.new(0, 6)
+-- Label
+local powerLabel = Instance.new("TextLabel")
+powerLabel.Size = UDim2.new(1, 0, 0, 20)
+powerLabel.Position = UDim2.new(0, 0, 1, 10)
+powerLabel.BackgroundTransparency = 1
+powerLabel.Text = "SEGURE"
+powerLabel.TextColor3 = TOTE.colors.power
+powerLabel.TextSize = 14
+powerLabel.Font = Enum.Font.GothamBold
+powerLabel.Parent = powerFrame
 
 -- ============================================
--- CHARGE BAR (Carregamento)
+-- SLIDER DE CURVA (Centro)
 -- ============================================
-local chargeFrame = Instance.new("Frame")
-chargeFrame.Name = "ChargeBar"
-chargeFrame.Size = UDim2.new(0, 280, 0, 40)
-chargeFrame.Position = UDim2.new(0, 0, 0, 90)
-chargeFrame.BackgroundTransparency = 1
-chargeFrame.Parent = controlsContainer
+local curveFrame = Instance.new("Frame")
+curveFrame.Name = "CurveSlider"
+curveFrame.Size = UDim2.new(0.5, 0, 0, 60)
+curveFrame.Position = UDim2.new(0.25, 0, 0.42, 0)
+curveFrame.BackgroundTransparency = 1
+curveFrame.Parent = mainFrame
 
-local chargeLabel = Instance.new("TextLabel")
-chargeLabel.Size = UDim2.new(1, 0, 0, 18)
-chargeLabel.Text = "CARREGAR: [HOLD SPACE]"
-chargeLabel.TextColor3 = TOTE.colors.charge
-chargeLabel.TextSize = 12
-chargeLabel.Font = Enum.Font.GothamBold
-chargeLabel.BackgroundTransparency = 1
-chargeLabel.Parent = chargeFrame
+local curveLabel = Instance.new("TextLabel")
+curveLabel.Size = UDim2.new(1, 0, 0, 20)
+curveLabel.Text = "CURVA"
+curveLabel.TextColor3 = TOTE.colors.curve
+curveLabel.TextSize = 12
+curveLabel.Font = Enum.Font.GothamBold
+curveLabel.BackgroundTransparency = 1
+curveLabel.Parent = curveFrame
 
-local chargeBg = Instance.new("Frame")
-chargeBg.Size = UDim2.new(1, 0, 0, 12)
-chargeBg.Position = UDim2.new(0, 0, 0, 22)
-chargeBg.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-chargeBg.BorderSizePixel = 0
-chargeBg.Parent = chargeFrame
-Instance.new("UICorner", chargeBg).CornerRadius = UDim.new(0, 6)
+local curveBg = Instance.new("Frame")
+curveBg.Size = UDim2.new(1, 0, 0, 25)
+curveBg.Position = UDim2.new(0, 0, 0, 22)
+curveBg.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+curveBg.BorderSizePixel = 0
+curveBg.Parent = curveFrame
+Instance.new("UICorner", curveBg).CornerRadius = UDim.new(0, 12)
 
-local chargeFill = Instance.new("Frame")
-chargeFill.Name = "Fill"
-chargeFill.Size = UDim2.new(0, 0, 1, 0)
-chargeFill.BackgroundColor3 = TOTE.colors.charge
-chargeFill.BorderSizePixel = 0
-chargeFill.Parent = chargeBg
-Instance.new("UICorner", chargeFill).CornerRadius = UDim.new(0, 6)
+local curveFill = Instance.new("Frame")
+curveFill.Name = "Fill"
+curveFill.Size = UDim2.new(0.5, 0, 1, 0)
+curveFill.BackgroundColor3 = TOTE.colors.curve
+curveFill.BorderSizePixel = 0
+curveFill.Parent = curveBg
+Instance.new("UICorner", curveFill).CornerRadius = UDim.new(0, 12)
 
-local chargePercent = Instance.new("TextLabel")
-chargePercent.Size = UDim2.new(0, 50, 0, 20)
-chargePercent.Position = UDim2.new(0.5, -25, 0, 0)
-chargePercent.Text = "0%"
-chargePercent.TextColor3 = TOTE.colors.charge
-chargePercent.TextSize = 11
-chargePercent.Font = Enum.Font.GothamBold
-chargePercent.BackgroundTransparency = 1
-chargePercent.Parent = chargeFrame
+local curveValue = Instance.new("TextLabel")
+curveValue.Size = UDim2.new(0, 40, 0, 25)
+curveValue.Position = UDim2.new(0.5, -20, 0, 22)
+curveValue.Text = "50"
+curveValue.TextColor3 = Color3.new(1, 1, 1)
+curveValue.TextSize = 14
+curveValue.Font = Enum.Font.GothamBold
+curveValue.BackgroundTransparency = 1
+curveValue.Parent = curveFrame
+
+-- Botões de ajuste de curva
+local curveMinus = Instance.new("TextButton")
+curveMinus.Size = UDim2.new(0, 30, 0, 30)
+curveMinus.Position = UDim2.new(0, -35, 0, 20)
+curveMinus.Text = "-"
+curveMinus.TextColor3 = Color3.new(1, 1, 1)
+curveMinus.TextSize = 20
+curveMinus.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+curveMinus.Parent = curveFrame
+Instance.new("UICorner", curveMinus).CornerRadius = UDim.new(0, 8)
+
+local curvePlus = Instance.new("TextButton")
+curvePlus.Size = UDim2.new(0, 30, 0, 30)
+curvePlus.Position = UDim2.new(1, 5, 0, 20)
+curvePlus.Text = "+"
+curvePlus.TextColor3 = Color3.new(1, 1, 1)
+curvePlus.TextSize = 20
+curvePlus.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+curvePlus.Parent = curveFrame
+Instance.new("UICorner", curvePlus).CornerRadius = UDim.new(0, 8)
 
 -- ============================================
--- SAVE SYSTEM (Slots)
+-- SAVE SLOTS (Topo direito)
 -- ============================================
-local saveFrame = Instance.new("Frame")
-saveFrame.Name = "SaveSystem"
-saveFrame.Size = UDim2.new(0, 280, 0, 60)
-saveFrame.Position = UDim2.new(0, 0, 0, 140)
-saveFrame.BackgroundTransparency = 1
-saveFrame.Parent = controlsContainer
-
-local saveLabel = Instance.new("TextLabel")
-saveLabel.Size = UDim2.new(1, 0, 0, 18)
-saveLabel.Text = "POSIÇÕES SALVAS [E/Q]"
-saveLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-saveLabel.TextSize = 11
-saveLabel.Font = Enum.Font.GothamBold
-saveLabel.BackgroundTransparency = 1
-saveLabel.Parent = saveFrame
-
-local slotContainer = Instance.new("Frame")
-slotContainer.Size = UDim2.new(1, 0, 0, 35)
-slotContainer.Position = UDim2.new(0, 0, 0, 22)
-slotContainer.BackgroundTransparency = 1
-slotContainer.Parent = saveFrame
+local slotsFrame = Instance.new("Frame")
+slotsFrame.Name = "SaveSlots"
+slotsFrame.Size = UDim2.new(0, 180, 0, 50)
+slotsFrame.Position = UDim2.new(1, -190, 0.05, 0)
+slotsFrame.BackgroundTransparency = 1
+slotsFrame.Parent = mainFrame
 
 local slots = {}
 for i = 1, 3 do
     local slot = Instance.new("TextButton")
     slot.Name = "Slot" .. i
-    slot.Size = UDim2.new(0, 80, 1, 0)
-    slot.Position = UDim2.new(0, (i-1) * 95, 0, 0)
-    slot.Text = "[" .. i .. "] VAZIO"
+    slot.Size = UDim2.new(0, 55, 0, 45)
+    slot.Position = UDim2.new(0, (i-1) * 60, 0, 0)
+    slot.Text = tostring(i)
     slot.TextColor3 = Color3.new(1, 1, 1)
-    slot.TextSize = 11
+    slot.TextSize = 20
     slot.Font = Enum.Font.GothamBold
-    slot.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    slot.Parent = slotContainer
-    Instance.new("UICorner", slot).CornerRadius = UDim.new(0, 8)
+    slot.BackgroundColor3 = (i == 1) and TOTE.colors.slots[i] or Color3.fromRGB(60, 60, 80)
+    slot.Parent = slotsFrame
+    Instance.new("UICorner", slot).CornerRadius = UDim.new(0, 10)
     
-    -- Indicador de slot ativo
-    local indicator = Instance.new("Frame")
-    indicator.Name = "Indicator"
-    indicator.Size = UDim2.new(1, 0, 0, 3)
-    indicator.Position = UDim2.new(0, 0, 1, -3)
-    indicator.BackgroundColor3 = TOTE.colors.saved[i]
-    indicator.BorderSizePixel = 0
-    indicator.Visible = (i == 1)
-    indicator.Parent = slot
+    -- Indicador de salvo
+    local savedIndicator = Instance.new("Frame")
+    savedIndicator.Name = "Saved"
+    savedIndicator.Size = UDim2.new(0, 8, 0, 8)
+    savedIndicator.Position = UDim2.new(1, -12, 0, 4)
+    savedIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    savedIndicator.BorderSizePixel = 0
+    savedIndicator.Visible = false
+    savedIndicator.Parent = slot
+    Instance.new("UICorner", savedIndicator).CornerRadius = UDim.new(1, 0)
     
-    slots[i] = {button = slot, indicator = indicator, data = nil}
+    slots[i] = {
+        button = slot,
+        indicator = savedIndicator,
+        data = nil
+    }
 end
 
 -- ============================================
--- BOTÕES DE CHUTE
+-- BOTÕES DE CHUTE (Base - Grandes)
 -- ============================================
-local kickFrame = Instance.new("Frame")
-kickFrame.Name = "KickButtons"
-kickFrame.Size = UDim2.new(0, 280, 0, 45)
-kickFrame.Position = UDim2.new(0, 0, 0, 205)
-kickFrame.BackgroundTransparency = 1
-kickFrame.Parent = controlsContainer
+local kickContainer = Instance.new("Frame")
+kickContainer.Name = "KickButtons"
+kickContainer.Size = UDim2.new(0.9, 0, 0, 120)
+kickContainer.Position = UDim2.new(0.05, 0, 0.68, 0)
+kickContainer.BackgroundTransparency = 1
+kickContainer.Parent = mainFrame
 
+-- Chute Esquerda [F]
 local kickLeft = Instance.new("TextButton")
+kickLeft.Name = "KickF"
 kickLeft.Size = UDim2.new(0.48, 0, 1, 0)
-kickLeft.Text = "⬅️ CHUTE [F]"
+kickLeft.BackgroundColor3 = TOTE.colors.left
+kickLeft.Text = "⬅️\nCHUTE [F]"
 kickLeft.TextColor3 = Color3.new(1, 1, 1)
-kickLeft.TextSize = 13
+kickLeft.TextSize = 18
 kickLeft.Font = Enum.Font.GothamBold
-kickLeft.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
-kickLeft.Parent = kickFrame
-Instance.new("UICorner", kickLeft).CornerRadius = UDim.new(0, 10)
+kickLeft.Parent = kickContainer
+Instance.new("UICorner", kickLeft).CornerRadius = UDim.new(0, 16)
 
+local leftStroke = Instance.new("UIStroke")
+leftStroke.Color = Color3.new(1, 1, 1)
+leftStroke.Thickness = 2
+leftStroke.Parent = kickLeft
+
+-- Chute Direita [R]
 local kickRight = Instance.new("TextButton")
+kickRight.Name = "KickR"
 kickRight.Size = UDim2.new(0.48, 0, 1, 0)
 kickRight.Position = UDim2.new(0.52, 0, 0, 0)
-kickRight.Text = "CHUTE [R] ➡️"
+kickRight.BackgroundColor3 = TOTE.colors.right
+kickRight.Text = "➡️\nCHUTE [R]"
 kickRight.TextColor3 = Color3.new(1, 1, 1)
-kickRight.TextSize = 13
+kickRight.TextSize = 18
 kickRight.Font = Enum.Font.GothamBold
-kickRight.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-kickRight.Parent = kickFrame
-Instance.new("UICorner", kickRight).CornerRadius = UDim.new(0, 10)
+kickRight.Parent = kickContainer
+Instance.new("UICorner", kickRight).CornerRadius = UDim.new(0, 16)
 
--- Toggle Preview
+local rightStroke = Instance.new("UIStroke")
+rightStroke.Color = Color3.new(1, 1, 1)
+rightStroke.Thickness = 2
+rightStroke.Parent = kickRight
+
+-- ============================================
+// TOGGLE PREVIEW (Pequeno, canto)
+-- ============================================
 local previewToggle = Instance.new("TextButton")
-previewToggle.Size = UDim2.new(0, 120, 0, 30)
-previewToggle.Position = UDim2.new(1, -130, 0, 0)
-previewToggle.Text = "👁️ PREVIEW: ON"
-previewToggle.TextColor3 = Color3.new(1, 1, 1)
-previewToggle.TextSize = 11
-previewToggle.Font = Enum.Font.GothamBold
+previewToggle.Size = UDim2.new(0, 100, 0, 35)
+previewToggle.Position = UDim2.new(0.05, 0, 0.42, 0)
 previewToggle.BackgroundColor3 = TOTE.colors.preview
-previewToggle.Parent = controlsContainer
+previewToggle.Text = "👁️ ON"
+previewToggle.TextColor3 = Color3.new(1, 1, 1)
+previewToggle.TextSize = 12
+previewToggle.Font = Enum.Font.GothamBold
+previewToggle.Parent = mainFrame
 Instance.new("UICorner", previewToggle).CornerRadius = UDim.new(0, 8)
 
 -- ============================================
--- FUNÇÕES DO SISTEMA
+// INSTRUÇÕES (Rodapé)
 -- ============================================
+local instructions = Instance.new("TextLabel")
+instructions.Size = UDim2.new(0.9, 0, 0, 40)
+instructions.Position = UDim2.new(0.05, 0, 0.92, 0)
+instructions.BackgroundTransparency = 1
+instructions.Text = "Arraste o joystick para mirar • Segure o botão vermelho para carregar força • Toque nos slots para salvar/carregar"
+instructions.TextColor3 = Color3.fromRGB(150, 150, 150)
+instructions.TextSize = 11
+instructions.Font = Enum.Font.Gotham
+instructions.TextWrapped = true
+instructions.Parent = mainFrame
 
--- Atualizar UI de ângulo
-local function updateAngleUI()
-    angleLabel.Text = string.format("ÂNGULO: %d°", TOTE.angle)
-    
-    -- Atualizar barra (0.5 é o centro, varia para esquerda/direita)
-    local normalized = (TOTE.angle + 45) / 90  -- -45~45 -> 0~1
-    if TOTE.angle < 0 then
-        angleFill.Position = UDim2.new(normalized, 0, 0, 0)
-        angleFill.Size = UDim2.new(0.5 - normalized, 0, 1, 0)
-    else
-        angleFill.Position = UDim2.new(0.5, 0, 0, 0)
-        angleFill.Size = UDim2.new(normalized - 0.5, 0, 1, 0)
-    end
+-- ============================================
+// FUNÇÕES DO SISTEMA
+// ============================================
+
+-- Atualizar info na tela
+local function updateShotInfo()
+    local angleText = math.floor(TOTE.aimAngleX * 45)
+    shotInfo.Text = string.format("Força: %d%% | Curva: %d%% | Ângulo: %d°", 
+        TOTE.power, TOTE.curve, angleText)
 end
 
--- Atualizar UI de força
-local function updatePowerUI()
-    powerValue.Text = string.format("%d%%", TOTE.power)
-    powerFill.Size = UDim2.new(1, 0, TOTE.power / 100, 0)
-    powerFill.Position = UDim2.new(0, 0, 1 - (TOTE.power / 100), 0)
-end
-
--- Atualizar UI de carregamento
-local function updateChargeUI()
-    if not TOTE.isCharging then
-        chargeFill.Size = UDim2.new(0, 0, 1, 0)
-        chargePercent.Text = "0%"
-        return
-    end
-    
-    local elapsed = tick() - TOTE.chargeStartTime
-    local chargePercent = math.min((elapsed * TOTE.chargeSpeed) / 100, 1)
-    TOTE.power = math.floor(TOTE.minPower + (chargePercent * (TOTE.maxPower - TOTE.minPower)))
-    
-    chargeFill.Size = UDim2.new(chargePercent, 0, 1, 0)
-    chargePercent.Text = string.format("%d%%", math.floor(chargePercent * 100))
-    updatePowerUI()
-end
-
--- Calcular trajetória de preview (Curva de Bézier)
-local function calculateTrajectory(startPos, direction)
+-- Calcular trajetória com base na mira
+local function calculateTrajectory()
     if not hrp or not hrp.Parent then return {} end
     
-    local charCF = hrp.CFrame
-    local angleRad = math.rad(TOTE.angle)
-    local sideDir = (direction == "R") and 1 or -1
+    -- Encontrar bola
+    local ball = nil
+    local nearestDist = math.huge
     
-    -- Vetores base
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and (obj.Name:match("Ball") or obj.Name:match("Bola") or obj.Name:match("Soccer")) then
+            if obj.Position then
+                local dist = (obj.Position - hrp.Position).Magnitude
+                if dist < nearestDist and dist < 20 then
+                    nearestDist = dist
+                    ball = obj
+                end
+            end
+        end
+    end
+    
+    if not ball then return {} end
+    
+    local startPos = ball.Position
+    local charCF = hrp.CFrame
+    
+    -- Calcular direção baseada no joystick
+    local sideDir = (TOTE.direction == "R") and 1 or -1
     local forward = charCF.LookVector
     local right = charCF.RightVector * sideDir
     local up = charCF.UpVector
     
-    -- Aplicar rotação do ângulo
-    local rotatedForward = (forward * math.cos(angleRad)) + (right * math.sin(angleRad))
+    -- Aplicar ângulos do joystick
+    local angleX = TOTE.aimAngleX * 0.5 -- Esquerda/direita
+    local angleY = TOTE.aimAngleY * 0.3 -- Cima/baixo
+    
+    local aimVector = (forward * (1 - math.abs(angleX))) + 
+                      (right * angleX) + 
+                      (up * angleY)
+    aimVector = aimVector.Unit
     
     -- Pontos de controle da curva de Bézier
-    local p0 = startPos
-    local p1 = startPos + (rotatedForward * TOTE.power * 0.3) + (up * TOTE.lift * 0.5)
-    local p2 = startPos + (rotatedForward * TOTE.power * 0.7) + (right * TOTE.curveIntensity * 0.3) + (up * TOTE.lift)
-    local p3 = startPos + (rotatedForward * TOTE.power) + (right * TOTE.curveIntensity * 0.8)
+    local distance = TOTE.power * 0.4
+    local curveAmount = TOTE.curve * 0.02
     
-    -- Calcular pontos da curva
+    local p0 = startPos
+    local p1 = startPos + (aimVector * distance * 0.3) + (up * TOTE.lift * 0.3)
+    local p2 = startPos + (aimVector * distance * 0.7) + (right * curveAmount * 5) + (up * TOTE.lift)
+    local p3 = startPos + (aimVector * distance) + (right * curveAmount * 8)
+    
+    -- Calcular pontos
     local points = {}
-    for t = 0, 1, 0.05 do
+    for t = 0, 1, 0.08 do
         local t2 = t * t
         local t3 = t2 * t
         local mt = 1 - t
@@ -465,196 +497,120 @@ local function calculateTrajectory(startPos, direction)
     return points
 end
 
--- Criar/Atualizar preview visual
+-- Atualizar preview visual
 local function updatePreview()
-    if not TOTE.previewEnabled or not TOTE.isAiming then
-        -- Limpar preview
-        for _, part in ipairs(TOTE.previewParts) do
-            if part then part:Destroy() end
-        end
-        TOTE.previewParts = {}
-        return
-    end
-    
-    -- Limitar taxa de atualização
-    if tick() - TOTE.lastPreviewUpdate < TOTE.previewUpdateRate then return end
-    TOTE.lastPreviewUpdate = tick()
-    
     -- Limpar preview antigo
     for _, part in ipairs(TOTE.previewParts) do
         if part then part:Destroy() end
     end
     TOTE.previewParts = {}
     
-    -- Encontrar bola
-    local ball = nil
-    local nearestDist = math.huge
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Name:match("Ball") or obj.Name:match("Bola") or obj.Name:match("Soccer") then
-            if obj.Position then
-                local dist = (obj.Position - hrp.Position).Magnitude
-                if dist < nearestDist and dist < 15 then
-                    nearestDist = dist
-                    ball = obj
-                end
-            end
-        end
-    end
+    if not TOTE.previewEnabled then return end
     
-    if not ball then return end
-    
-    -- Calcular trajetória
-    local points = calculateTrajectory(ball.Position, TOTE.direction)
+    local points = calculateTrajectory()
+    if #points == 0 then return end
     
     -- Criar partes de preview
     for i, point in ipairs(points) do
         local part = Instance.new("Part")
         part.Shape = Enum.PartType.Ball
-        part.Size = Vector3.new(0.8 - (i * 0.05), 0.8 - (i * 0.05), 0.8 - (i * 0.05))
+        part.Size = Vector3.new(1.2 - (i * 0.08), 1.2 - (i * 0.08), 1.2 - (i * 0.08))
         part.Position = point
         part.Anchored = true
         part.CanCollide = false
         part.Material = Enum.Material.Neon
         part.Color = TOTE.colors.preview
-        part.Transparency = 0.3 + (i * 0.05)
+        part.Transparency = 0.2 + (i * 0.06)
         part.Parent = Workspace
-        
-        -- Adicionar luz ao primeiro ponto
-        if i == 1 then
-            local light = Instance.new("PointLight")
-            light.Color = TOTE.colors.preview
-            light.Brightness = 2
-            light.Range = 10
-            light.Parent = part
-        end
         
         table.insert(TOTE.previewParts, part)
     end
     
-    -- Linha de conexão (usando partes cilíndricas)
+    -- Linhas de conexão
     for i = 1, #points - 1 do
         local dist = (points[i] - points[i+1]).Magnitude
-        local mid = (points[i] + points[i+1]) / 2
-        local cf = CFrame.lookAt(points[i], points[i+1])
-        
-        local line = Instance.new("Part")
-        line.Size = Vector3.new(0.2, 0.2, dist)
-        line.CFrame = cf * CFrame.new(0, 0, -dist/2)
-        line.Anchored = true
-        line.CanCollide = false
-        line.Material = Enum.Material.Neon
-        line.Color = TOTE.colors.preview
-        line.Transparency = 0.6
-        line.Parent = Workspace
-        
-        table.insert(TOTE.previewParts, line)
-    end
-end
-
--- Salvar posição atual
-local function savePosition(slot)
-    if not hrp or not hrp.Parent then return end
-    
-    local targetPos = nil
-    
-    -- Se estiver mirando em uma bola, salvar posição relativa à bola
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and (obj.Name:match("Ball") or obj.Name:match("Goal") or obj.Name:match("Gol")) then
-            if obj.Position then
-                local dist = (obj.Position - hrp.Position).Magnitude
-                if dist < 50 then
-                    targetPos = {
-                        type = "relative",
-                        ballPos = obj.Position,
-                        hrpPos = hrp.Position,
-                        angle = TOTE.angle,
-                        power = TOTE.power,
-                        curve = TOTE.curveIntensity,
-                        direction = TOTE.direction,
-                        timestamp = tick()
-                    }
-                    break
-                end
-            end
+        if dist > 0.1 then
+            local mid = (points[i] + points[i+1]) / 2
+            local cf = CFrame.lookAt(points[i], points[i+1])
+            
+            local line = Instance.new("Part")
+            line.Size = Vector3.new(0.3, 0.3, dist)
+            line.CFrame = cf * CFrame.new(0, 0, -dist/2)
+            line.Anchored = true
+            line.CanCollide = false
+            line.Material = Enum.Material.Neon
+            line.Color = TOTE.colors.preview
+            line.Transparency = 0.5
+            line.Parent = Workspace
+            
+            table.insert(TOTE.previewParts, line)
         end
     end
-    
-    -- Se não encontrou bola, salvar posição absoluta do HR
-    if not targetPos then
-        targetPos = {
-            type = "absolute",
-            hrpPos = hrp.Position,
-            hrpRot = hrp.CFrame,
-            angle = TOTE.angle,
-            power = TOTE.power,
-            curve = TOTE.curveIntensity,
-            direction = TOTE.direction,
-            timestamp = tick()
-        }
-    end
-    
-    TOTE.savedPositions[slot] = targetPos
-    slots[slot].data = targetPos
-    
-    -- Atualizar UI
-    slots[slot].button.Text = "[" .. slot .. "] SALVO"
-    slots[slot].button.BackgroundColor3 = TOTE.colors.saved[slot]
-    
-    -- Notificação
-    print(string.format("💾 Posição salva no slot [%d]", slot))
 end
 
--- Carregar posição salva
-local function loadPosition(slot)
-    local data = TOTE.savedPositions[slot]
-    if not data then 
-        print(string.format("⚠️ Slot [%d] está vazio!", slot))
-        return 
+-- Salvar configuração
+local function saveConfig(slotIndex)
+    TOTE.savedConfigs[slotIndex] = {
+        aimAngleX = TOTE.aimAngleX,
+        aimAngleY = TOTE.aimAngleY,
+        power = TOTE.power,
+        curve = TOTE.curve,
+        lift = TOTE.lift,
+        timestamp = tick()
+    }
+    
+    slots[slotIndex].data = TOTE.savedConfigs[slotIndex]
+    slots[slotIndex].indicator.Visible = true
+    
+    -- Animação de feedback
+    local originalColor = slots[slotIndex].button.BackgroundColor3
+    slots[slotIndex].button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    task.delay(0.2, function()
+        slots[slotIndex].button.BackgroundColor3 = TOTE.colors.slots[slotIndex]
+    end)
+    
+    print(string.format("💾 Config [%d] salva!", slotIndex))
+end
+
+-- Carregar configuração
+local function loadConfig(slotIndex)
+    local config = TOTE.savedConfigs[slotIndex]
+    if not config then
+        print(string.format("⚠️ Slot [%d] vazio", slotIndex))
+        return
     end
     
-    -- Aplicar configurações
-    TOTE.angle = data.angle
-    TOTE.power = data.power
-    TOTE.curveIntensity = data.curve
-    TOTE.direction = data.direction
+    TOTE.aimAngleX = config.aimAngleX
+    TOTE.aimAngleY = config.aimAngleY
+    TOTE.power = config.power
+    TOTE.curve = config.curve
+    TOTE.lift = config.lift
     
-    updateAngleUI()
-    updatePowerUI()
+    -- Atualizar UI
+    curveFill.Size = UDim2.new(TOTE.curve / 100, 0, 1, 0)
+    curveValue.Text = tostring(TOTE.curve)
+    powerButton.Text = tostring(TOTE.power) .. "%"
+    
+    -- Atualizar joystick visual
+    local knobX = 0.5 + (TOTE.aimAngleX * 0.3)
+    local knobY = 0.5 + (TOTE.aimAngleY * 0.3)
+    joystickKnob.Position = UDim2.new(knobX, -25, knobY, -25)
     
     -- Destacar slot ativo
     for i, s in ipairs(slots) do
-        s.indicator.Visible = (i == slot)
+        s.button.BackgroundColor3 = (i == slotIndex) and TOTE.colors.slots[i] or Color3.fromRGB(60, 60, 80)
     end
-    TOTE.currentSlot = slot
+    TOTE.selectedSlot = slotIndex
     
-    -- Se for posição relativa e a bola ainda existir, calcular direção automática
-    if data.type == "relative" then
-        -- Procurar bola próxima da posição salva
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Name:match("Ball") then
-                if obj.Position and (obj.Position - data.ballPos).Magnitude < 10 then
-                    -- Calcular ângulo automático para a bola
-                    local toBall = (obj.Position - hrp.Position).Unit
-                    local look = hrp.CFrame.LookVector
-                    local angle = math.deg(math.atan2(toBall.X - look.X, toBall.Z - look.Z))
-                    TOTE.angle = math.clamp(angle, -45, 45)
-                    updateAngleUI()
-                    break
-                end
-            end
-        end
-    end
+    updateShotInfo()
+    updatePreview()
     
-    print(string.format("📂 Posição [%d] carregada!", slot))
+    print(string.format("📂 Config [%d] carregada!", slotIndex))
 end
 
--- Executar chute com física suave
-local function executeTote(direction)
-    if not hrp or not hrp.Parent then return end
-    
+-- Executar chute
+local function executeKick(direction)
     TOTE.direction = direction
-    TOTE.isAiming = false
-    updatePreview() -- Limpar preview
     
     -- Encontrar bola
     local ball = nil
@@ -674,248 +630,359 @@ local function executeTote(direction)
     
     if not ball then return end
     
-    -- Calcular direção final
+    -- Calcular vetor de chute
     local charCF = hrp.CFrame
-    local angleRad = math.rad(TOTE.angle)
     local sideDir = (direction == "R") and 1 or -1
     
     local forward = charCF.LookVector
     local right = charCF.RightVector * sideDir
     local up = charCF.UpVector
     
-    -- Vetor de chute com ângulo
-    local kickDir = (forward * math.cos(angleRad) * (TOTE.power / 100)) + 
-                    (right * math.sin(angleRad) * 0.5) + 
-                    (up * 0.3 * (TOTE.power / 100))
+    -- Aplicar mira do joystick
+    local aimX = TOTE.aimAngleX * 0.6
+    local aimY = TOTE.aimAngleY * 0.4
     
-    -- Limitar força máxima para não atravessar
-    local maxForce = math.min(TOTE.power, 85) -- Cap em 85% para não bugar
+    local kickVector = (forward * (1 - math.abs(aimX)) * (TOTE.power / 100)) + 
+                       (right * aimX) + 
+                       (up * (0.2 + aimY) * (TOTE.power / 100))
     
-    -- Executar com interpolação suave
+    -- Limitar força máxima
+    local finalPower = math.min(TOTE.power, 80)
+    
+    -- Animação do botão
+    local btn = (direction == "R") and kickRight or kickLeft
+    local originalSize = btn.Size
+    btn:TweenSize(UDim2.new(originalSize.X.Scale * 0.95, 0, originalSize.Y.Scale * 0.95, 0), 
+                  Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.1, true)
+    task.delay(0.1, function()
+        btn:TweenSize(originalSize, Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.1, true)
+    end)
+    
+    -- Executar física
     pcall(function()
-        local startTime = tick()
-        local duration = 0.5 + (maxForce / 200) -- Mais força = mais tempo de aplicação
-        
-        -- Primeiro touch
+        -- Touch inicial
         firetouchinterest(ball, hrp, 0)
-        task.wait(0.05)
+        task.wait(0.03)
         firetouchinterest(ball, hrp, 1)
         
-        -- Aplicar movimento suave frame a frame
-        local connection
-        connection = RunService.Heartbeat:Connect(function()
-            local elapsed = tick() - startTime
-            if elapsed > duration or not ball or not ball.Parent then
-                if connection then connection:Disconnect() end
-                return
-            end
+        -- Aplicar movimento suave
+        local startTime = tick()
+        local duration = 0.4
+        
+        while tick() - startTime < duration do
+            if not ball or not ball.Parent then break end
             
+            local elapsed = tick() - startTime
             local progress = elapsed / duration
-            local ease = math.sin(progress * math.pi * 0.5) -- Ease out sine
+            local ease = math.sin(progress * math.pi * 0.5)
             
             -- Movimento base
-            local move = kickDir * maxForce * ease * 0.15
+            local move = kickVector * finalPower * ease * 0.08
             
-            -- Adicionar curva (efeito Magnus)
-            local curve = right * TOTE.curveIntensity * math.sin(progress * math.pi) * 0.1
+            -- Curva (efeito Magnus)
+            local curveForce = right * TOTE.curve * 0.01 * math.sin(progress * math.pi)
             
-            -- Aplicar
-            ball.CFrame = ball.CFrame + move + curve
+            ball.CFrame = ball.CFrame + move + curveForce
             
-            -- Rotação para visual
+            -- Rotação
             ball.CFrame = ball.CFrame * CFrame.Angles(
-                math.random() * 0.1,
-                math.random() * 0.1,
-                math.random() * 0.1
+                math.random() * 0.15,
+                math.random() * 0.15,
+                math.random() * 0.15
             )
-        end)
+            
+            task.wait(0.03)
+        end
         
-        -- Double touch no meio
-        task.delay(duration * 0.4, function()
-            pcall(function()
-                firetouchinterest(ball, hrp, 0)
-                task.wait(0.02)
-                firetouchinterest(ball, hrp, 1)
-            end)
-        end)
+        -- Touch final
+        task.wait(0.05)
+        firetouchinterest(ball, hrp, 0)
+        firetouchinterest(ball, hrp, 1)
     end)
     
     -- Efeito visual
     pcall(function()
         local effect = Instance.new("Part")
         effect.Shape = Enum.PartType.Ball
-        effect.Size = Vector3.new(2, 2, 2)
+        effect.Size = Vector3.new(3, 3, 3)
         effect.Position = ball.Position
         effect.Anchored = true
         effect.CanCollide = false
         effect.Material = Enum.Material.Neon
-        effect.Color = (direction == "R") and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(100, 100, 255)
-        effect.Transparency = 0.5
+        effect.Color = (direction == "R") and TOTE.colors.right or TOTE.colors.left
+        effect.Transparency = 0.4
         effect.Parent = Workspace
         
-        TweenService:Create(effect, TweenInfo.new(0.4), {
+        TweenService:Create(effect, TweenInfo.new(0.5), {
             Size = Vector3.new(0.1, 0.1, 0.1),
             Transparency = 1
         }):Play()
         
-        task.delay(0.4, function() effect:Destroy() end)
+        task.delay(0.5, function() effect:Destroy() end)
     end)
     
-    print(string.format("⚽ Tote %s | Ângulo: %d° | Força: %d%%", direction, TOTE.angle, TOTE.power))
+    print(string.format("⚽ Chute %s | Força: %d%% | Curva: %d%%", direction, TOTE.power, TOTE.curve))
 end
 
 -- ============================================
--- CONEXÕES DE INPUT
--- ============================================
+// SISTEMA DE JOYSTICK TOUCH
+// ============================================
+local joystickActive = false
+local joystickCenter = nil
+local maxJoystickDist = 35
 
--- Ajuste de ângulo
-angleLeft.MouseButton1Click:Connect(function()
-    TOTE.angle = math.clamp(TOTE.angle - 5, -45, 45)
-    updateAngleUI()
+joystickTouch.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        joystickActive = true
+        joystickCenter = Vector2.new(joystickFrame.AbsolutePosition.X + joystickFrame.AbsoluteSize.X/2,
+                                     joystickFrame.AbsolutePosition.Y + joystickFrame.AbsoluteSize.Y/2)
+    end
 end)
 
-angleRight.MouseButton1Click:Connect(function()
-    TOTE.angle = math.clamp(TOTE.angle + 5, -45, 45)
-    updateAngleUI()
-end)
-
--- Ajuste de força
-powerUp.MouseButton1Click:Connect(function()
-    TOTE.power = math.clamp(TOTE.power + 5, TOTE.minPower, TOTE.maxPower)
-    updatePowerUI()
-end)
-
-powerDown.MouseButton1Click:Connect(function()
-    TOTE.power = math.clamp(TOTE.power - 5, TOTE.minPower, TOTE.maxPower)
-    updatePowerUI()
-end)
-
--- Slots de save
-for i, slot in ipairs(slots) do
-    slot.button.MouseButton1Click:Connect(function()
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-            loadPosition(i)
-        else
-            savePosition(i)
-        end
-    end)
-end
-
--- Botões de chute
-kickLeft.MouseButton1Click:Connect(function() executeTote("F") end)
-kickRight.MouseButton1Click:Connect(function() executeTote("R") end)
-
--- Toggle preview
-previewToggle.MouseButton1Click:Connect(function()
-    TOTE.previewEnabled = not TOTE.previewEnabled
-    previewToggle.Text = TOTE.previewEnabled and "👁️ PREVIEW: ON" or "👁️ PREVIEW: OFF"
-    previewToggle.BackgroundColor3 = TOTE.previewEnabled and TOTE.colors.preview or Color3.fromRGB(100, 100, 100)
-    if not TOTE.previewEnabled then
+joystickTouch.InputChanged:Connect(function(input)
+    if joystickActive and input.UserInputType == Enum.UserInputType.Touch then
+        local pos = input.Position
+        local delta = pos - joystickCenter
+        local dist = math.min(delta.Magnitude, maxJoystickDist)
+        local angle = math.atan2(delta.Y, delta.X)
+        
+        -- Limitar distância
+        local limitedDelta = Vector2.new(math.cos(angle) * dist, math.sin(angle) * dist)
+        
+        -- Mover knob
+        joystickKnob.Position = UDim2.new(0.5, limitedDelta.X - 25, 0.5, limitedDelta.Y - 25)
+        
+        -- Calcular valores normalizados (-1 a 1)
+        TOTE.aimAngleX = limitedDelta.X / maxJoystickDist
+        TOTE.aimAngleY = limitedDelta.Y / maxJoystickDist
+        
+        updateShotInfo()
         updatePreview()
     end
 end)
 
--- Teclado
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    -- Carregar (Segurar Espaço)
-    if input.KeyCode == Enum.KeyCode.Space then
+local function endJoystick(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        joystickActive = false
+        -- Resetar knob com animação
+        TweenService:Create(joystickKnob, TweenInfo.new(0.2), {
+            Position = UDim2.new(0.5, -25, 0.5, -25)
+        }):Play()
+        
+        -- Suavizar retorno dos valores
+        TweenService:Create(TOTE, TweenInfo.new(0.2), {
+            aimAngleX = 0,
+            aimAngleY = 0
+        }):Play()
+        
+        task.delay(0.2, function()
+            updateShotInfo()
+            updatePreview()
+        end)
+    end
+end
+
+joystickTouch.InputEnded:Connect(endJoystick)
+joystickTouch.InputCancelled:Connect(endJoystick)
+
+-- ============================================
+// SISTEMA DE FORÇA (HOLD)
+// ============================================
+local powerActive = false
+local chargeConnection = nil
+
+powerButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        powerActive = true
         TOTE.isCharging = true
-        TOTE.chargeStartTime = tick()
+        
+        -- Animação de pressão
+        TweenService:Create(powerFill, TweenInfo.new(0.1), {
+            Size = UDim2.new(0.75, 0, 0.75, 0),
+            Position = UDim2.new(0.125, 0, 0.125, 0)
+        }):Play()
+        
+        -- Loop de carregamento
+        chargeConnection = RunService.Heartbeat:Connect(function()
+            if not powerActive then return end
+            
+            TOTE.chargeValue = math.min(TOTE.chargeValue + 1.5, 100)
+            TOTE.power = TOTE.minPower + math.floor((TOTE.chargeValue / 100) * (TOTE.maxPower - TOTE.minPower))
+            
+            -- Atualizar visual
+            powerButton.Text = tostring(TOTE.power) .. "%"
+            local fillScale = 0.2 + (TOTE.chargeValue / 100) * 0.65
+            powerFill.Size = UDim2.new(fillScale, 0, fillScale, 0)
+            powerFill.Position = UDim2.new((1 - fillScale) / 2, 0, (1 - fillScale) / 2, 0)
+            
+            -- Mudar cor baseado na força
+            if TOTE.power > 80 then
+                powerFill.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+            elseif TOTE.power > 50 then
+                powerFill.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+            else
+                powerFill.BackgroundColor3 = TOTE.colors.power
+            end
+            
+            updateShotInfo()
+        end)
     end
-    
-    -- Ajuste fino de ângulo (Setas)
-    if input.KeyCode == Enum.KeyCode.Left then
-        TOTE.angle = math.clamp(TOTE.angle - 2, -45, 45)
-        updateAngleUI()
-    elseif input.KeyCode == Enum.KeyCode.Right then
-        TOTE.angle = math.clamp(TOTE.angle + 2, -45, 45)
-        updateAngleUI()
-    elseif input.KeyCode == Enum.KeyCode.Up then
-        TOTE.power = math.clamp(TOTE.power + 2, TOTE.minPower, TOTE.maxPower)
-        updatePowerUI()
-    elseif input.KeyCode == Enum.KeyCode.Down then
-        TOTE.power = math.clamp(TOTE.power - 2, TOTE.minPower, TOTE.maxPower)
-        updatePowerUI()
+end)
+
+local function endPower(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        powerActive = false
+        TOTE.isCharging = false
+        TOTE.chargeValue = 0
+        
+        if chargeConnection then
+            chargeConnection:Disconnect()
+            chargeConnection = nil
+        end
+        
+        -- Resetar visual
+        TweenService:Create(powerFill, TweenInfo.new(0.3), {
+            Size = UDim2.new(0.85, 0, 0.85, 0),
+            Position = UDim2.new(0.075, 0, 0.075, 0),
+            BackgroundColor3 = TOTE.colors.power
+        }):Play()
+        
+        powerButton.Text = tostring(TOTE.power) .. "%"
     end
-    
-    -- Save/Load (E/Q)
-    if input.KeyCode == Enum.KeyCode.E then
-        savePosition(TOTE.currentSlot)
-    elseif input.KeyCode == Enum.KeyCode.Q then
-        loadPosition(TOTE.currentSlot)
+end
+
+powerButton.InputEnded:Connect(endPower)
+powerButton.InputCancelled:Connect(endPower)
+
+-- ============================================
+// CONTROLES DE CURVA
+// ============================================
+curveMinus.MouseButton1Click:Connect(function()
+    TOTE.curve = math.clamp(TOTE.curve - 5, 0, 100)
+    curveFill.Size = UDim2.new(TOTE.curve / 100, 0, 1, 0)
+    curveValue.Text = tostring(TOTE.curve)
+    updateShotInfo()
+    updatePreview()
+end)
+
+curvePlus.MouseButton1Click:Connect(function()
+    TOTE.curve = math.clamp(TOTE.curve + 5, 0, 100)
+    curveFill.Size = UDim2.new(TOTE.curve / 100, 0, 1, 0)
+    curveValue.Text = tostring(TOTE.curve)
+    updateShotInfo()
+    updatePreview()
+end)
+
+-- Slider de curva touch
+local curveDragging = false
+curveBg.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        curveDragging = true
+        local pos = input.Position.X - curveBg.AbsolutePosition.X
+        local percent = math.clamp(pos / curveBg.AbsoluteSize.X, 0, 1)
+        TOTE.curve = math.floor(percent * 100)
+        curveFill.Size = UDim2.new(percent, 0, 1, 0)
+        curveValue.Text = tostring(TOTE.curve)
+        updateShotInfo()
+        updatePreview()
     end
-    
-    -- Trocar slot (1, 2, 3)
-    if input.KeyCode == Enum.KeyCode.One then
-        TOTE.currentSlot = 1
-        for i, s in ipairs(slots) do s.indicator.Visible = (i == 1) end
-    elseif input.KeyCode == Enum.KeyCode.Two then
-        TOTE.currentSlot = 2
-        for i, s in ipairs(slots) do s.indicator.Visible = (i == 2) end
-    elseif input.KeyCode == Enum.KeyCode.Three then
-        TOTE.currentSlot = 3
-        for i, s in ipairs(slots) do s.indicator.Visible = (i == 3) end
+end)
+
+curveBg.InputChanged:Connect(function(input)
+    if curveDragging and input.UserInputType == Enum.UserInputType.Touch then
+        local pos = input.Position.X - curveBg.AbsolutePosition.X
+        local percent = math.clamp(pos / curveBg.AbsoluteSize.X, 0, 1)
+        TOTE.curve = math.floor(percent * 100)
+        curveFill.Size = UDim2.new(percent, 0, 1, 0)
+        curveValue.Text = tostring(TOTE.curve)
+        updateShotInfo()
+        updatePreview()
     end
+end)
+
+curveBg.InputEnded:Connect(function() curveDragging = false end)
+
+-- ============================================
+// SAVE SLOTS
+// ============================================
+for i, slot in ipairs(slots) do
+    -- Tap simples: Carregar
+    -- Hold: Salvar
+    local holdStart = 0
     
-    -- Chutar (R/F)
-    if input.KeyCode == Enum.KeyCode.R then
-        executeTote("R")
-    elseif input.KeyCode == Enum.KeyCode.F then
-        executeTote("F")
-    end
+    slot.button.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            holdStart = tick()
+        end
+    end)
     
-    -- Toggle aim mode (Tab)
-    if input.KeyCode == Enum.KeyCode.Tab then
-        TOTE.isAiming = not TOTE.isAiming
-        if not TOTE.isAiming then
+    slot.button.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            local holdTime = tick() - holdStart
+            if holdTime > 0.5 then
+                -- Hold: Salvar
+                saveConfig(i)
+            else
+                -- Tap: Carregar
+                loadConfig(i)
+            end
+        end
+    end)
+end
+
+-- ============================================
+// BOTÕES DE CHUTE
+// ============================================
+kickLeft.MouseButton1Click:Connect(function()
+    executeKick("F")
+end)
+
+kickRight.MouseButton1Click:Connect(function()
+    executeKick("R")
+end)
+
+-- ============================================
+// TOGGLE PREVIEW
+// ============================================
+previewToggle.MouseButton1Click:Connect(function()
+    TOTE.previewEnabled = not TOTE.previewEnabled
+    previewToggle.Text = TOTE.previewEnabled and "👁️ ON" or "👁️ OFF"
+    previewToggle.BackgroundColor3 = TOTE.previewEnabled and TOTE.colors.preview or Color3.fromRGB(100, 100, 100)
+    updatePreview()
+end)
+
+-- ============================================
+// LOOP DE ATUALIZAÇÃO
+// ============================================
+RunService.RenderStepped:Connect(function()
+    -- Atualizar preview periodicamente se estiver mirando
+    if TOTE.previewEnabled and (math.abs(TOTE.aimAngleX) > 0.1 or math.abs(TOTE.aimAngleY) > 0.1) then
+        -- Throttle updates
+        if tick() % 0.1 < 0.05 then
             updatePreview()
         end
     end
 end)
 
-UserInputService.InputEnded:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.Space and TOTE.isCharging then
-        TOTE.isCharging = false
-        -- O power já foi setado durante o carregamento
-    end
-end)
-
--- ============================================
--- LOOP PRINCIPAL
--- ============================================
-RunService.RenderStepped:Connect(function()
-    -- Atualizar carregamento
-    if TOTE.isCharging then
-        updateChargeUI()
-    end
-    
-    -- Atualizar preview
-    if TOTE.previewEnabled and TOTE.isAiming then
-        updatePreview()
-    end
-    
-    -- Limpar preview se não estiver mirando
-    if not TOTE.isAiming and #TOTE.previewParts > 0 then
-        updatePreview()
-    end
+-- Cleanup ao respawnar
+player.CharacterAdded:Connect(function(newChar)
+    char = newChar
+    hrp = newChar:WaitForChild("HumanoidRootPart")
+    task.wait(0.5)
+    updatePreview()
 end)
 
 -- Inicializar
-updateAngleUI()
-updatePowerUI()
+updateShotInfo()
+updatePreview()
 
 print("========================================")
-print("⚽ CAFUXZ1 TOTE SYSTEM v3.0 PRO")
+print("⚽ CAFUXZ1 MOBILE TOTE v4.0 PRO")
 print("========================================")
-print("🎮 CONTROLES:")
-print("   [TAB] - Modo mira (preview)")
-print("   [HOLD SPACE] - Carregar força")
-print("   [⬅️➡️] - Ajustar ângulo")
-print("   [⬆️⬇️] - Ajustar força manual")
-print("   [R/F] - Chutar direita/esquerda")
-print("   [E] - Salvar posição no slot atual")
-print("   [Q] - Carregar posição do slot atual")
-print("   [1/2/3] - Trocar slot ativo")
+print("🎮 CONTROLES TOUCH:")
+print("   👆 ARRASTE joystick para mirar")
+print("   👆 SEGURE botão vermelho para carregar força")
+print("   👆 Toque botões azul/vermelho para chutar")
+print("   👆 Segure slot para SALVAR, toque para CARREGAR")
+print("   👆 Ajuste curva com slider ou +/-")
 print("========================================")
