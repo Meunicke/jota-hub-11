@@ -45,7 +45,7 @@ local CONFIG = {
     -- Tote - CONFIGURAÇÕES MELHORADAS
     savedPosition = nil,        -- Posição salva
     curvePower = 120,           -- AUMENTADO: Curva lateral (0-200)
-    kickPower = 85,             -- Força do chute
+    kickPower = 80,             -- Força do chute
     lift = 15,                  -- DIMINUÍDO: Altura máxima (era 40)
     flightTime = 0.8,           -- Tempo de voo em segundos
     smoothness = 0.016,         -- ~60fps para movimento fluido
