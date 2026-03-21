@@ -1,12 +1,13 @@
 --[[
-    CAFUXZ1 GK Hub v1.3 - Bug Fix Edition
+    CAFUXZ1 GK Hub v1.4 - GK Movement System
     =========================================
     
-    CORREÇÕES:
-    - Erros de nil value corrigidos
-    - Removido game:GetObjects e InsertService (não funcionam em scripts)
-    - Sistema AC (Auto Catch) otimizado
-    - Verificações de nil adicionadas em todas as funções
+    SISTEMA DE PULOS DIRECIONAIS:
+    Z = Pulo Baixo Esquerdo (Dive Low Left)
+    C = Pulo Baixo Direito (Dive Low Right)
+    Q = Pulo Alto Esquerdo (Dive High Left)
+    T = Pulo Alto / Arremessar (Dive High / Throw)
+    E = Pulo Alto Direito (Dive High Right)
 ]]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -38,7 +39,6 @@ pcall(function()
     end
 end)
 
--- Limpar objetos antigos
 pcall(function()
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj.Name == "CAFUXZ1_GK_Cube" then
@@ -62,7 +62,7 @@ local CONFIG = {
     reachGKColor = Color3.fromRGB(255, 215, 0),
     reachGKTransparency = 0.8,
     
-    -- AC = Auto Catch (CORRIGIDO!)
+    -- AC = Auto Catch
     AC = {
         enabled = false,
         slotGK = 6,
@@ -74,6 +74,39 @@ local CONFIG = {
         toolCheck = true,
         maxConsecutiveActivations = 3,
         resetTime = 1.5,
+    },
+    
+    -- GK MOVEMENT SYSTEM - PULOS DIRECIONAIS
+    GKMovement = {
+        enabled = true,
+        
+        -- Teclas de pulo
+        keys = {
+            diveLowLeft = "Z",      -- Pulo baixo esquerdo
+            diveLowRight = "C",     -- Pulo baixo direito
+            diveHighLeft = "Q",     -- Pulo alto esquerdo
+            diveHighCenter = "T",   -- Pulo alto / arremessar
+            diveHighRight = "E",    -- Pulo alto direito
+        },
+        
+        -- Configurações de pulo
+        divePower = {
+            low = 35,       -- Força pulo baixo
+            high = 60,      -- Força pulo alto
+            vertical = 25,  -- Força vertical adicional
+        },
+        
+        -- Cooldowns
+        cooldown = 0.8,         -- Cooldown entre pulos
+        autoEquipTool = true,     -- Equipar tool automaticamente ao pular
+        autoCatchAfterDive = true, -- AC automático após pulo
+        
+        -- Direções (vetores relativos ao personagem)
+        directions = {
+            left = Vector3.new(-1, 0, 0),
+            right = Vector3.new(1, 0, 0),
+            forward = Vector3.new(0, 0, -1),
+        }
     },
     
     -- Auto Skills
@@ -106,6 +139,8 @@ local CONFIG = {
         danger = Color3.fromRGB(239, 68, 68),
         warning = Color3.fromRGB(245, 158, 11),
         info = Color3.fromRGB(59, 130, 246),
+        diveLow = Color3.fromRGB(0, 150, 255),    -- Azul para pulo baixo
+        diveHigh = Color3.fromRGB(255, 50, 50),   -- Vermelho para pulo alto
         bgDark = Color3.fromRGB(12, 12, 20),
         bgCard = Color3.fromRGB(28, 28, 42),
         bgElevated = Color3.fromRGB(42, 42, 62),
@@ -134,6 +169,7 @@ local STATS = {
     skillsActivated = 0,
     catchesAttempted = 0,
     catchesSuccessful = 0,
+    divesExecuted = 0,      -- NOVO: Pulos executados
     sessionStart = tick(),
     antiLagItems = 0,
     morphsDone = 0
@@ -182,7 +218,7 @@ local lastSkillCheck = 0
 local lastStatsUpdate = 0
 local logLabelPool = {}
 
--- AC (Auto Catch) Variáveis
+-- AC Variáveis
 local ACActive = false
 local lastCatchAttempt = 0
 local lastEquipTime = 0
@@ -191,8 +227,13 @@ local currentTool = nil
 local consecutiveCatches = 0
 local lastCatchReset = 0
 
+-- GK Movement Variáveis
+local lastDiveTime = 0
+local isDiving = false
+local diveVisualizer = nil
+
 -- ============================================
--- FUNÇÃO TWEEN CORRIGIDA
+-- FUNÇÃO TWEEN
 -- ============================================
 local function tween(obj, props, time, style, dir, callback)
     if not obj or not obj.Parent then return nil end
@@ -217,7 +258,7 @@ local function tween(obj, props, time, style, dir, callback)
 end
 
 -- ============================================
--- NOTIFICAÇÃO CORRIGIDA
+-- NOTIFICAÇÃO
 -- ============================================
 local function notify(title, text, duration)
     duration = duration or 3
@@ -231,7 +272,7 @@ local function notify(title, text, duration)
 end
 
 -- ============================================
--- VIRTUAL INPUT CORRIGIDO
+-- VIRTUAL INPUT
 -- ============================================
 local function simulateKeyPress(key)
     local keyCode = Enum.KeyCode[key]
@@ -258,7 +299,7 @@ local function simulateKeyTap(key)
 end
 
 -- ============================================
--- SISTEMA AC (AUTO CATCH) - CORRIGIDO
+-- SISTEMA AC (AUTO CATCH)
 -- ============================================
 local function getBackpack()
     return LocalPlayer:FindFirstChild("Backpack")
@@ -286,7 +327,6 @@ local function getGKTool()
         end
     end
     
-    -- Ordenar por slot se disponível
     table.sort(tools, function(a, b)
         local slotA = a:GetAttribute("Slot") or 999
         local slotB = b:GetAttribute("Slot") or 999
@@ -299,7 +339,6 @@ end
 local function equipGKTool()
     if not char then return false end
     
-    -- Verificar se já tem tool equipada
     local currentTools = getCharacterTools()
     for _, tool in ipairs(currentTools) do
         if tool:IsA("Tool") then
@@ -309,7 +348,6 @@ local function equipGKTool()
         end
     end
     
-    -- Equipar nova tool
     local gkTool = getGKTool()
     if gkTool then
         pcall(function()
@@ -318,7 +356,7 @@ local function equipGKTool()
         lastEquipTime = tick()
         gkToolEquipped = true
         currentTool = gkTool
-        addLog("AC: Tool equipada - " .. tostring(gkTool.Name), "success")
+        addLog("AC: Tool equipada", "success")
         return true
     end
     
@@ -359,7 +397,6 @@ local function isBallInCatchRange()
             end)
             
             if success and distance and distance <= catchRange then
-                -- Verificar se bola está vindo em direção ao goleiro
                 local velocitySuccess, ballVelocity = pcall(function()
                     return ball.AssemblyLinearVelocity or Vector3.zero
                 end)
@@ -384,17 +421,14 @@ end
 local function attemptAC()
     local now = tick()
     
-    -- Resetar contador de catches consecutivos
     if now - lastCatchReset > CONFIG.AC.resetTime then
         consecutiveCatches = 0
     end
     
-    -- Cooldown entre catches
     if now - lastCatchAttempt < CONFIG.AC.spamInterval then
         return false
     end
     
-    -- Verificar limite de catches consecutivos
     if consecutiveCatches >= CONFIG.AC.maxConsecutiveActivations then
         if now - lastCatchReset < CONFIG.AC.resetTime then
             return false
@@ -403,7 +437,6 @@ local function attemptAC()
         end
     end
     
-    -- Equipar tool se necessário
     if CONFIG.AC.toolCheck and not gkToolEquipped then
         if not equipGKTool() then
             return false
@@ -413,31 +446,26 @@ local function attemptAC()
         end
     end
     
-    -- Verificar pulo se configurado
     if CONFIG.AC.jumpDetection and not isJumping() then
         return false
     end
     
-    -- Verificar bola no range
     local ballInRange, ball, distance = isBallInCatchRange()
     if not ballInRange then
         ACActive = false
         return false
     end
     
-    -- EXECUTAR CATCH!
     ACActive = true
     lastCatchAttempt = now
     lastCatchReset = now
     consecutiveCatches = consecutiveCatches + 1
     STATS.catchesAttempted = STATS.catchesAttempted + 1
     
-    -- Simular tecla F
     simulateKeyTap(CONFIG.AC.catchKey)
     
     addLog(string.format("AC: CATCH! Bola a %.1f studs", distance), "success")
     
-    -- Verificar sucesso (simulação)
     task.delay(0.2, function()
         STATS.catchesSuccessful = STATS.catchesSuccessful + 1
     end)
@@ -460,7 +488,198 @@ local function processAC()
 end
 
 -- ============================================
--- SISTEMA ANTI LAG CORRIGIDO
+-- GK MOVEMENT SYSTEM - PULOS DIRECIONAIS
+-- ============================================
+
+local function createDiveVisualizer()
+    if diveVisualizer then
+        pcall(function() diveVisualizer:Destroy() end)
+    end
+    
+    diveVisualizer = Instance.new("Folder")
+    diveVisualizer.Name = "CAFUXZ1_DiveVisualizer"
+    diveVisualizer.Parent = Workspace
+end
+
+local function visualizeDive(direction, diveType, power)
+    if not CONFIG.GKMovement.enabled then return end
+    if not HRP then return end
+    
+    pcall(function()
+        local indicator = Instance.new("Part")
+        indicator.Name = "DiveIndicator"
+        indicator.Shape = Enum.PartType.Ball
+        indicator.Size = Vector3.new(2, 2, 2)
+        indicator.Anchored = true
+        indicator.CanCollide = false
+        indicator.Material = Enum.Material.Neon
+        
+        -- Cor baseada no tipo de pulo
+        if diveType == "low" then
+            indicator.Color = CONFIG.customColors.diveLow
+        else
+            indicator.Color = CONFIG.customColors.diveHigh
+        end
+        
+        -- Posição final estimada do pulo
+        local startPos = HRP.Position
+        local endPos = startPos + (direction * power) + Vector3.new(0, diveType == "high" and 5 or 2, 0)
+        
+        indicator.Position = endPos
+        indicator.Parent = diveVisualizer or Workspace
+        
+        -- Animação de fade out
+        task.spawn(function()
+            for i = 1, 10 do
+                if indicator and indicator.Parent then
+                    indicator.Transparency = i / 10
+                    task.wait(0.05)
+                end
+            end
+            if indicator then
+                indicator:Destroy()
+            end
+        end)
+    end)
+end
+
+local function executeDive(diveType, direction)
+    local now = tick()
+    
+    -- Verificar cooldown
+    if now - lastDiveTime < CONFIG.GKMovement.cooldown then
+        return false
+    end
+    
+    if not humanoid or not HRP then
+        notify("⚠️ GK Movement", "Character não pronto!", 2)
+        return false
+    end
+    
+    -- Verificar se está no chão
+    local state = humanoid:GetState()
+    if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then
+        return false
+    end
+    
+    isDiving = true
+    lastDiveTime = now
+    STATS.divesExecuted = STATS.divesExecuted + 1
+    
+    -- Equipar tool se necessário
+    if CONFIG.GKMovement.autoEquipTool then
+        equipGKTool()
+    end
+    
+    -- Calcular vetor de pulo
+    local lookVector = HRP.CFrame.LookVector
+    local rightVector = HRP.CFrame.RightVector
+    local upVector = Vector3.new(0, 1, 0)
+    
+    local diveVector = Vector3.zero
+    
+    -- Combinar direções
+    if direction == "left" then
+        diveVector = (rightVector * -1) + (lookVector * 0.3)  -- Esquerda + levemente frente
+    elseif direction == "right" then
+        diveVector = rightVector + (lookVector * 0.3)  -- Direita + levemente frente
+    elseif direction == "center" then
+        diveVector = lookVector  -- Frente
+    end
+    
+    -- Aplicar força baseada no tipo de pulo
+    local power = diveType == "low" and CONFIG.GKMovement.divePower.low or CONFIG.GKMovement.divePower.high
+    local verticalPower = diveType == "high" and CONFIG.GKMovement.divePower.vertical or 10
+    
+    -- Normalizar e aplicar força
+    diveVector = diveVector.Unit * power
+    local finalVelocity = diveVector + Vector3.new(0, verticalPower, 0)
+    
+    -- Aplicar velocidade ao personagem
+    pcall(function()
+        HRP.AssemblyLinearVelocity = finalVelocity
+        
+        -- Rotação do personagem na direção do pulo
+        if direction == "left" then
+            HRP.CFrame = CFrame.lookAt(HRP.Position, HRP.Position + (-rightVector))
+        elseif direction == "right" then
+            HRP.CFrame = CFrame.lookAt(HRP.Position, HRP.Position + rightVector)
+        end
+    end)
+    
+    -- Visualização
+    visualizeDive(diveVector, diveType, power)
+    
+    -- Log do tipo de pulo
+    local diveName = ""
+    if diveType == "low" then
+        if direction == "left" then
+            diveName = "Pulo Baixo Esquerdo (Z)"
+        elseif direction == "right" then
+            diveName = "Pulo Baixo Direito (C)"
+        end
+    else
+        if direction == "left" then
+            diveName = "Pulo Alto Esquerdo (Q)"
+        elseif direction == "center" then
+            diveName = "Pulo Alto / Arremessar (T)"
+        elseif direction == "right" then
+            diveName = "Pulo Alto Direito (E)"
+        end
+    end
+    
+    addLog("GK Movement: " .. diveName, "success")
+    notify("🥅 " .. diveName, "Power: " .. power .. "%", 1.5)
+    
+    -- Auto Catch após pulo (se ativado)
+    if CONFIG.GKMovement.autoCatchAfterDive then
+        task.delay(0.3, function()
+            simulateKeyTap(CONFIG.AC.catchKey)
+        end)
+    end
+    
+    -- Resetar estado de pulo
+    task.delay(0.8, function()
+        isDiving = false
+    end)
+    
+    return true
+end
+
+-- Processador de input para GK Movement
+local function processGKMovementInput(input)
+    if not CONFIG.GKMovement.enabled then return false end
+    if isDiving then return false end
+    
+    local key = input.KeyCode.Name
+    
+    -- Mapeamento de teclas para ações
+    if key == CONFIG.GKMovement.keys.diveLowLeft then
+        -- Z = Pulo Baixo Esquerdo
+        return executeDive("low", "left")
+        
+    elseif key == CONFIG.GKMovement.keys.diveLowRight then
+        -- C = Pulo Baixo Direito
+        return executeDive("low", "right")
+        
+    elseif key == CONFIG.GKMovement.keys.diveHighLeft then
+        -- Q = Pulo Alto Esquerdo
+        return executeDive("high", "left")
+        
+    elseif key == CONFIG.GKMovement.keys.diveHighCenter then
+        -- T = Pulo Alto / Arremessar
+        return executeDive("high", "center")
+        
+    elseif key == CONFIG.GKMovement.keys.diveHighRight then
+        -- E = Pulo Alto Direito
+        return executeDive("high", "right")
+    end
+    
+    return false
+end
+
+-- ============================================
+-- SISTEMA ANTI LAG
 -- ============================================
 local function saveOriginalState(obj, property, value)
     if not obj or typeof(obj) ~= "Instance" then return end
@@ -596,7 +815,7 @@ local function disableAntiLag()
 end
 
 -- ============================================
--- SISTEMA DE MORPH CORRIGIDO
+-- SISTEMA DE MORPH
 -- ============================================
 local PRESET_MORPHS = {
     { name = "AlissonGkBe", userId = nil, displayName = "AlissonGkBe (GK)" },
@@ -673,7 +892,7 @@ local function morphToUser(userId, targetName)
 end
 
 -- ============================================
--- SISTEMA SKYBOX CORRIGIDO (SEM game:GetObjects)
+-- SISTEMA SKYBOX
 -- ============================================
 local SkyboxDatabase = {
     { id = 14828385099, name = "Night Sky With Moon HD", category = "1" },
@@ -706,7 +925,6 @@ local function ApplySkybox(assetId, skyName)
     
     ClearSkies()
     
-    -- Método alternativo: criar sky genérico (game:GetObjects não funciona em scripts)
     local success = pcall(function()
         local sky = Instance.new("Sky")
         sky.Name = "CAFUXZ1_GK_Sky_" .. tostring(assetId)
@@ -836,7 +1054,7 @@ local function getBodyParts()
 end
 
 -- ============================================
--- CUBO GK (SISTEMA PRINCIPAL)
+-- CUBO GK
 -- ============================================
 local function createGKCube()
     if gkCube and gkCube.Parent then 
@@ -1114,7 +1332,7 @@ local function updateAllColors()
 end
 
 -- ============================================
--- INTERFACE WINDUI GK - CORRIGIDA
+-- INTERFACE WINDUI GK
 -- ============================================
 local function createWindUI()
     local success = pcall(function()
@@ -1199,7 +1417,7 @@ local function createWindUI()
         versionLabel.Size = UDim2.new(1, 0, 0, 20)
         versionLabel.Position = UDim2.new(0, 0, 0, 55)
         versionLabel.BackgroundTransparency = 1
-        versionLabel.Text = "GK v1.3"
+        versionLabel.Text = "GK v1.4"
         versionLabel.TextColor3 = CONFIG.customColors.textMuted
         versionLabel.TextSize = 12
         versionLabel.Font = Enum.Font.Gotham
@@ -1209,6 +1427,7 @@ local function createWindUI()
         local tabs = {
             {name = "gk", icon = "🥅", label = "GK"},
             {name = "ac", icon = "🧤", label = "AC"},
+            {name = "dive", icon = "🤸", label = "Dive"},  -- NOVA ABA
             {name = "visual", icon = "👁️", label = "Visual"},
             {name = "char", icon = "👤", label = "Char"},
             {name = "sky", icon = "☁️", label = "Sky"},
@@ -1273,7 +1492,7 @@ local function createWindUI()
         headerTitle.Size = UDim2.new(0.6, 0, 1, 0)
         headerTitle.Position = UDim2.new(0, 15, 0, 0)
         headerTitle.BackgroundTransparency = 1
-        headerTitle.Text = "CAFUXZ1 GK Hub v1.3"
+        headerTitle.Text = "CAFUXZ1 GK Hub v1.4"
         headerTitle.TextColor3 = CONFIG.customColors.textPrimary
         headerTitle.TextSize = 18
         headerTitle.Font = Enum.Font.GothamBold
@@ -1574,6 +1793,71 @@ local function createWindUI()
             addLog("Teste manual de AC!", "success")
         end)
         
+        -- NOVA ABA: DIVE (GK MOVEMENT)
+        local diveSection, diveContent = createSection(contentFrames.dive, "🤸 GK Movement - Pulos")
+        
+        createToggle(diveContent, "Ativar GK Movement", CONFIG.GKMovement.enabled, function(val)
+            CONFIG.GKMovement.enabled = val
+            addLog("GK Movement: " .. (val and "ON" or "OFF"), val and "success" or "warning")
+        end)
+        
+        createToggle(diveContent, "Auto Equipar ao Pular", CONFIG.GKMovement.autoEquipTool, function(val)
+            CONFIG.GKMovement.autoEquipTool = val
+        end)
+        
+        createToggle(diveContent, "Auto Catch após Pulo", CONFIG.GKMovement.autoCatchAfterDive, function(val)
+            CONFIG.GKMovement.autoCatchAfterDive = val
+        end)
+        
+        createSlider(diveContent, "Força Pulo Baixo", 10, 100, CONFIG.GKMovement.divePower.low, function(val)
+            CONFIG.GKMovement.divePower.low = val
+        end)
+        
+        createSlider(diveContent, "Força Pulo Alto", 10, 100, CONFIG.GKMovement.divePower.high, function(val)
+            CONFIG.GKMovement.divePower.high = val
+        end)
+        
+        createSlider(diveContent, "Cooldown (ms)", 100, 2000, math.floor(CONFIG.GKMovement.cooldown * 1000), function(val)
+            CONFIG.GKMovement.cooldown = val / 1000
+        end)
+        
+        -- Info das teclas
+        local keyInfo = Instance.new("TextLabel")
+        keyInfo.Size = UDim2.new(1, 0, 0, 120)
+        keyInfo.BackgroundTransparency = 1
+        keyInfo.Text = "⌨️ TECLAS DE PULO:\n\n" ..
+                       "🟦 Z = Pulo Baixo Esquerdo\n" ..
+                       "🟦 C = Pulo Baixo Direito\n\n" ..
+                       "🟥 Q = Pulo Alto Esquerdo\n" ..
+                       "🟥 T = Pulo Alto / Arremessar\n" ..
+                       "🟥 E = Pulo Alto Direito"
+        keyInfo.TextColor3 = CONFIG.customColors.textSecondary
+        keyInfo.TextSize = 13
+        keyInfo.Font = Enum.Font.Gotham
+        keyInfo.TextWrapped = true
+        keyInfo.Parent = diveContent
+        
+        -- Botões de teste
+        createButton(diveContent, "⬅️ Testar Pulo Baixo Esq (Z)", CONFIG.customColors.diveLow, function()
+            executeDive("low", "left")
+        end)
+        
+        createButton(diveContent, "➡️ Testar Pulo Baixo Dir (C)", CONFIG.customColors.diveLow, function()
+            executeDive("low", "right")
+        end)
+        
+        createButton(diveContent, "⬅️ Testar Pulo Alto Esq (Q)", CONFIG.customColors.diveHigh, function()
+            executeDive("high", "left")
+        end)
+        
+        createButton(diveContent, "⬆️ Testar Pulo Alto (T)", CONFIG.customColors.diveHigh, function()
+            executeDive("high", "center")
+        end)
+        
+        createButton(diveContent, "➡️ Testar Pulo Alto Dir (E)", CONFIG.customColors.diveHigh, function()
+            executeDive("high", "right")
+        end)
+        
         -- ABA VISUAL
         local visualSection, visualContent = createSection(contentFrames.visual, "Anti Lag")
         
@@ -1662,7 +1946,7 @@ local function createWindUI()
         local configSection, configContent = createSection(contentFrames.config, "Cores")
         
         createButton(configContent, "Resetar Cores", CONFIG.customColors.warning, function()
-            CONFIG.customColors.primary = Color3.fromRGB(255, 215, 0)
+            CONFIG.customColors.primary = Color3.fromRGB(255,
             CONFIG.reachGKColor = Color3.fromRGB(255, 215, 0)
             updateAllColors()
         end)
@@ -1678,6 +1962,7 @@ local function createWindUI()
             {k="skillsActivated", l="Skills"},
             {k="catchesAttempted", l="Catches Tentados"},
             {k="catchesSuccessful", l="Catches OK"},
+            {k="divesExecuted", l="Pulos Executados"},  -- NOVO
             {k="morphsDone", l="Morphs"}
         }) do
             local f = Instance.new("Frame")
@@ -1861,7 +2146,7 @@ local function createWindUI()
                                         input.UserInputType == Enum.UserInputType.Touch) then
                         local delta = input.Position - iconDragStart
                         iconContainer.Position = UDim2.new(iconStartPos.X.Scale, iconStartPos.X.Offset + delta.X, 
-                                                             iconStartPos.Y.Scale, iconStartPos.Y.Offset + delta.Y)
+                                                         iconStartPos.Y.Scale, iconStartPos.Y.Offset + delta.Y)
                     end
                 end)
                 
@@ -1874,8 +2159,8 @@ local function createWindUI()
             end)
         end
         
-        notify("🥅 CAFUXZ1 GK Hub", "v1.3 - AC System ativo!", 5)
-        addLog("GK Hub v1.3 iniciado! AC (Auto Catch) pronto!", "success")
+        notify("🥅 CAFUXZ1 GK Hub", "v1.4 - GK Movement ativo!", 5)
+        addLog("GK Hub v1.4 iniciado! Sistema de pulos pronto!", "success")
     end)
     
     if not success then
@@ -1884,7 +2169,7 @@ local function createWindUI()
 end
 
 -- ============================================
--- LOOP PRINCIPAL GK - CORRIGIDO
+-- LOOP PRINCIPAL GK
 -- ============================================
 local function mainLoop()
     if loopRunning then 
@@ -1911,17 +2196,24 @@ local function mainLoop()
         end
     end)
     
-    addLog("Sistema GK iniciado - Cubo + AC ativos!", "success")
+    addLog("Sistema GK iniciado - Cubo + AC + Movement ativos!", "success")
 end
 
 -- ============================================
--- ATALHOS CORRIGIDOS
+-- ATALHOS CORRIGIDOS COM GK MOVEMENT
 -- ============================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then 
         return 
     end
     
+    -- GK MOVEMENT - PULOS DIRECIONAIS (PRIORIDADE ALTA)
+    local movementProcessed = processGKMovementInput(input)
+    if movementProcessed then
+        return  -- Se foi um pulo, não processar outros atalhos
+    end
+    
+    -- OUTROS ATALHOS
     if input.KeyCode == Enum.KeyCode.F1 then
         CONFIG.reachGKEnabled = not CONFIG.reachGKEnabled
         notify("GK Reach", CONFIG.reachGKEnabled and "ON" or "OFF", 2)
@@ -1955,11 +2247,17 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             pcall(unequipGKTool)
         end
         
+    elseif input.KeyCode == Enum.KeyCode.F6 then
+        -- ATALHO GK MOVEMENT
+        CONFIG.GKMovement.enabled = not CONFIG.GKMovement.enabled
+        notify("🤸 GK Movement", CONFIG.GKMovement.enabled and "ON" or "OFF", 2)
+        addLog("F6: GK Movement " .. (CONFIG.GKMovement.enabled and "ON" or "OFF"), "info")
+        
     elseif input.KeyCode == Enum.KeyCode.Insert then
         pcall(function()
             if mainGui and mainGui.Parent then
                 if mainGui.Enabled then
-                                        local header = mainFrame:FindFirstChild("Header")
+                    local header = mainFrame:FindFirstChild("Header")
                     if header then
                         local minimizeBtn = header:FindFirstChild("MinimizeBtn")
                         if minimizeBtn then
@@ -1989,8 +2287,15 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     currentTool = nil
     ACActive = false
     consecutiveCatches = 0
+    isDiving = false
     
     pcall(destroyGKCube)
+    pcall(function()
+        if diveVisualizer then
+            diveVisualizer:Destroy()
+            diveVisualizer = nil
+        end
+    end)
     
     task.spawn(function()
         local newHRP = newChar:WaitForChild("HumanoidRootPart", 5)
@@ -2022,36 +2327,41 @@ task.spawn(function()
         humanoid = char:FindFirstChild("Humanoid")
     end
     
+    -- Criar visualizador de pulos
+    pcall(createDiveVisualizer)
+    
     pcall(createWindUI)
     task.wait(0.3)
     pcall(mainLoop)
 end)
 
 print("========================================")
-print("CAFUXZ1 GK Hub v1.3 - BUG FIX EDITION")
+print("CAFUXZ1 GK Hub v1.4 - GK MOVEMENT SYSTEM")
 print("========================================")
-print("✅ CORREÇÕES APLICADAS:")
-print("   • Erros de nil value corrigidos")
-print("   • Sistema AC (Auto Catch) criado")
-print("   • Removido game:GetObjects (não funciona)")
-print("   • Removido InsertService:LoadAsset")
-print("   • Verificações de nil em todas as funções")
-print("   • pcall() em operações críticas")
+print("🆕 NOVO: Sistema de Pulos Direcionais!")
 print("========================================")
 print("🥅 SISTEMAS ATIVOS:")
 print("   • Cubo GK com Reach")
 print("   • AC (Auto Catch) - Tecla F")
+print("   • GK Movement - Pulos Direcionais")
 print("   • Auto Skills GK")
 print("   • Anti Lag")
 print("   • Morph System")
 print("   • Skybox System")
 print("========================================")
-print("🎮 ATALHOS:")
+print("🤸 GK MOVEMENT - TECLAS DE PULO:")
+print("   Z = Pulo Baixo Esquerdo ⬅️")
+print("   C = Pulo Baixo Direito ➡️")
+print("   Q = Pulo Alto Esquerdo ⬅️")
+print("   T = Pulo Alto / Arremessar ⬆️")
+print("   E = Pulo Alto Direito ➡️")
+print("========================================")
+print("🎮 OUTROS ATALHOS:")
 print("   F1 = Toggle GK Reach")
 print("   F2 = Toggle Cubo Visual")
 print("   F3 = Toggle Auto Skills")
 print("   F4 = Toggle Anti Lag")
-print("   F5 = Toggle AC (Auto Catch) 🧤")
+print("   F5 = Toggle AC (Auto Catch)")
+print("   F6 = Toggle GK Movement")
 print("   Insert = Minimizar/Restaurar")
 print("========================================")
-
