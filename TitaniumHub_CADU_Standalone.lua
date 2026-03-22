@@ -21,6 +21,7 @@ local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
 local CoreGui = game:GetService("CoreGui")
 local Debris = game:GetService("Debris")
+local Stats = game:GetService("Stats") -- NOVO: Para monitorar ping
 
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -50,7 +51,7 @@ pcall(function()
 end)
 
 -- ============================================
--- CONFIGURAÇÕES v16.3
+-- CONFIGURAÇÕES v16.3 (COM PING OPTIMIZATION)
 -- ============================================
 local CONFIG = {
     width = 650,
@@ -104,6 +105,19 @@ local CONFIG = {
         fullBright = false
     },
     
+    -- PING OPTIMIZATION SYSTEM (NOVO)
+    pingOptimization = {
+        enabled = true,              -- Ativa otimização de ping
+        adaptiveTiming = true,       -- Timing adaptativo baseado no ping
+        smartPriority = true,        -- Prioriza bolas mais próximas em lag
+        pingBufferMultiplier = 1.5,  -- Buffer de segurança (1.5x = 50% a mais)
+        highPingThreshold = 150,     -- Ping considerado alto (ms)
+        criticalPingThreshold = 250,   -- Ping crítico (ms)
+        dynamicFPS = true,           -- Reduz qualidade quando FPS baixo
+        compensationRange = 0.15,    -- Aumento de range em pings altos (15%)
+        showPingMonitor = true       -- Mostrar monitor de ping na UI
+    },
+    
     -- Cores
     customColors = {
         primary = Color3.fromRGB(99, 102, 241),
@@ -114,6 +128,7 @@ local CONFIG = {
         warning = Color3.fromRGB(245, 158, 11),
         info = Color3.fromRGB(59, 130, 246),
         tote = Color3.fromRGB(255, 0, 128),
+        ping = Color3.fromRGB(0, 255, 200), -- NOVO: Cor para ping
         
         bgDark = Color3.fromRGB(8, 8, 16),
         bgCard = Color3.fromRGB(20, 20, 35),
@@ -146,7 +161,10 @@ local STATS = {
     antiLagItems = 0,
     morphsDone = 0,
     toteKicks = 0,
-    toteGoals = 0
+    toteGoals = 0,
+    avgPing = 0,      -- NOVO
+    currentPing = 0,  -- NOVO
+    fps = 60          -- NOVO
 }
 
 local LOGS = {}
@@ -162,6 +180,140 @@ local function addLog(message, type)
     })
     if #LOGS > MAX_LOGS then table.remove(LOGS) end
 end
+
+-- ============================================
+-- PING SYSTEM AVANÇADO (NOVO - INTEGRADO)
+-- ============================================
+local PingSystem = {
+    History = {},
+    CurrentPing = 0,
+    AveragePing = 0,
+    PingTrend = "stable", -- "rising", "falling", "stable", "spike"
+    LastPingUpdate = 0,
+    DesyncCompensation = 0,
+    SafetyBuffer = 0,
+    FPS = 60,
+    FrameTime = 0,
+    
+    -- Inicializa sistema de ping
+    Init = function(self)
+        -- Monitor de FPS
+        RunService.Heartbeat:Connect(function(deltaTime)
+            self.FrameTime = deltaTime
+            self.FPS = math.floor(1 / deltaTime)
+            STATS.fps = self.FPS
+        end)
+    end,
+    
+    -- Atualiza ping com análise avançada
+    Update = function(self)
+        local now = tick()
+        if now - self.LastPingUpdate < 0.1 then return end -- Limita updates
+        self.LastPingUpdate = now
+        
+        local success, ping = pcall(function()
+            return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+        end)
+        
+        if success and ping then
+            self.CurrentPing = ping
+            STATS.currentPing = ping
+            
+            -- Adiciona ao histórico (últimos 10 valores)
+            table.insert(self.History, 1, ping)
+            if #self.History > 10 then table.remove(self.History) end
+            
+            -- Calcula média móvel
+            local sum = 0
+            for _, p in ipairs(self.History) do
+                sum = sum + p
+            end
+            local newAverage = sum / #self.History
+            
+            -- Detecta tendência
+            if newAverage > self.AveragePing * 1.2 then
+                self.PingTrend = "rising"
+            elseif newAverage < self.AveragePing * 0.8 then
+                self.PingTrend = "falling"
+            elseif math.abs(ping - self.AveragePing) > self.AveragePing * 0.5 then
+                self.PingTrend = "spike"
+            else
+                self.PingTrend = "stable"
+            end
+            
+            self.AveragePing = newAverage
+            STATS.avgPing = math.floor(newAverage)
+            
+            -- Calcula compensação de desync (em segundos)
+            self.DesyncCompensation = (self.AveragePing / 1000) * 0.5
+            
+            -- Buffer de segurança dinâmico
+            local multiplier = CONFIG.pingOptimization.pingBufferMultiplier
+            if self.PingTrend == "spike" or self.PingTrend == "rising" then
+                multiplier = multiplier * 1.3 -- +30% em picos
+            end
+            self.SafetyBuffer = (self.AveragePing / 1000) * multiplier
+            
+        end
+    end,
+    
+    -- Retorna delay adaptativo baseado no ping atual
+    GetAdaptiveDelay = function(self, baseDelay)
+        if not CONFIG.pingOptimization.adaptiveTiming then return baseDelay end
+        
+        -- Aumenta delay levemente em pings altos para estabilidade
+        local pingFactor = math.clamp(self.AveragePing / 100, 0.5, 2.0)
+        return baseDelay * pingFactor
+    end,
+    
+    -- Verifica se deve usar modo de alta prioridade (ping alto)
+    IsHighLoad = function(self)
+        return self.AveragePing > CONFIG.pingOptimization.highPingThreshold or self.FPS < 30
+    end,
+    
+    -- Verifica se está em condição crítica
+    IsCritical = function(self)
+        return self.AveragePing > CONFIG.pingOptimization.criticalPingThreshold or self.FPS < 20
+    end,
+    
+    -- Retorna jitter otimizado (menos agressivo em pings altos)
+    GetOptimizedJitter = function(self)
+        local jitterMultiplier = 1.0
+        if self.PingTrend == "spike" then
+            jitterMultiplier = 0.5 -- Metade do jitter em picos
+        end
+        
+        local baseJitter = self.DesyncCompensation * jitterMultiplier
+        
+        return Vector3.new(
+            math.random(-10, 10) * baseJitter,
+            math.random(-5, 5) * baseJitter,
+            math.random(-10, 10) * baseJitter
+        )
+    end,
+    
+    -- Retorna range efetivo (aumenta levemente em pings altos para compensar)
+    GetEffectiveRange = function(self, baseRange)
+        if not CONFIG.pingOptimization.enabled then return baseRange end
+        
+        -- Aumenta range em até 15% quando ping está alto (compensação de latência)
+        local compensation = math.clamp(self.AveragePing / 1000, 0, CONFIG.pingOptimization.compensationRange)
+        return baseRange * (1 + compensation)
+    end,
+    
+    -- Retorna ícone e cor baseado no status do ping
+    GetStatusVisuals = function(self)
+        if self.PingTrend == "spike" then
+            return "⚠️", Color3.fromRGB(255, 50, 50)
+        elseif self.PingTrend == "rising" then
+            return "↑", Color3.fromRGB(255, 200, 50)
+        elseif self.PingTrend == "falling" then
+            return "↓", Color3.fromRGB(100, 255, 100)
+        else
+            return "●", Color3.fromRGB(100, 200, 255)
+        end
+    end
+}
 
 -- ============================================
 -- VARIÁVEIS GLOBAIS
@@ -299,6 +451,14 @@ function advancedNotify(title, text, notifType, duration)
             gradient = ColorSequence.new({
                 ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 140, 0)),
                 ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 100, 0))
+            })
+        },
+        ping = { -- NOVO: Estilo para notificações de ping
+            color = CONFIG.customColors.ping,
+            icon = "📶",
+            gradient = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 200)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 180, 140))
             })
         }
     }
@@ -501,6 +661,10 @@ local function notifySky(title, text, duration)
     advancedNotify(title, text, "sky", duration or 3)
 end
 
+local function notifyPing(title, text, duration) -- NOVO
+    advancedNotify(title, text, "ping", duration or 3)
+end
+
 -- ============================================
 -- FUNÇÕES UTILITÁRIAS
 -- ============================================
@@ -524,7 +688,7 @@ local function tween(obj, props, time, style, dir, callback)
 end
 
 -- ============================================
--- INTRO ANIMADA
+-- INTRO ANIMADA (ATUALIZADA COM PING INFO)
 -- ============================================
 local function createIntro()
     local success = pcall(function()
@@ -605,8 +769,8 @@ local function createIntro()
         title.Parent = card
         
         local versionBadge = Instance.new("Frame")
-        versionBadge.Size = UDim2.new(0, 160, 0, 30)
-        versionBadge.Position = UDim2.new(0.5, -80, 0, 225)
+        versionBadge.Size = UDim2.new(0, 180, 0, 30)
+        versionBadge.Position = UDim2.new(0.5, -90, 0, 225)
         versionBadge.BackgroundColor3 = CONFIG.customColors.tote
         versionBadge.BackgroundTransparency = 0.2
         versionBadge.BorderSizePixel = 0
@@ -619,7 +783,7 @@ local function createIntro()
         local version = Instance.new("TextLabel")
         version.Size = UDim2.new(1, 0, 1, 0)
         version.BackgroundTransparency = 1
-        version.Text = "v16.3 REVOLUTION"
+        version.Text = "v16.3 PING+"
         version.TextColor3 = Color3.new(1, 1, 1)
         version.TextSize = 14
         version.Font = Enum.Font.GothamBold
@@ -638,12 +802,13 @@ local function createIntro()
         updatesText.Size = UDim2.new(1, -60, 0, 150)
         updatesText.Position = UDim2.new(0, 30, 0, 290)
         updatesText.BackgroundTransparency = 1
-        updatesText.Text = "NOVIDADES v16.3:\n\n" ..
-                           "• NOTIFICAÇÕES AVANÇADAS v2.0\n" ..
-                           "• Sistema de notificações moderno\n" ..
-                           "• Tipos: Success, Error, Tote, Morph\n" ..
-                           "• Animações suaves e glassmorphism\n" ..
-                           "• Barra de progresso visual"
+        updatesText.Text = "NOVIDADES v16.3 PING+:\n\n" ..
+                           "• SISTEMA DE PING ADAPTATIVO\n" ..
+                           "• Compensação automática de lag\n" ..
+                           "• Range dinâmico baseado no ping\n" ..
+                           "• Monitor de ping em tempo real\n" ..
+                           "• Priorização inteligente de bolas\n" ..
+                           "• Buffer de segurança anti-spike"
         updatesText.TextColor3 = CONFIG.customColors.textSecondary
         updatesText.TextSize = 15
         updatesText.Font = Enum.Font.Gotham
@@ -1035,7 +1200,7 @@ local function restoreOriginalSkybox()
         originalSkybox = nil
     end
     currentSkybox = nil
-    notifyInfo("ℹ️ Skybox", "Céu original restaurado", 2)
+    notify("ℹ️ Skybox", "Céu original restaurado", 2)
     addLog("Skybox restaurado", "info")
 end
 
@@ -1051,7 +1216,7 @@ local function saveOriginalSkybox()
 end
 
 -- ============================================
--- REACH SYSTEM
+-- REACH SYSTEM (OTIMIZADO COM PING)
 -- ============================================
 local function updateCharacter()
     local newChar = LocalPlayer.Character
@@ -1066,7 +1231,13 @@ end
 
 local function findBalls()
     local now = tick()
-    if now - lastBallUpdate < CONFIG.scanCooldown then 
+    -- Ajusta cooldown baseado no ping (NOVO)
+    local cooldown = CONFIG.scanCooldown
+    if PingSystem:IsHighLoad() then
+        cooldown = cooldown * 1.5 -- Aumenta cooldown em lag
+    end
+    
+    if now - lastBallUpdate < cooldown then 
         return #balls 
     end
     lastBallUpdate = now
@@ -1125,7 +1296,7 @@ local function getBodyParts()
 end
 
 -- ============================================
--- ESFERAS
+-- ESFERAS (COM PING COMPENSATION)
 -- ============================================
 local function createReachSphere()
     if reachSphere and reachSphere.Parent then 
@@ -1169,7 +1340,9 @@ local function updateReachSphere()
     if HRP and HRP.Parent then
         pcall(function()
             reachSphere.Position = HRP.Position
-            reachSphere.Size = Vector3.new(CONFIG.reach * 2, CONFIG.reach * 2, CONFIG.reach * 2)
+            -- Range efetivo com compensação de ping (NOVO)
+            local effectiveRange = PingSystem:GetEffectiveRange(CONFIG.reach)
+            reachSphere.Size = Vector3.new(effectiveRange * 2, effectiveRange * 2, effectiveRange * 2)
             reachSphere.Color = CONFIG.customColors.primary
         end)
     end
@@ -1214,7 +1387,9 @@ local function updateArthurSphere()
     if HRP and HRP.Parent then
         pcall(function()
             arthurSphere.Position = HRP.Position
-            arthurSphere.Size = Vector3.new(CONFIG.arthurSphere.reach * 2, CONFIG.arthurSphere.reach * 2, CONFIG.arthurSphere.reach * 2)
+            -- Range efetivo com compensação de ping (NOVO)
+            local effectiveRange = PingSystem:GetEffectiveRange(CONFIG.arthurSphere.reach)
+            arthurSphere.Size = Vector3.new(effectiveRange * 2, effectiveRange * 2, effectiveRange * 2)
             arthurSphere.Color = CONFIG.arthurSphere.color
             arthurSphere.Transparency = shouldShow and CONFIG.arthurSphere.transparency or 1
             
@@ -1247,7 +1422,7 @@ local function setSpheresVisible(visible)
 end
 
 -- ============================================
--- TOUCH SYSTEM
+-- TOUCH SYSTEM (OTIMIZADO COM PING)
 -- ============================================
 local function doTouch(ball, part)
     if not ball or not ball.Parent or not part or not part.Parent then 
@@ -1255,7 +1430,13 @@ local function doTouch(ball, part)
     end
     
     local key = tostring(ball.Name) .. "_" .. tostring(part.Name) .. "_" .. tostring(ball:GetFullName())
-    if touchDebounce[key] and tick() - touchDebounce[key] < 0.05 then 
+    -- Ajusta debounce baseado no ping (NOVO)
+    local debounceTime = 0.05
+    if PingSystem:IsHighLoad() then
+        debounceTime = 0.08 -- Mais conservador em lag
+    end
+    
+    if touchDebounce[key] and tick() - touchDebounce[key] < debounceTime then 
         return 
     end
     touchDebounce[key] = tick()
@@ -1283,7 +1464,13 @@ local function processAutoTouch()
     end
     
     local now = tick()
-    if now - lastTouch < 0.03 then 
+    -- Ajusta cooldown baseado no ping (NOVO)
+    local touchCooldown = 0.03
+    if PingSystem:IsHighLoad() then
+        touchCooldown = 0.05
+    end
+    
+    if now - lastTouch < touchCooldown then 
         return 
     end
     
@@ -1295,15 +1482,32 @@ local function processAutoTouch()
     
     local ballInRange = false
     local closestBall = nil
-    local closestDistance = CONFIG.reach
+    local closestDistance = PingSystem:GetEffectiveRange(CONFIG.reach) -- Range compensado
     
-    for _, ball in ipairs(balls) do
+    -- Ordena por distância se smart priority estiver ativo (NOVO)
+    local ballsToProcess = balls
+    if CONFIG.pingOptimization.smartPriority and #balls > 1 then
+        table.sort(balls, function(a, b)
+            if not a or not b then return false end
+            local distA = (a.Position - hrpPos).Magnitude
+            local distB = (b.Position - hrpPos).Magnitude
+            return distA < distB
+        end)
+        -- Limita processamento em pings altos
+        if PingSystem:IsCritical() then
+            ballsToProcess = {balls[1]} -- Só a mais próxima
+        elseif PingSystem:IsHighLoad() then
+            ballsToProcess = {balls[1], balls[2]} -- As duas mais próximas
+        end
+    end
+    
+    for _, ball in ipairs(ballsToProcess) do
         if ball and ball.Parent then
             local success, distance = pcall(function()
                 return (ball.Position - hrpPos).Magnitude
             end)
             
-            if success and distance and distance <= CONFIG.reach and distance < closestDistance then
+            if success and distance and distance <= closestDistance then
                 ballInRange = true
                 closestDistance = distance
                 closestBall = ball
@@ -1415,7 +1619,7 @@ local function processAutoSkills()
             local success, dist = pcall(function()
                 return (ball.Position - hrpPos).Magnitude
             end)
-            if success and dist and dist <= CONFIG.reach then
+            if success and dist and dist <= PingSystem:GetEffectiveRange(CONFIG.reach) then
                 ballInRange = true
                 break
             end
@@ -1649,7 +1853,7 @@ local function executeTote()
     if not currentBall or not currentBall.Parent then
         if HRP then
             local closest = nil
-            local closestDist = CONFIG.reach
+            local closestDist = PingSystem:GetEffectiveRange(CONFIG.reach)
             
             for _, ball in ipairs(balls) do
                 if ball and ball.Parent then
@@ -1707,7 +1911,7 @@ local function toggleTote(enabled)
 end
 
 -- ============================================
--- INTERFACE WINDUI v16.3
+-- INTERFACE WINDUI v16.3 (COM PING MONITOR)
 -- ============================================
 local function createWindUI()
     local success = pcall(function()
@@ -1723,8 +1927,7 @@ local function createWindUI()
         mainGui.ResetOnSpawn = false
         mainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         mainGui.Parent = CoreGui
-        
-        mainFrame = Instance.new("Frame")
+                mainFrame = Instance.new("Frame")
         mainFrame.Name = "MainFrame"
         
         if UserInputService.TouchEnabled then
@@ -1880,12 +2083,39 @@ local function createWindUI()
         headerSubtitle.Size = UDim2.new(0.5, 0, 0, 20)
         headerSubtitle.Position = UDim2.new(0, 20, 0, 30)
         headerSubtitle.BackgroundTransparency = 1
-        headerSubtitle.Text = "Revolution v16.3"
+        headerSubtitle.Text = "Revolution v16.3 PING+"
         headerSubtitle.TextColor3 = CONFIG.customColors.textMuted
         headerSubtitle.TextSize = 11
         headerSubtitle.Font = Enum.Font.Gotham
         headerSubtitle.TextXAlignment = Enum.TextXAlignment.Left
         headerSubtitle.Parent = header
+        
+        -- MONITOR DE PING NO HEADER (NOVO)
+        local pingMonitor = Instance.new("TextLabel")
+        pingMonitor.Name = "PingMonitor"
+        pingMonitor.Size = UDim2.new(0, 120, 0, 25)
+        pingMonitor.Position = UDim2.new(1, -140, 0, 12)
+        pingMonitor.BackgroundColor3 = CONFIG.customColors.bgElevated
+        pingMonitor.BackgroundTransparency = 0.5
+        pingMonitor.Text = "📶 -- ms"
+        pingMonitor.TextColor3 = CONFIG.customColors.ping
+        pingMonitor.TextSize = 12
+        pingMonitor.Font = Enum.Font.GothamBold
+        pingMonitor.Parent = header
+        
+        local pingCorner = Instance.new("UICorner")
+        pingCorner.CornerRadius = UDim.new(0, 8)
+        pingCorner.Parent = pingMonitor
+        
+        -- Atualiza monitor de ping
+        task.spawn(function()
+            while mainGui and mainGui.Parent do
+                local icon, color = PingSystem:GetStatusVisuals()
+                pingMonitor.Text = icon .. " " .. PingSystem.AveragePing .. " ms"
+                pingMonitor.TextColor3 = color
+                task.wait(0.5)
+            end
+        end)
         
         local minimizeBtn = Instance.new("TextButton")
         minimizeBtn.Name = "MinimizeBtn"
@@ -1917,7 +2147,7 @@ local function createWindUI()
         closeCorner.CornerRadius = UDim.new(0, 10)
         closeCorner.Parent = closeBtn
         
-            -- FUNÇÕES UI
+        -- FUNÇÕES UI
         local function createSection(parent, title, accentColor)
             accentColor = accentColor or CONFIG.customColors.primary
             
@@ -2254,6 +2484,13 @@ local function createWindUI()
             notify(val and "⚡ Auto Skills ON" or "⚠️ Auto Skills OFF", val and "Ativação automática de skills!" or "Auto skills desativado.", 2)
         end)
         
+        -- NOVO: Toggle de otimização de ping na aba reach
+        createToggle(reachContent, "Otimização de Ping", CONFIG.pingOptimization.enabled, function(val)
+            CONFIG.pingOptimization.enabled = val
+            notifyPing(val and "📶 Ping Optimization ON" or "📶 Ping Optimization OFF", 
+                val and "Sistema adaptativo de ping ativado!" or "Otimização de ping desativada.", 3)
+        end, CONFIG.customColors.ping)
+        
         createSlider(reachContent, "Alcance Principal", 5, 100, CONFIG.reach, function(val)
             CONFIG.reach = val
         end)
@@ -2261,6 +2498,12 @@ local function createWindUI()
         createSlider(reachContent, "Alcance Arthur", 1, 150, CONFIG.arthurSphere.reach, function(val)
             CONFIG.arthurSphere.reach = val
         end, CONFIG.arthurSphere.color)
+        
+        -- NOVO: Slider de compensação de ping
+        createSlider(reachContent, "Compensação de Ping", 0, 30, CONFIG.pingOptimization.compensationRange * 100, function(val)
+            CONFIG.pingOptimization.compensationRange = val / 100
+            notifyPing("📶 Compensação", "Range aumentado em " .. val .. "% quando ping alto", 2)
+        end, CONFIG.customColors.ping)
         
         -- ABA TOTE
         local toteSection, toteContent = createSection(contentFrames.tote, "Tote System v3.0", CONFIG.customColors.tote)
@@ -2458,11 +2701,15 @@ local function createWindUI()
             CONFIG.customColors.tote = Color3.fromRGB(val, CONFIG.customColors.tote.G * 255, CONFIG.customColors.tote.B * 255)
         end, CONFIG.customColors.tote)
         
+        createSlider(configContent, "Cor Ping (R)", 0, 255, CONFIG.customColors.ping.R * 255, function(val)
+            CONFIG.customColors.ping = Color3.fromRGB(val, CONFIG.customColors.ping.G * 255, CONFIG.customColors.ping.B * 255)
+        end, CONFIG.customColors.ping)
+        
         createButton(configContent, "🔄 Resetar Configurações", CONFIG.customColors.warning, function()
-            -- Reset básico
             CONFIG.reach = 15
             CONFIG.tote.power = 50
             CONFIG.tote.curveAmount = 30
+            CONFIG.pingOptimization.compensationRange = 0.15
             notifySuccess("🔄 Reset", "Configurações padrão restauradas!", 3)
         end)
         
@@ -2486,7 +2733,9 @@ local function createWindUI()
             {k="skillsActivated", l="Skills Ativadas", icon="⚡"},
             {k="toteKicks", l="Chutes Tote", icon="🎯"},
             {k="morphsDone", l="Morphs Realizados", icon="👤"},
-            {k="antiLagItems", l="Itens Otimizados", icon="🚀"}
+            {k="antiLagItems", l="Itens Otimizados", icon="🚀"},
+            {k="avgPing", l="Ping Médio", icon="📶"}, -- NOVO
+            {k="fps", l="FPS Atual", icon="🎮"} -- NOVO
         }
         
         for _, item in ipairs(statItems) do
@@ -2644,7 +2893,7 @@ local function createWindUI()
             if iconGui then 
                 iconGui.Enabled = false 
             end
-            notifySuccess("🎉 Bem-vindo de volta!", "CAFUXZ1 Hub v16.3 ativo.", 2)
+            notifySuccess("🎉 Bem-vindo de volta!", "CAFUXZ1 Hub v16.3 PING+ ativo.", 2)
             addLog("Interface restaurada", "info")
         end
         
@@ -2790,8 +3039,8 @@ local function createWindUI()
             end)
         end
         
-        notifySuccess("🎉 CAFUXZ1 Hub v16.3", "Sistema de notificações avançadas ativo!", 4)
-        addLog("CAFUXZ1 Hub v16.3 iniciado!", "success")
+        notifySuccess("🎉 CAFUXZ1 Hub v16.3 PING+", "Sistema de ping adaptativo ativo!", 4)
+        addLog("CAFUXZ1 Hub v16.3 PING+ iniciado!", "success")
     end)
     
     if not success then
@@ -2800,7 +3049,7 @@ local function createWindUI()
 end
 
 -- ============================================
--- LOOP PRINCIPAL
+-- LOOP PRINCIPAL (OTIMIZADO COM PING)
 -- ============================================
 local function mainLoop()
     if loopRunning then 
@@ -2808,10 +3057,16 @@ local function mainLoop()
     end
     loopRunning = true
     
+    -- Inicializa sistema de ping
+    PingSystem:Init()
+    
     heartbeatConnection = RunService.Heartbeat:Connect(function()
         if isClosed then 
             return 
         end
+        
+        -- Atualiza ping a cada frame
+        PingSystem:Update()
         
         pcall(updateCharacter)
         pcall(updateBothSpheres)
@@ -2825,8 +3080,8 @@ local function mainLoop()
         end
     end)
     
-    addLog("Sistema Reach iniciado", "success")
-    notifySuccess("⚡ Sistema Reach", "Auto-touch e esferas ativos!", 3)
+    addLog("Sistema Reach iniciado com Ping Optimization", "success")
+    notifySuccess("⚡ Sistema Reach PING+", "Auto-touch adaptativo ativo!", 3)
 end
 
 -- ============================================
@@ -2863,6 +3118,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         end
         notify(CONFIG.antiLag.enabled and "🚀 Anti-Lag ON" or "⚠️ Anti-Lag OFF", 
                CONFIG.antiLag.enabled and "Otimização de performance ativada!" or "Anti-lag desativado.", 2)
+        
+    elseif input.KeyCode == Enum.KeyCode.F5 then -- NOVO: Toggle ping optimization
+        CONFIG.pingOptimization.enabled = not CONFIG.pingOptimization.enabled
+        notifyPing(CONFIG.pingOptimization.enabled and "📶 Ping Optimization ON" or "📶 Ping Optimization OFF",
+            CONFIG.pingOptimization.enabled and "Sistema adaptativo de ping ativado!" or "Otimização de ping desativada.", 3)
+        addLog("F5: Ping Optimization " .. (CONFIG.pingOptimization.enabled and "ON" or "OFF"), "info")
         
     elseif input.KeyCode == CONFIG.tote.keybind then
         if CONFIG.tote.enabled then
@@ -2933,22 +3194,25 @@ task.spawn(function()
 end)
 
 print("========================================")
-print("CAFUXZ1 Hub v16.3 - REVOLUTION")
+print("CAFUXZ1 Hub v16.3 PING+ - REVOLUTION")
 print("========================================")
 print("SISTEMAS ATIVOS:")
-print("   ⚽ Reach System (Double Sphere)")
+print("   ⚽ Reach System (Double Sphere + Ping+)")
 print("   🎯 Tote System v3.0 (Curva Realista)")
 print("   👤 Morph System")
 print("   ☁️  Skybox System")
 print("   🚀 Anti Lag")
 print("   🔔 Notificações Avançadas v2.0")
+print("   📶 Ping Optimization System")
 print("========================================")
 print("🎮 Atalhos:")
 print("   F1 = Auto Touch")
 print("   F2 = Toggle Esferas")
 print("   F3 = Double Touch")
 print("   F4 = Anti Lag")
+print("   F5 = Ping Optimization") -- NOVO
 print("   T  = Executar Tote")
 print("   Insert = Minimizar/Restaurar")
 print("========================================")
 
+       
